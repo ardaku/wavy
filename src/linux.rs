@@ -180,8 +180,7 @@ pub struct Speaker {
     buffer_size: u64,
     period_size: u64,
     status: Vec<u8>,
-    lbuffer: Vec<i16>,
-    rbuffer: Vec<i16>,
+    buffer: Vec<i16>,
 }
 
 impl Speaker {
@@ -215,10 +214,10 @@ impl Speaker {
         let period_size = period_size as u64;
 
         let status = vec![0; unsafe { snd_pcm_status_sizeof() }];
-        let (lbuffer, rbuffer) = (Vec::new(), Vec::new());
+        let buffer = Vec::new();
 
         Ok(Speaker {
-            sound_device, buffer_size, status, period_size, lbuffer, rbuffer,
+            sound_device, buffer_size, status, period_size, buffer,
         })
     }
 
@@ -233,20 +232,18 @@ impl Speaker {
 			buffer_length - left
 		} else { 0 };
 
-        self.lbuffer = Vec::new();
-        self.rbuffer = Vec::new();
-        let mut buffer = Vec::new();
+//        if write != 0 { println!("PLY {}", write); }
+
+        self.buffer.clear();
 
 		for _i in 0..write {
             let (l, r) = generator();
-			self.lbuffer.push(l);
-			self.rbuffer.push(r);
-			buffer.push(l);
-			buffer.push(r);
+			self.buffer.push(l);
+			self.buffer.push(r);
 		}
 
         if unsafe {
-            snd_pcm_writei(self.sound_device, buffer.as_mut_ptr(), write as u64)
+            snd_pcm_writei(self.sound_device, self.buffer.as_mut_ptr(), write as u64)
         } < 0 {
             println!("Buffer underrun");
         }
@@ -272,13 +269,12 @@ pub struct Microphone {
     buffer_size: u64,
     period_size: u64,
     status: Vec<u8>,
-    lbuffer: Vec<i16>,
-    rbuffer: Vec<i16>,
+    buffer: Vec<i16>,
 }
 
 impl Microphone {
     pub fn new(sr: SampleRate) -> Result<Microphone, AudioError> {
-        let mut sound_device: *mut snd_pcm_t = pcm_open(true, b"plughw:0,0\0")?;
+        let mut sound_device: *mut snd_pcm_t = pcm_open(true, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 
         // Get the buffer size.
@@ -306,36 +302,39 @@ impl Microphone {
         let buffer_size = buffer_size as u64;
         let period_size = period_size as u64;
         let status = vec![0; unsafe { snd_pcm_status_sizeof() }];
-        let (lbuffer, rbuffer) = (Vec::new(), Vec::new());
+        let buffer = Vec::new();
 
         Ok(Microphone {
-            sound_device, buffer_size, period_size, lbuffer, rbuffer, status,
+            sound_device, buffer_size, period_size, buffer, status,
         })
     }
 
     pub fn record(&mut self, generator: &mut FnMut(usize, i16, i16)) {
         let status = unsafe { snd_pcm_status(self.sound_device, self.status.as_mut_ptr() as *mut _) };
         let avail = unsafe { snd_pcm_status_get_avail(self.status.as_ptr() as *const _) };
-        let left = self.buffer_size - avail;
+        dbg!(avail);
+/*        let left = self.buffer_size - avail;
 
         let buffer_length = self.period_size * 4; // 16 bit (2 bytes) * Stereo (2 channels)
 
         let write = if left < buffer_length {
 			buffer_length - left
-		} else { 0 };
+		} else { 0 };*/
 
-        self.lbuffer = Vec::with_capacity(write as usize);
-        self.rbuffer = Vec::with_capacity(write as usize);
+        if avail != 0 { println!("REC {}", avail); }
+        self.buffer.resize(avail as usize * 2, 0);
 
         if unsafe {
-            snd_pcm_readn(self.sound_device, [self.lbuffer.as_mut_ptr(), self.rbuffer.as_mut_ptr()].as_mut_ptr(), write as u64)
+            snd_pcm_readi(self.sound_device, self.buffer.as_mut_ptr(), avail as u64)
+
+/*            snd_pcm_readn(self.sound_device, [self.lbuffer.as_mut_ptr(), self.rbuffer.as_mut_ptr()].as_mut_ptr(), write as u64)*/
         } < 0 {
-            println!("Buffer underrun.");
+            println!("Buffer overflow.");
         }
 
-		for i in 0..write {
-			let l = self.lbuffer[i as usize];
-			let r = self.rbuffer[i as usize];
+		for i in 0..((avail as usize) /2) {
+			let l = self.buffer[i * 2 as usize];
+			let r = self.buffer[i * 2 + 1 as usize];
 
             generator(0, l, r);
 		}
