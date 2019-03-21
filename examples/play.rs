@@ -1,11 +1,20 @@
+use wavy::prelude::*;
+
 const MUSIC: &[u8] = include_bytes!("306.raw");
 
-fn main() {
-    let mut speaker = wavy::alsa2::Speaker::new(wavy::SampleRate::Normal);
+fn main() -> Result<(), AudioError> {
+    let mut speaker = SpeakerSystem::new(wavy::SampleRate::Normal)?;
     let mut cursor = 0;
+    let mut running = true;
 
-    loop {
+    while running {
         speaker.play(&mut || {
+            // When the last sample has been written, quit.
+            if cursor >= MUSIC.len() {
+                running = false;
+                return (0, 0);
+            }
+
             let sample_a = MUSIC[cursor];
             let sample_b = MUSIC[cursor + 1];
             let sample_c = MUSIC[cursor + 2];
@@ -16,40 +25,9 @@ fn main() {
 
             cursor += 4;
 
-
-
-            unsafe { (/*std::mem::transmute(lsample)*/0, std::mem::transmute(rsample)) }
+            unsafe { (std::mem::transmute(lsample), std::mem::transmute(rsample)) }
         });
     }
 
-/*    let mut audio_io = wavy::AudioIO::new(wavy::SampleRate::Normal);
-    let mut cursor = 0;
-    let mut alt = false;
-
-    let mut x = 0;
-
-    loop {
-        audio_io.play(&mut || {
-            /*let sample = x;
-            if sample == std::i16::MAX - 255 {
-                x = 0;
-            }
-            x += 256;
-            sample*/
-
-            let sample_a = MUSIC[cursor];
-            let sample_b = MUSIC[cursor + 1];
-
-            let sample = ((sample_a as u16)) | ((sample_b as u16) << 8);
-
-//            if alt {
-//                cursor += 4;
-//            }
-//            alt = !alt;
-
-            cursor += 2;
-
-            unsafe { std::mem::transmute(sample) }
-        });
-    }*/
+    Ok(())
 }
