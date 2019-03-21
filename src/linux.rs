@@ -72,6 +72,18 @@ extern "C" {
 
     fn snd_pcm_prepare(pcm: *mut snd_pcm_t) -> c_int;
 
+    fn snd_pcm_writei(
+        pcm: *mut snd_pcm_t,
+        buffers: *mut i16,
+        size: c_ulong,
+    ) -> snd_pcm_sframes_t;
+
+    fn snd_pcm_readi(
+        pcm: *mut snd_pcm_t,
+        buffer: *mut i16,
+        size: c_ulong,
+    ) -> snd_pcm_sframes_t;
+
     fn snd_pcm_writen(
         pcm: *mut snd_pcm_t,
         buffers: *mut *mut i16,
@@ -127,9 +139,9 @@ fn pcm_hw_params(sr: SampleRate, sound_device: *mut snd_pcm_t) -> Result<*mut sn
     }
     // Set access to RW noninterleaved.
     if unsafe {
-        snd_pcm_hw_params_set_access(sound_device, hw_params, 4 /*RW_NONINTERLEAVED*/)
+        snd_pcm_hw_params_set_access(sound_device, hw_params, 3 /*RW_INTERLEAVED*/)
     } < 0 {
-//        return Err(AudioError::InternalError("Cannot set access type!".to_string()))
+        return Err(AudioError::InternalError("Cannot set access type!".to_string()));
     }
     // 
     if unsafe {
@@ -174,7 +186,7 @@ pub struct Speaker {
 
 impl Speaker {
     pub fn new(sr: SampleRate) -> Result<Speaker, AudioError> {
-        let mut sound_device: *mut snd_pcm_t = pcm_open(false, b"plughw:0,0\0")?;
+        let mut sound_device: *mut snd_pcm_t = pcm_open(false, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 
         // Get the buffer size.
@@ -182,12 +194,12 @@ impl Speaker {
         unsafe {
             snd_pcm_hw_params_get_buffer_size(hw_params, &mut buffer_size);
         }
-//        dbg!(buffer_size);
+        dbg!(buffer_size);
         let (mut period_size, mut d) = (0, 0);
         unsafe {
             snd_pcm_hw_params_get_period_size(hw_params, &mut period_size, &mut d);
         }
-//        dbg!(period_size);
+        dbg!(period_size);
 
         unsafe {
             snd_pcm_hw_params_free(hw_params);
@@ -223,18 +235,27 @@ impl Speaker {
 
         self.lbuffer = Vec::new();
         self.rbuffer = Vec::new();
+        let mut buffer = Vec::new();
 
 		for _i in 0..write {
             let (l, r) = generator();
 			self.lbuffer.push(l);
 			self.rbuffer.push(r);
+			buffer.push(l);
+			buffer.push(r);
 		}
 
         if unsafe {
+            snd_pcm_writei(self.sound_device, buffer.as_mut_ptr(), write as u64)
+        } < 0 {
+            println!("Buffer underrun");
+        }
+
+/*        if unsafe {
             snd_pcm_writen(self.sound_device, [self.lbuffer.as_mut_ptr(), self.rbuffer.as_mut_ptr()].as_mut_ptr(), write as u64)
         } < 0 {
             println!("Buffer underrun.");
-        }
+        }*/
     }
 }
 
