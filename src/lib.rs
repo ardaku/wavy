@@ -2,7 +2,6 @@
 //!
 //! The sound waves are _so_ wavy!
 
-pub mod prelude;
 mod error;
 mod sample_rate;
 
@@ -92,7 +91,7 @@ pub struct SpeakerSystem(
 );
 
 impl SpeakerSystem {
-    /// Connect to speaker at a specific sample rate.
+    /// Connect to the speaker system at a specific sample rate.
     pub fn new(sr: SampleRate) -> Result<SpeakerSystem, AudioError> {
         Ok(SpeakerSystem(
             #[cfg(target_os = "linux")] {
@@ -128,7 +127,7 @@ pub struct MicrophoneSystem(
 );
 
 impl MicrophoneSystem {
-	/// Create a new Microphone object.
+	/// Connect to the microphone system at a specific sample rate.
 	pub fn new(sr: SampleRate) -> Result<MicrophoneSystem, AudioError> {
         Ok(MicrophoneSystem(
             #[cfg(target_os = "linux")] {

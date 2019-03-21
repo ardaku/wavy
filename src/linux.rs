@@ -1,8 +1,6 @@
 #![allow(non_camel_case_types)]
 
-use crate::prelude::*;
-
-use crate::SampleRate;
+use crate::*;
 
 use libc;
 use libc::{c_char, c_int, c_long, c_uint, c_ulong, size_t};
