@@ -5,7 +5,7 @@ use crate::prelude::*;
 use crate::SampleRate;
 
 use libc;
-use libc::{c_char, c_int, c_long, c_uint, c_ulong, c_void, size_t};
+use libc::{c_char, c_int, c_long, c_uint, c_ulong, size_t};
 
 enum snd_pcm_t {}
 enum snd_pcm_hw_params_t {}
@@ -81,18 +81,6 @@ extern "C" {
     fn snd_pcm_readi(
         pcm: *mut snd_pcm_t,
         buffer: *mut i16,
-        size: c_ulong,
-    ) -> snd_pcm_sframes_t;
-
-    fn snd_pcm_writen(
-        pcm: *mut snd_pcm_t,
-        buffers: *mut *mut i16,
-        size: c_ulong,
-    ) -> snd_pcm_sframes_t;
-
-    fn snd_pcm_readn(
-        pcm: *mut snd_pcm_t,
-        buffer: *mut *mut i16,
         size: c_ulong,
     ) -> snd_pcm_sframes_t;
 
@@ -185,7 +173,7 @@ pub struct Speaker {
 
 impl Speaker {
     pub fn new(sr: SampleRate) -> Result<Speaker, AudioError> {
-        let mut sound_device: *mut snd_pcm_t = pcm_open(false, b"default\0")?;
+        let sound_device: *mut snd_pcm_t = pcm_open(false, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 
         // Get the buffer size.
@@ -193,12 +181,12 @@ impl Speaker {
         unsafe {
             snd_pcm_hw_params_get_buffer_size(hw_params, &mut buffer_size);
         }
-        dbg!(buffer_size);
+//        dbg!(buffer_size);
         let (mut period_size, mut d) = (0, 0);
         unsafe {
             snd_pcm_hw_params_get_period_size(hw_params, &mut period_size, &mut d);
         }
-        dbg!(period_size);
+//        dbg!(period_size);
 
         unsafe {
             snd_pcm_hw_params_free(hw_params);
@@ -222,7 +210,7 @@ impl Speaker {
     }
 
     pub fn play(&mut self, generator: &mut FnMut() -> (i16, i16)) {
-        let status = unsafe { snd_pcm_status(self.sound_device, self.status.as_mut_ptr() as *mut _) };
+        let _ = unsafe { snd_pcm_status(self.sound_device, self.status.as_mut_ptr() as *mut _) };
         let avail = unsafe { snd_pcm_status_get_avail(self.status.as_ptr() as *const _) };
         let left = self.buffer_size - avail;
 
@@ -231,8 +219,6 @@ impl Speaker {
         let write = if left < buffer_length {
 			buffer_length - left
 		} else { 0 };
-
-//        if write != 0 { println!("PLY {}", write); }
 
         self.buffer.clear();
 
@@ -247,12 +233,6 @@ impl Speaker {
         } < 0 {
             println!("Buffer underrun");
         }
-
-/*        if unsafe {
-            snd_pcm_writen(self.sound_device, [self.lbuffer.as_mut_ptr(), self.rbuffer.as_mut_ptr()].as_mut_ptr(), write as u64)
-        } < 0 {
-            println!("Buffer underrun.");
-        }*/
     }
 }
 
@@ -266,15 +246,13 @@ impl Drop for Speaker {
 
 pub struct Microphone {
     sound_device: *mut snd_pcm_t,
-    buffer_size: u64,
-    period_size: u64,
     status: Vec<u8>,
     buffer: Vec<i16>,
 }
 
 impl Microphone {
     pub fn new(sr: SampleRate) -> Result<Microphone, AudioError> {
-        let mut sound_device: *mut snd_pcm_t = pcm_open(true, b"default\0")?;
+        let sound_device: *mut snd_pcm_t = pcm_open(true, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 
         // Get the buffer size.
@@ -282,12 +260,12 @@ impl Microphone {
         unsafe {
             snd_pcm_hw_params_get_buffer_size(hw_params, &mut buffer_size);
         }
-        dbg!(buffer_size);
+//        dbg!(buffer_size);
         let (mut period_size, mut d) = (0, 0);
         unsafe {
             snd_pcm_hw_params_get_period_size(hw_params, &mut period_size, &mut d);
         }
-        dbg!(period_size);
+//        dbg!(period_size);
 
         unsafe {
             snd_pcm_hw_params_free(hw_params);
@@ -299,35 +277,22 @@ impl Microphone {
             return Err(AudioError::InternalError("Could not start!".to_string()));
         }
 
-        let buffer_size = buffer_size as u64;
-        let period_size = period_size as u64;
         let status = vec![0; unsafe { snd_pcm_status_sizeof() }];
         let buffer = Vec::new();
 
         Ok(Microphone {
-            sound_device, buffer_size, period_size, buffer, status,
+            sound_device, buffer, status,
         })
     }
 
     pub fn record(&mut self, generator: &mut FnMut(usize, i16, i16)) {
-        let status = unsafe { snd_pcm_status(self.sound_device, self.status.as_mut_ptr() as *mut _) };
+        let _ = unsafe { snd_pcm_status(self.sound_device, self.status.as_mut_ptr() as *mut _) };
         let avail = unsafe { snd_pcm_status_get_avail(self.status.as_ptr() as *const _) };
-        dbg!(avail);
-/*        let left = self.buffer_size - avail;
 
-        let buffer_length = self.period_size * 4; // 16 bit (2 bytes) * Stereo (2 channels)
-
-        let write = if left < buffer_length {
-			buffer_length - left
-		} else { 0 };*/
-
-        if avail != 0 { println!("REC {}", avail); }
         self.buffer.resize(avail as usize * 2, 0);
 
         if unsafe {
             snd_pcm_readi(self.sound_device, self.buffer.as_mut_ptr(), avail as u64)
-
-/*            snd_pcm_readn(self.sound_device, [self.lbuffer.as_mut_ptr(), self.rbuffer.as_mut_ptr()].as_mut_ptr(), write as u64)*/
         } < 0 {
             println!("Buffer overflow.");
         }

@@ -6,8 +6,8 @@ pub mod prelude;
 mod error;
 mod sample_rate;
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
-mod alsa;
+// #[cfg(any(target_os = "linux", target_os = "android"))]
+// mod alsa;
 
 mod linux;
 
@@ -15,8 +15,6 @@ extern crate libc;
 
 pub use error::AudioError;
 pub use sample_rate::SampleRate;
-
-use std::collections::VecDeque;
 
 /*/// Resampler for converting to and from sample rates supported by this crates.
 pub struct Resampler {
