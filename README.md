@@ -46,7 +46,10 @@ fn main() -> Result<(), AudioError> {
 ## TODO
 * Audio channel mixing.
 * Windows support.
-* MacOS support.
+* MacOS and iOS support.
+* WASM support.
+* Test on Android.
+* Nintendo Switch support (And other game consoles).
 * Sound from specific direction (Radians) and volume for video games.
 * Surround sound 5.1 support.
 * Audio Resampling.
