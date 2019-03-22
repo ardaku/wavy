@@ -1,9 +1,9 @@
-use wavy::prelude::*;
+use wavy::*;
 
 const MUSIC: &[u8] = include_bytes!("306.raw");
 
 fn main() -> Result<(), AudioError> {
-    let mut speaker = SpeakerSystem::new(wavy::SampleRate::Normal)?;
+    let mut speaker = SpeakerSystem::new(SampleRate::Normal)?;
     let mut cursor = 0;
     let mut running = true;
 
@@ -12,7 +12,7 @@ fn main() -> Result<(), AudioError> {
             // When the last sample has been written, quit.
             if cursor >= MUSIC.len() {
                 running = false;
-                return (0, 0);
+                return AudioSample::stereo(0, 0);
             }
 
             let sample_a = MUSIC[cursor];
@@ -25,7 +25,9 @@ fn main() -> Result<(), AudioError> {
 
             cursor += 4;
 
-            unsafe { (std::mem::transmute(lsample), std::mem::transmute(rsample)) }
+            let (l, r) = unsafe { (std::mem::transmute(lsample), std::mem::transmute(rsample)) };
+
+            AudioSample::stereo(l, r)
         });
     }
 

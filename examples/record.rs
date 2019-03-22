@@ -1,15 +1,15 @@
 //! This example records audio and plays it back in real time as it's being recorded.
 
-use wavy::prelude::*;
+use wavy::*;
 
 use std::collections::VecDeque;
 
 fn main() -> Result<(), AudioError> {
     println!("Opening microphone system");
-    let mut mic = MicrophoneSystem::new(wavy::SampleRate::Normal)?;
+    let mut mic = MicrophoneSystem::new(SampleRate::Normal)?;
 
     println!("Opening speaker system");
-    let mut speaker = SpeakerSystem::new(wavy::SampleRate::Normal)?;
+    let mut speaker = SpeakerSystem::new(SampleRate::Normal)?;
 
     println!("Done");
 
@@ -22,9 +22,9 @@ fn main() -> Result<(), AudioError> {
 
         speaker.play(&mut || {
             if let Some((lsample, rsample)) = buffer.pop_front() {
-                (lsample, rsample)
+                AudioSample::stereo(lsample, rsample)
             } else {
-                (0, 0)
+                AudioSample::stereo(0, 0)
             }
         });
     }
