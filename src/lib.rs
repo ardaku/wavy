@@ -37,6 +37,12 @@
 //! }
 //! ```
 
+#![warn(missing_docs)]
+#![doc(
+	html_logo_url = "http://free.plopgrizzly.com/plop/icon.svg",
+	html_favicon_url = "http://free.plopgrizzly.com/plop/icon.svg",
+)]
+
 mod error;
 mod sample_rate;
 mod system;

@@ -55,9 +55,9 @@ fn main() -> Result<(), AudioError> {
 * Audio Resampling.
 
 ## Links
-* [Website](https://jeronaldaron.plopgrizzly.com/wavy)
+* [Website](https://jeronaldaron.github.io/wavy)
 * [Cargo](https://crates.io/crates/wavy)
 * [Documentation](https://docs.rs/wavy)
-* [Change Log](https://jeronaldaron.plopgrizzly.com/wavy/CHANGELOG)
-* [Contributors](https://jeronaldaron.plopgrizzly.com/wavy/CONTRIBUTORS)
-* [Code of Conduct](https://jeronaldaron.plopgrizzly.com/wavy/CODEOFCONDUCT)
+* [Change Log](https://jeronaldaron.github.io/wavy/CHANGELOG)
+* [Contributors](https://jeronaldaron.github.io/wavy/CONTRIBUTORS)
+* [Code of Conduct](https://jeronaldaron.github.io/wavy/CODEOFCONDUCT)
