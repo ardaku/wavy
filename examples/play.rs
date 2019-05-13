@@ -20,8 +20,8 @@ fn main() -> Result<(), AudioError> {
             let sample_c = MUSIC[cursor + 2];
             let sample_d = MUSIC[cursor + 3];
 
-            let lsample = ((sample_a as u16)) | ((sample_b as u16) << 8);
-            let rsample = ((sample_c as u16)) | ((sample_d as u16) << 8);
+            let lsample = (sample_a as u16) | ((sample_b as u16) << 8);
+            let rsample = (sample_c as u16) | ((sample_d as u16) << 8);
 
             cursor += 4;
 

@@ -7,7 +7,7 @@
 
 [package]
 name = "wavy"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Jeron Aldaron Lau <jeronaldaron@gmail.com>"]
 edition = "2018"
 
@@ -15,7 +15,7 @@ license = "MIT / BSL-1.0"
 description = "Cross-platform real-time audio recording & playback."
 documentation = "https://docs.rs/wavy"
 homepage = "https://jeronaldaron.plopgrizzly.com/wavy"
-repository = "https://github.com/OxyDeadbeef/wavy"
+repository = "https://github.com/JeronAldaron/wavy"
 readme = "README.md"
 keywords = ["audio", "realtime", "cross-platform", "record", "play"]
 categories = ["game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"]

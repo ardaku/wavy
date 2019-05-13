@@ -33,34 +33,35 @@ impl AudioSample {
     /// * Surround-Right: 110°
     ///
     /// _source:_ [https://en.wikipedia.org/wiki/5.1_surround_sound#Music](https://en.wikipedia.org/wiki/5.1_surround_sound#Music)
-    pub fn surround(front_left: i16, front_right: i16, front_center: i16, lfe: i16,
-        surround_left: i16, surround_right: i16) -> AudioSample
-    {
+    pub fn surround(
+        front_left: i16,
+        front_right: i16,
+        front_center: i16,
+        lfe: i16,
+        surround_left: i16,
+        surround_right: i16,
+    ) -> AudioSample {
         AudioSample {
-            front_left: front_left,
-            front_right: front_right,
+            front_left,
+            front_right,
             center: front_center,
-            lfe: lfe,
-            surround_left: surround_left,
-            surround_right: surround_right,
+            lfe,
+            surround_left,
+            surround_right,
         }
     }
 }
 
 /// Audio (Speaker) output.  This type represents a speaker system.
-pub struct SpeakerSystem(
-    #[cfg(target_os = "linux")]
-    crate::linux::Speaker,
-);
+pub struct SpeakerSystem(#[cfg(target_os = "linux")] crate::linux::Speaker);
 
 impl SpeakerSystem {
     /// Connect to the speaker system at a specific sample rate.
     pub fn new(sr: crate::SampleRate) -> Result<SpeakerSystem, crate::AudioError> {
-        Ok(SpeakerSystem(
-            #[cfg(target_os = "linux")] {
-                crate::linux::Speaker::new(sr)?
-            },
-        ))
+        Ok(SpeakerSystem(#[cfg(target_os = "linux")]
+        {
+            crate::linux::Speaker::new(sr)?
+        }))
     }
 
     /// Generate audio samples as they are needed.  In your closure return S16_LE audio samples.
@@ -70,32 +71,28 @@ impl SpeakerSystem {
         self.0.play(&mut || {
             let sample = generator();
 
-            let l = (sample.front_left as i32 + sample.surround_left as i32) / 2;
-            let r = (sample.front_right as i32 + sample.surround_right as i32) / 2;
+            let l = (i32::from(sample.front_left) + i32::from(sample.surround_left)) / 2;
+            let r = (i32::from(sample.front_right) + i32::from(sample.surround_right)) / 2;
             (l as i16, r as i16)
         })
     }
 }
 
 /// Audio (Microphone) input.
-pub struct MicrophoneSystem(
-    #[cfg(target_os = "linux")]
-    crate::linux::Microphone,
-);
+pub struct MicrophoneSystem(#[cfg(target_os = "linux")] crate::linux::Microphone);
 
 impl MicrophoneSystem {
-	/// Connect to the microphone system at a specific sample rate.
-	pub fn new(sr: crate::SampleRate) -> Result<MicrophoneSystem, crate::AudioError> {
-        Ok(MicrophoneSystem(
-            #[cfg(target_os = "linux")] {
-                crate::linux::Microphone::new(sr)?
-            },
-        ))
-	}
+    /// Connect to the microphone system at a specific sample rate.
+    pub fn new(sr: crate::SampleRate) -> Result<MicrophoneSystem, crate::AudioError> {
+        Ok(MicrophoneSystem(#[cfg(target_os = "linux")]
+        {
+            crate::linux::Microphone::new(sr)?
+        }))
+    }
 
-	/// Record audio from the microphone system.  The closures first parameter is the microphone id.
+    /// Record audio from the microphone system.  The closures first parameter is the microphone id.
     /// The 2nd and 3rd are left and right sample.
-	pub fn record(&mut self, generator: &mut FnMut(usize, i16, i16)) {
+    pub fn record(&mut self, generator: &mut FnMut(usize, i16, i16)) {
         self.0.record(generator);
-	}
+    }
 }
