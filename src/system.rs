@@ -57,11 +57,15 @@ pub struct SpeakerSystem(#[cfg(target_os = "linux")] crate::linux::Speaker);
 
 impl SpeakerSystem {
     /// Connect to the speaker system at a specific sample rate.
-    pub fn new(sr: crate::SampleRate) -> Result<SpeakerSystem, crate::AudioError> {
-        Ok(SpeakerSystem(#[cfg(target_os = "linux")]
-        {
-            crate::linux::Speaker::new(sr)?
-        }))
+    pub fn new(
+        sr: crate::SampleRate,
+    ) -> Result<SpeakerSystem, crate::AudioError> {
+        Ok(SpeakerSystem(
+            #[cfg(target_os = "linux")]
+            {
+                crate::linux::Speaker::new(sr)?
+            },
+        ))
     }
 
     /// Generate audio samples as they are needed.  In your closure return S16_LE audio samples.
@@ -71,23 +75,33 @@ impl SpeakerSystem {
         self.0.play(&mut || {
             let sample = generator();
 
-            let l = (i32::from(sample.front_left) + i32::from(sample.surround_left)) / 2;
-            let r = (i32::from(sample.front_right) + i32::from(sample.surround_right)) / 2;
+            let l = (i32::from(sample.front_left)
+                + i32::from(sample.surround_left))
+                / 2;
+            let r = (i32::from(sample.front_right)
+                + i32::from(sample.surround_right))
+                / 2;
             (l as i16, r as i16)
         })
     }
 }
 
 /// Audio (Microphone) input.
-pub struct MicrophoneSystem(#[cfg(target_os = "linux")] crate::linux::Microphone);
+pub struct MicrophoneSystem(
+    #[cfg(target_os = "linux")] crate::linux::Microphone,
+);
 
 impl MicrophoneSystem {
     /// Connect to the microphone system at a specific sample rate.
-    pub fn new(sr: crate::SampleRate) -> Result<MicrophoneSystem, crate::AudioError> {
-        Ok(MicrophoneSystem(#[cfg(target_os = "linux")]
-        {
-            crate::linux::Microphone::new(sr)?
-        }))
+    pub fn new(
+        sr: crate::SampleRate,
+    ) -> Result<MicrophoneSystem, crate::AudioError> {
+        Ok(MicrophoneSystem(
+            #[cfg(target_os = "linux")]
+            {
+                crate::linux::Microphone::new(sr)?
+            },
+        ))
     }
 
     /// Record audio from the microphone system.  The closures first parameter is the microphone id.

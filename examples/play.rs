@@ -25,7 +25,9 @@ fn main() -> Result<(), AudioError> {
 
             cursor += 4;
 
-            let (l, r) = unsafe { (std::mem::transmute(lsample), std::mem::transmute(rsample)) };
+            let (l, r) = unsafe {
+                (std::mem::transmute(lsample), std::mem::transmute(rsample))
+            };
 
             AudioSample::stereo(l, r)
         });
