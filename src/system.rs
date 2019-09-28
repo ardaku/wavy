@@ -65,7 +65,7 @@ impl SpeakerSystem {
     }
 
     /// Generate audio samples as they are needed.  In your closure return S16_LE audio samples.
-    pub fn play(&mut self, generator: &mut FnMut() -> AudioSample) {
+    pub fn play(&mut self, generator: &mut dyn FnMut() -> AudioSample) {
         // TODO: Right now we're just combining into a stereo track for playback whether or not we
         // have 5.1 support.
         self.0.play(&mut || {
@@ -92,7 +92,7 @@ impl MicrophoneSystem {
 
     /// Record audio from the microphone system.  The closures first parameter is the microphone id.
     /// The 2nd and 3rd are left and right sample.
-    pub fn record(&mut self, generator: &mut FnMut(usize, i16, i16)) {
+    pub fn record(&mut self, generator: &mut dyn FnMut(usize, i16, i16)) {
         self.0.record(generator);
     }
 }

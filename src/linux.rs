@@ -236,7 +236,7 @@ impl Speaker {
         })
     }
 
-    pub fn play(&mut self, generator: &mut FnMut() -> (i16, i16)) {
+    pub fn play(&mut self, generator: &mut dyn FnMut() -> (i16, i16)) {
         let _ = unsafe { snd_pcm_status(self.sound_device, self.status.as_mut_ptr() as *mut _) };
         let avail = unsafe { snd_pcm_status_get_avail(self.status.as_ptr() as *const _) };
         let left = self.buffer_size - avail;
@@ -313,7 +313,7 @@ impl Microphone {
         })
     }
 
-    pub fn record(&mut self, generator: &mut FnMut(usize, i16, i16)) {
+    pub fn record(&mut self, generator: &mut dyn FnMut(usize, i16, i16)) {
         let _ = unsafe { snd_pcm_status(self.sound_device, self.status.as_mut_ptr() as *mut _) };
         let avail = unsafe { snd_pcm_status_get_avail(self.status.as_ptr() as *const _) };
 
