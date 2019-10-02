@@ -50,8 +50,8 @@ mod system;
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
 mod linux;
-
-extern crate libc;
+#[cfg(target_arch = "wasm32")]
+mod wasm;
 
 pub use error::AudioError;
 pub use sample_rate::SampleRate;

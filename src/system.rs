@@ -53,7 +53,10 @@ impl AudioSample {
 }
 
 /// Audio (Speaker) output.  This type represents a speaker system.
-pub struct SpeakerSystem(#[cfg(target_os = "linux")] crate::linux::Speaker);
+pub struct SpeakerSystem(
+    #[cfg(target_os = "linux")] crate::linux::Speaker,
+    #[cfg(target_arch = "wasm32")] crate::wasm::Speaker,
+);
 
 impl SpeakerSystem {
     /// Connect to the speaker system at a specific sample rate.
@@ -64,6 +67,10 @@ impl SpeakerSystem {
             #[cfg(target_os = "linux")]
             {
                 crate::linux::Speaker::new(sr)?
+            },
+            #[cfg(target_arch = "wasm32")]
+            {
+                crate::wasm::Speaker::new(sr)?
             },
         ))
     }
@@ -89,6 +96,7 @@ impl SpeakerSystem {
 /// Audio (Microphone) input.
 pub struct MicrophoneSystem(
     #[cfg(target_os = "linux")] crate::linux::Microphone,
+    #[cfg(target_arch = "wasm32")] crate::wasm::Microphone,
 );
 
 impl MicrophoneSystem {
@@ -100,6 +108,10 @@ impl MicrophoneSystem {
             #[cfg(target_os = "linux")]
             {
                 crate::linux::Microphone::new(sr)?
+            },
+            #[cfg(target_arch = "wasm32")]
+            {
+                crate::wasm::Microphone::new(sr)?
             },
         ))
     }
