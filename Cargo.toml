@@ -23,5 +23,5 @@ categories = ["game-engines", "hardware-support", "multimedia", "multimedia::aud
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
 
-[target.'cfg(target_os = "wasm32")'.dependencies]
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = "0.4"
