@@ -48,10 +48,14 @@ mod sample_rate;
 mod system;
 // mod resampler;
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
-mod linux;
-#[cfg(target_arch = "wasm32")]
-mod wasm;
+mod ffi {
+	#[cfg(any(target_os = "linux", target_os = "android"))]
+	include!("ffi/linux.rs");
+	#[cfg(target_arch = "wasm32")]
+	include!("ffi/wasm.rs");
+	#[cfg(target_os = "macos")]
+	include!("ffi/apple.rs");
+}
 
 pub use error::AudioError;
 pub use sample_rate::SampleRate;

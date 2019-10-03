@@ -1,6 +1,9 @@
-/target
+**/target
 **/*.rs.bk
-Cargo.lock
+**/Cargo.lock
 **/*.wav
 **/*.raw
-/ignore
+**/*.swp
+**/*.DS_Store
+**/ignore
+/audio_queue/play

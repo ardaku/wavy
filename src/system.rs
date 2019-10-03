@@ -53,26 +53,14 @@ impl AudioSample {
 }
 
 /// Audio (Speaker) output.  This type represents a speaker system.
-pub struct SpeakerSystem(
-    #[cfg(target_os = "linux")] crate::linux::Speaker,
-    #[cfg(target_arch = "wasm32")] crate::wasm::Speaker,
-);
+pub struct SpeakerSystem(crate::ffi::Speaker);
 
 impl SpeakerSystem {
     /// Connect to the speaker system at a specific sample rate.
     pub fn new(
         sr: crate::SampleRate,
     ) -> Result<SpeakerSystem, crate::AudioError> {
-        Ok(SpeakerSystem(
-            #[cfg(target_os = "linux")]
-            {
-                crate::linux::Speaker::new(sr)?
-            },
-            #[cfg(target_arch = "wasm32")]
-            {
-                crate::wasm::Speaker::new(sr)?
-            },
-        ))
+        Ok(SpeakerSystem(crate::ffi::Speaker::new(sr)?))
     }
 
     /// Generate audio samples as they are needed.  In your closure return S16_LE audio samples.
@@ -94,26 +82,14 @@ impl SpeakerSystem {
 }
 
 /// Audio (Microphone) input.
-pub struct MicrophoneSystem(
-    #[cfg(target_os = "linux")] crate::linux::Microphone,
-    #[cfg(target_arch = "wasm32")] crate::wasm::Microphone,
-);
+pub struct MicrophoneSystem(crate::ffi::Microphone);
 
 impl MicrophoneSystem {
     /// Connect to the microphone system at a specific sample rate.
     pub fn new(
         sr: crate::SampleRate,
     ) -> Result<MicrophoneSystem, crate::AudioError> {
-        Ok(MicrophoneSystem(
-            #[cfg(target_os = "linux")]
-            {
-                crate::linux::Microphone::new(sr)?
-            },
-            #[cfg(target_arch = "wasm32")]
-            {
-                crate::wasm::Microphone::new(sr)?
-            },
-        ))
+        Ok(MicrophoneSystem(crate::ffi::Microphone::new(sr)?))
     }
 
     /// Record audio from the microphone system.  The closures first parameter is the microphone id.
