@@ -1,4 +1,43 @@
+use std::ffi::c_void;
+
 use crate::*;
+
+#[repr(C)]
+struct AudioStreamBasicDescription {
+    sample_rate: f64,
+    format_id: u32,
+    format_flags: u32,
+    bytes_per_packet: u32,
+    frames_per_packet: u32,
+    bytes_per_frame: u32,
+    channels_per_frame: u32,
+    bits_per_channel: u32,
+    reserved: u32,
+}
+
+#[repr(C)]
+struct AudioStreamPacketDescription {
+    start_offset: i64,
+    variable_frames_in_packet: u32,
+    data_byte_size: u32,
+}
+
+#[repr(C)]
+struct AudioQueueBuffer {
+    audio_data_bytes_capacity: u32, // const
+    audio_data: *const i16,
+    audio_data_byte_size: u32,
+    user_data: *mut c_void,
+
+    packet_description_capacity: u32, // const
+    packet_descriptions: *const AudioStreamPacketDescription,
+    packet_description_count: u32,
+}
+
+enum AudioQueueRef {}
+enum AudioQueueBufferRef {}
+
+type OSStatus = i32;
 
 #[link(name = "AudioToolbox", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
