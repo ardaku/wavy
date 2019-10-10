@@ -25,7 +25,7 @@ struct AudioStreamPacketDescription {
 #[repr(C)]
 struct AudioQueueBuffer {
     audio_data_bytes_capacity: u32, // const
-    audio_data: *const i16,
+    audio_data: *mut i16,
     audio_data_byte_size: u32,
     user_data: *mut c_void,
 
@@ -34,15 +34,74 @@ struct AudioQueueBuffer {
     packet_description_count: u32,
 }
 
-enum AudioQueueRef {}
-enum AudioQueueBufferRef {}
+struct UserCtx<'a> {
+    callback: Option<&'a mut dyn FnMut(&mut [[i16; 2]]) -> ()>,
+}
+
+unsafe extern "C" fn callback<'a>(
+    user_ctx: *mut UserCtx<'a>,
+    audio_queue: *mut AudioQueue,
+    audio_buffer: *mut AudioQueueBuffer,
+) {
+    let slice: &mut [[i16; 2]] = std::slice::from_raw_parts_mut(
+        (*audio_buffer).audio_data as *mut c_void as *mut [i16;2],
+        ((*audio_buffer).audio_data_byte_size / NUM_BYTES_PER_FRAME) as usize
+    );
+
+    (*(*user_ctx).callback.as_mut().unwrap())(slice);
+}
+
+enum AudioQueue {}
+enum CFRunLoop {}
+enum CFString {}
 
 type OSStatus = i32;
+
+type AudioQueueOutputCallback = unsafe extern "C" fn (
+    user_ctx: *mut UserCtx,
+    audio_queue: *mut AudioQueue,
+    audio_buffer: *mut AudioQueueBuffer,
+);
 
 #[link(name = "AudioToolbox", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
-	// TODO
+    static kCFRunLoopCommonModes: *mut CFString;
+
+	fn AudioQueueNewOutput(
+        format: *const AudioStreamBasicDescription,
+        callback_proc: AudioQueueOutputCallback,
+        user_data: *mut c_void,
+        callback_run_loop: *mut CFRunLoop,
+        callback_run_loop_mode: *mut CFString,
+        flags: i32,
+        out: *mut *mut AudioQueue,
+    ) -> OSStatus;
+
+    fn CFRunLoopGetCurrent() -> *mut CFRunLoop;
+}
+
+const NUM_CHANNELS: u32 = 2;
+const NUM_BYTES_PER_SAMPLE: u32 = 2;
+const NUM_BYTES_PER_FRAME: u32 = NUM_CHANNELS * NUM_BYTES_PER_SAMPLE;
+
+fn pcm_hw_params(sr: SampleRate) -> AudioStreamBasicDescription {
+    const AUDIO_FORMAT_LINEAR_PCM: [u8; 4] = *b"lpcm";
+   
+    const AUDIO_FORMAT_FLAG_IS_SIGNED_INT: u32 = 0x4;
+    const AUDIO_FORMAT_FLAG_IS_PACKED: u32 = 0x8;
+
+    AudioStreamBasicDescription {
+        sample_rate: sr as u32 as f64,
+        format_id: unsafe { std::mem::transmute::<[u8;4], u32>(AUDIO_FORMAT_LINEAR_PCM) },
+        format_flags: AUDIO_FORMAT_FLAG_IS_SIGNED_INT | AUDIO_FORMAT_FLAG_IS_PACKED,
+        bytes_per_packet: NUM_CHANNELS * NUM_BYTES_PER_SAMPLE,
+        frames_per_packet: 1,
+        bytes_per_frame: NUM_BYTES_PER_FRAME,
+        channels_per_frame: NUM_CHANNELS,
+        bits_per_channel: NUM_BYTES_PER_SAMPLE * 8,
+        reserved: 0,
+    }
 }
 
 pub struct Speaker {
@@ -54,6 +113,26 @@ pub struct Speaker {
 
 impl Speaker {
     pub fn new(sr: SampleRate) -> Result<Speaker, AudioError> {
+        let hw_params = [pcm_hw_params(sr)];
+        let mut audio_queue = std::mem::MaybeUninit::uninit();
+        let mut user_ctx = UserCtx {
+            callback: None,
+        };
+
+        let audio_queue_status = unsafe { AudioQueueNewOutput(
+            hw_params.as_ptr(),
+            callback,
+            &mut user_ctx as *mut _ as *mut c_void,
+            CFRunLoopGetCurrent(),
+            kCFRunLoopCommonModes,
+            0,
+            audio_queue.as_mut_ptr(),
+        ) };
+
+        let audio_queue = unsafe {
+            audio_queue.assume_init()
+        };
+
         /*let sound_device: *mut snd_pcm_t = pcm_open(false, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 
