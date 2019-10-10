@@ -49,6 +49,8 @@ unsafe extern "C" fn callback<'a>(
     );
 
     (*(*user_ctx).callback.as_mut().unwrap())(slice);
+
+    let _status = AudioQueueEnqueueBuffer(audio_queue, audio_buffer, 0, std::ptr::null());
 }
 
 enum AudioQueue {}
@@ -79,7 +81,15 @@ extern "C" {
     ) -> OSStatus;
 
     fn CFRunLoopGetCurrent() -> *mut CFRunLoop;
+
+    fn AudioQueueEnqueueBuffer(
+        audio_queue: *mut AudioQueue,
+        buffer: *mut AudioQueueBuffer,
+        num_packets_descs: u32,
+        packet_descs: *const c_void, // AudioStreamPacketDescription
+    ) -> OSStatus;
 }
+
 
 const NUM_CHANNELS: u32 = 2;
 const NUM_BYTES_PER_SAMPLE: u32 = 2;
@@ -119,7 +129,7 @@ impl Speaker {
             callback: None,
         };
 
-        let audio_queue_status = unsafe { AudioQueueNewOutput(
+        let _audio_queue_status = unsafe { AudioQueueNewOutput(
             hw_params.as_ptr(),
             callback,
             &mut user_ctx as *mut _ as *mut c_void,
@@ -164,6 +174,8 @@ impl Speaker {
 
         let buffer_size = buffer_size as u64;
         let period_size = period_size as u64;*/
+
+        // AudioQueueSetParameter (queue, kAudioQueueParam_Volume, 1.0);
 
         let buffer = Vec::new();
 
