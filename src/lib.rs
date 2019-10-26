@@ -49,6 +49,8 @@ mod system;
 // mod resampler;
 
 mod ffi {
+    #![allow(non_camel_case_types)]
+
 	#[cfg(any(target_os = "linux", target_os = "android"))]
 	include!("ffi/linux.rs");
 	#[cfg(target_arch = "wasm32")]
