@@ -1,5 +1,17 @@
 use crate::*;
 
+use stdweb;
+use stdweb::{js};
+
+macro_rules! enclose {
+    ( ($( $x:ident ),*) $y:expr ) => {
+        {
+            $(let $x = $x.clone();)*
+            $y
+        }
+    };
+}
+
 pub struct Speaker {
     // sound_device: *mut snd_pcm_t,
     // buffer_size: u64,
