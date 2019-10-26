@@ -51,12 +51,12 @@ mod system;
 mod ffi {
     #![allow(non_camel_case_types)]
 
-	#[cfg(any(target_os = "linux", target_os = "android"))]
-	include!("ffi/linux.rs");
-	#[cfg(target_arch = "wasm32")]
-	include!("ffi/wasm.rs");
-	#[cfg(target_os = "macos")]
-	include!("ffi/apple.rs");
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    include!("ffi/linux.rs");
+    #[cfg(target_arch = "wasm32")]
+    include!("ffi/wasm.rs");
+    #[cfg(target_os = "macos")]
+    include!("ffi/apple.rs");
 }
 
 pub use error::AudioError;
