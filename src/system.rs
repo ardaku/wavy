@@ -1,4 +1,4 @@
-//! Audio System (SpeakerSystem & MicrophoneSystem).
+//! Audio System (SpeakerList & MicrophoneList).
 
 /// An AudioSample (with surround sound 5.1 support).
 pub struct AudioSample {
@@ -53,14 +53,14 @@ impl AudioSample {
 }
 
 /// Audio (Speaker) output.  This type represents a speaker system.
-pub struct SpeakerSystem(crate::ffi::Speaker);
+pub struct SpeakerList(crate::ffi::Speaker);
 
-impl SpeakerSystem {
+impl SpeakerList {
     /// Connect to the speaker system at a specific sample rate.
     pub fn new(
         sr: crate::SampleRate,
-    ) -> Result<SpeakerSystem, crate::AudioError> {
-        Ok(SpeakerSystem(crate::ffi::Speaker::new(sr)?))
+    ) -> Result<SpeakerList, crate::AudioError> {
+        Ok(SpeakerList(crate::ffi::Speaker::new(sr)?))
     }
 
     /// Generate audio samples as they are needed.  In your closure return S16_LE audio samples.
@@ -82,14 +82,14 @@ impl SpeakerSystem {
 }
 
 /// Audio (Microphone) input.
-pub struct MicrophoneSystem(crate::ffi::Microphone);
+pub struct MicrophoneList(crate::ffi::Microphone);
 
-impl MicrophoneSystem {
+impl MicrophoneList {
     /// Connect to the microphone system at a specific sample rate.
     pub fn new(
         sr: crate::SampleRate,
-    ) -> Result<MicrophoneSystem, crate::AudioError> {
-        Ok(MicrophoneSystem(crate::ffi::Microphone::new(sr)?))
+    ) -> Result<MicrophoneList, crate::AudioError> {
+        Ok(MicrophoneList(crate::ffi::Microphone::new(sr)?))
     }
 
     /// Record audio from the microphone system.  The closures first parameter is the microphone id.

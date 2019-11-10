@@ -8,7 +8,12 @@ and this project adheres to [Semantic Versioning](https://free.plopgrizzly.com/s
 ### Added
 ### Removed
 ### Changed
+- Rename `MicrophoneSystem` to `MicrophoneList`.
+- Rename `SpeakerSystem` to `SpeakerList`.
+
 ### Fixed
+- Undefined behavior using `std::mem::uninitialized()` by replacing with
+  `std::mem::MaybeUninit()`.
 
 ## [0.1.2] - 2019-05-13
 ### Fixed

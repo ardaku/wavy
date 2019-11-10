@@ -1,4 +1,5 @@
-//! This example records audio and plays it back in real time as it's being recorded.
+//! This example records audio and plays it back in real time as it's being
+//! recorded.
 
 use wavy::*;
 
@@ -6,10 +7,10 @@ use std::collections::VecDeque;
 
 fn main() -> Result<(), AudioError> {
     println!("Opening microphone system");
-    let mut mic = MicrophoneSystem::new(SampleRate::Normal)?;
+    let mut mic = MicrophoneList::new(SampleRate::Normal)?;
 
     println!("Opening speaker system");
-    let mut speaker = SpeakerSystem::new(SampleRate::Normal)?;
+    let mut speaker = SpeakerList::new(SampleRate::Normal)?;
 
     println!("Done");
 

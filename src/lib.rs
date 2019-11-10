@@ -62,5 +62,5 @@ mod ffi {
 pub use error::AudioError;
 pub use sample_rate::SampleRate;
 pub use system::AudioSample;
-pub use system::MicrophoneSystem;
-pub use system::SpeakerSystem;
+pub use system::MicrophoneList;
+pub use system::SpeakerList;

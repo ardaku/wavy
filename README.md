@@ -1,11 +1,11 @@
 # Wavy
-Cross-platform real-time audio recording &amp; playback.
+Asynchronous cross-platform real-time audio recording &amp; playback.
 
 The sound waves are _so_ wavy!
 
 # Getting Started
-This example records audio and plays it back in real time as it's being recorded.  (Make sure to
-wear headphones to avoid feedback).
+This example records audio and plays it back in real time as it's being
+recorded.  (Make sure to wear headphones to avoid feedback).
 
 ```rust
 use wavy::*;
