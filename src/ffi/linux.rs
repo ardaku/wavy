@@ -110,23 +110,17 @@ fn pcm_open(
     microphone: bool,
     name: &[u8],
 ) -> Result<*mut snd_pcm_t, AudioError> {
-    let mut sound_device: *mut snd_pcm_t = unsafe { std::mem::uninitialized() };
-    if unsafe {
+    let mut sound_device = std::mem::MaybeUninit::<*mut snd_pcm_t>::uninit();
+
+    let sound_device = unsafe {
         // plughw:0,0 ?
-        snd_pcm_open(
-            &mut sound_device,
-            name.as_ptr() as *const _,
-            if microphone {
-                1 /* capture */
-            } else {
-                0 /*playback*/
-            },
-            0,
-        )
-    } < 0
-    {
-        return Err(AudioError::NoDevice);
-    }
+        if snd_pcm_open(sound_device.as_mut_ptr(), name.as_ptr() as *const _,
+                microphone.into(), 0 /* blocking IO */) < 0
+        {
+            return Err(AudioError::NoDevice);
+        }
+        sound_device.assume_init()
+    };
     Ok(sound_device)
 }
 
@@ -134,13 +128,16 @@ fn pcm_hw_params(
     sr: SampleRate,
     sound_device: *mut snd_pcm_t,
 ) -> Result<*mut snd_pcm_hw_params_t, AudioError> {
-    let mut hw_params: *mut snd_pcm_hw_params_t =
-        unsafe { std::mem::uninitialized() };
-    if unsafe { snd_pcm_hw_params_malloc(&mut hw_params) } < 0 {
+    let mut hw_params = std::mem::MaybeUninit::uninit();
+    if unsafe { snd_pcm_hw_params_malloc(hw_params.as_mut_ptr()) } < 0 {
         return Err(AudioError::InternalError(
             "Cannot allocate hardware parameter structure!".to_string(),
         ));
     }
+    let hw_params: *mut snd_pcm_hw_params_t = unsafe {
+        hw_params.assume_init()
+    };
+
     if unsafe { snd_pcm_hw_params_any(sound_device, hw_params) } < 0 {
         return Err(AudioError::InternalError(
             "Cannot initialize hardware parameter structure!".to_string(),
