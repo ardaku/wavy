@@ -13,9 +13,9 @@ use wavy::*;
 use std::collections::VecDeque;
 
 fn main() -> Result<(), AudioError> {
-    // Connect to the speaker and microphone systems.
-    let mut mic = MicrophoneSystem::new(SampleRate::Normal)?;
-    let mut speaker = SpeakerSystem::new(SampleRate::Normal)?;
+    // Connect to the speakers and microphones.
+    let mut mic = MicrophoneList::new(SampleRate::Normal)?;
+    let mut speaker = SpeakerList::new(SampleRate::Normal)?;
 
     let mut buffer = VecDeque::new();
 
