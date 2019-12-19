@@ -1,7 +1,6 @@
 use crate::*;
 
-use libc;
-use libc::{c_char, c_int, c_long, c_uint, c_ulong, size_t};
+use std::os::raw::{c_char, c_int, c_long, c_uint, c_ulong};
 
 enum snd_pcm_t {}
 enum snd_pcm_hw_params_t {}
@@ -91,7 +90,7 @@ extern "C" {
         size: c_ulong,
     ) -> snd_pcm_sframes_t;
 
-    fn snd_pcm_status_sizeof() -> size_t;
+    fn snd_pcm_status_sizeof() -> usize;
 
     fn snd_pcm_status(
         pcm: *mut snd_pcm_t,
