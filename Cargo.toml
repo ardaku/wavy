@@ -1,21 +1,22 @@
 # Wavy
 #
 # Copyright © 2019 Jeron Aldaron Lau.
-# Dual-licensed under either the MIT License or the Boost Software License, Version 1.0.
-# (See accompanying file LICENSE_BSL.txt or copy at https://www.boost.org/LICENSE_1_0.txt, and
-# accompanying file LICENSE_MIT.txt or copy at https://opensource.org/licenses/MIT)
+# Dual-licensed under either the MIT License or the Boost Software License,
+# Version 1.0.  (See accompanying file LICENSE_BSL.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt and accompanying file LICENSE_MIT.txt or
+# copy at https://opensource.org/licenses/MIT)
 
 [package]
 name = "wavy"
 version = "0.1.2"
-authors = ["Jeron Aldaron Lau <jeronaldaron@gmail.com>"]
+authors = ["Jeron Aldaron Lau <jeronlau@plopgrizzly.com>"]
 edition = "2018"
 
 license = "MIT / BSL-1.0"
-description = "Cross-platform real-time audio recording & playback."
+description = "Asynchronous cross-platform real-time audio recording & playback."
 documentation = "https://docs.rs/wavy"
-homepage = "https://jeronaldaron.github.io/wavy"
-repository = "https://github.com/JeronAldaron/wavy"
+homepage = "https://libcala.github.io/wavy"
+repository = "https://github.com/libcala/wavy"
 readme = "README.md"
 keywords = ["audio", "realtime", "cross-platform", "record", "play"]
 categories = ["game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"]
