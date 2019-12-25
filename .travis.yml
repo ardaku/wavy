@@ -31,6 +31,7 @@ script:
   - cargo test --all --all-features
 
 notifications:
+  email: false
   webhooks:
     urls:
       - https://cala.zulipchat.com/api/v1/external/travis?api_key=dCMe2lR9z6lOfH1ucaZagWphH6p4TumS&stream=travis-ci&topic=wavy&ignore_pull_requests=false
