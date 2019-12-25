@@ -229,7 +229,6 @@ impl Speaker {
         unsafe {
             snd_pcm_hw_params_get_buffer_size(hw_params, &mut buffer_size);
         }
-        //        dbg!(buffer_size);
         let (mut period_size, mut d) = (0, 0);
         unsafe {
             snd_pcm_hw_params_get_period_size(
@@ -238,7 +237,6 @@ impl Speaker {
                 &mut d,
             );
         }
-        //        dbg!(period_size);
 
         unsafe {
             snd_pcm_hw_params_free(hw_params);
@@ -330,7 +328,6 @@ impl Microphone {
         unsafe {
             snd_pcm_hw_params_get_buffer_size(hw_params, &mut buffer_size);
         }
-        //        dbg!(buffer_size);
         let (mut period_size, mut d) = (0, 0);
         unsafe {
             snd_pcm_hw_params_get_period_size(
@@ -339,7 +336,6 @@ impl Microphone {
                 &mut d,
             );
         }
-        //        dbg!(period_size);
 
         unsafe {
             snd_pcm_hw_params_free(hw_params);
