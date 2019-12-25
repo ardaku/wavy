@@ -7,9 +7,6 @@ cache:
       - $HOME/.cargo
       - $HOME/target
 
-before-cache:
-  - rm -rf $HOME/.cargo/registry
-
 rust:
   - beta
   - nightly
@@ -30,4 +27,9 @@ matrix:
         rust: stable
 
 script:
-  - cargo test --all
+  - cargo update
+  - cargo test --all --all-features
+
+notifications:
+  webhooks:
+    - https://cala.zulipchat.com/api/v1/external/travis?api_key=dCMe2lR9z6lOfH1ucaZagWphH6p4TumS&stream=travis-ci&topic=wavy&ignore_pull_requests=false
