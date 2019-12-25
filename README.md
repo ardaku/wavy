@@ -3,13 +3,11 @@
 [![docs.rs](https://docs.rs/wavy/badge.svg)](https://docs.rs/wavy)
 [![build status](https://api.travis-ci.com/libcala/wavy.svg?branch=master)](https://travis-ci.com/libcala/wavy)
 [![crates.io](https://img.shields.io/crates/v/wavy.svg)](https://crates.io/crates/wavy)
-[![discord](https://img.shields.io/badge/discord-Cala%20Project-green.svg)](https://discord.gg/nXwF59K)
+[![Zulip Chat](https://img.shields.io/badge/zulip-join_chat-darkgreen.svg)](https://cala.zulipchat.com/join/wkdkw53xb5htnchg8kqz0du0/)
 
 [About](https://libcala.github.io/wavy) |
 [Source](https://github.com/libcala/wavy) |
-[Changelog](https://libcala.github.io/wavy/changelog) |
-[Tutorials](https://libcala.github.io/tutorials) |
-[Blog](https://libcala.github.io)
+[Changelog](https://libcala.github.io/wavy/changelog)
 
 # About
 
