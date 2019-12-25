@@ -32,4 +32,10 @@ script:
 
 notifications:
   webhooks:
-    - https://cala.zulipchat.com/api/v1/external/travis?api_key=dCMe2lR9z6lOfH1ucaZagWphH6p4TumS&stream=travis-ci&topic=wavy&ignore_pull_requests=false
+    urls:
+      - https://cala.zulipchat.com/api/v1/external/travis?api_key=dCMe2lR9z6lOfH1ucaZagWphH6p4TumS&stream=travis-ci&topic=wavy&ignore_pull_requests=false
+    on_success: change
+    on_failure: always
+    on_start:   change
+    on_cancel:  always
+    on_error:   always
