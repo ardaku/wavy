@@ -7,141 +7,141 @@
 
 enum: snd_pcm_stream_t
   doc: PCM stream (direction)
-  variant: SND_PCM_STREAM_PLAYBACK
+  variant: PLAYBACK
     doc: Playback stream
     value: 0
-  variant: SND_PCM_STREAM_CAPTURE
+  variant: CAPTURE
     doc: Capture stream
 
 enum: snd_pcm_access_t
   doc: PCM access type
-  variant: SND_PCM_ACCESS_MMAP_INTERLEAVED
+  variant: MMAP_INTERLEAVED
     doc: mmap access with simple interleaved channels
     value: 0
-  variant: SND_PCM_ACCESS_MMAP_NONINTERLEAVED
+  variant: MMAP_NONINTERLEAVED
     doc: mmap access with simple non interleaved channels
-  variant: SND_PCM_ACCESS_MMAP_COMPLEX
+  variant: MMAP_COMPLEX
     doc: mmap access with complex placement
-  variant: SND_PCM_ACCESS_RW_INTERLEAVED
+  variant: RW_INTERLEAVED
     doc: snd_pcm_readi/snd_pcm_writei access
-  variant: SND_PCM_ACCESS_RW_NONINTERLEAVED
+  variant: RW_NONINTERLEAVED
     doc: snd_pcm_readn/snd_pcm_writen access
 
 enum: snd_pcm_format_t
   doc: PCM sample format
-  variant: SND_PCM_FORMAT_UNKNOWN
+  variant: UNKNOWN
     doc: Unknown
     value: -1
-  variant: SND_PCM_FORMAT_S8
+  variant: S8
     doc: Signed 8 bit
     value: 0
-  variant: SND_PCM_FORMAT_U8
+  variant: U8
     doc: Unsigned 8 bit
-  variant: SND_PCM_FORMAT_S16_LE
-    doc: Signed 16 bit Little Endian (a.k.a `SND_PCM_FORMAT_S16` in C API)
-  variant: SND_PCM_FORMAT_S16_BE
+  variant: S16_LE
+    doc: Signed 16 bit Little Endian (a.k.a `S16` in C API)
+  variant: S16_BE
     doc: Signed 16 bit Big Endian
-  variant: SND_PCM_FORMAT_U16_LE
-    doc: Unsigned 16 bit Little Endian (a.k.a `SND_PCM_FORMAT_U16` in C API)
-  variant: SND_PCM_FORMAT_U16_BE
+  variant: U16_LE
+    doc: Unsigned 16 bit Little Endian (a.k.a `U16` in C API)
+  variant: U16_BE
     doc: Unsigned 16 bit Big Endian
-  variant: SND_PCM_FORMAT_S24_LE
+  variant: S24_LE
     doc: Signed 24 bit Little Endian using low three bytes in 32-bit word
-    doc:>(a.k.a `SND_PCM_FORMAT_S24` in C API)
-  variant: SND_PCM_FORMAT_S24_BE
+    doc:>(a.k.a `S24` in C API)
+  variant: S24_BE
     doc: Signed 24 bit Big Endian using low three bytes in 32-bit word
-  variant: SND_PCM_FORMAT_U24_LE
+  variant: U24_LE
     doc: Unsigned 24 bit Little Endian using low three bytes in 32-bit word
-    doc:>(a.k.a `SND_PCM_FORMAT_U24` in C API)
-  variant: SND_PCM_FORMAT_U24_BE
+    doc:>(a.k.a `U24` in C API)
+  variant: U24_BE
     doc: Unsigned 24 bit Big Endian using low three bytes in 32-bit word
-  variant: SND_PCM_FORMAT_S32_LE
-    doc: Signed 32 bit Little Endian (a.k.a `SND_PCM_FORMAT_S32` in C API)
-  variant: SND_PCM_FORMAT_S32_BE
+  variant: S32_LE
+    doc: Signed 32 bit Little Endian (a.k.a `S32` in C API)
+  variant: S32_BE
     doc: Signed 32 bit Big Endian
-  variant: SND_PCM_FORMAT_U32_LE
-    doc: Unsigned 32 bit Little Endian (a.k.a `SND_PCM_FORMAT_U32` in C API)
-  variant: SND_PCM_FORMAT_U32_BE
+  variant: U32_LE
+    doc: Unsigned 32 bit Little Endian (a.k.a `U32` in C API)
+  variant: U32_BE
     doc: Unsigned 32 bit Big Endian
-  variant: SND_PCM_FORMAT_FLOAT_LE
+  variant: FLOAT_LE
     doc: Float 32 bit Little Endian, Range -1.0 to 1.0
-    doc:>(a.k.a `SND_PCM_FORMAT_FLOAT` in C API)
-  variant: SND_PCM_FORMAT_FLOAT_BE
+    doc:>(a.k.a `FLOAT` in C API)
+  variant: FLOAT_BE
     doc: Float 32 bit Big Endian, Range -1.0 to 1.0
-  variant: SND_PCM_FORMAT_FLOAT64_LE
+  variant: FLOAT64_LE
     doc: Float 64 bit Little Endian, Range -1.0 to 1.0
-    doc:>(a.k.a `SND_PCM_FORMAT_FLOAT64` in C API)
-  variant: SND_PCM_FORMAT_FLOAT64_BE
+    doc:>(a.k.a `FLOAT64` in C API)
+  variant: FLOAT64_BE
     doc: Float 64 bit Big Endian, Range -1.0 to 1.0
-  variant: SND_PCM_FORMAT_IEC958_SUBFRAME_LE
-    doc: IEC-958 Little Endian (a.k.a `SND_PCM_FORMAT_IEC958_SUBFRAME` in C API)
-  variant: SND_PCM_FORMAT_IEC958_SUBFRAME_BE
+  variant: IEC958_SUBFRAME_LE
+    doc: IEC-958 Little Endian (a.k.a `IEC958_SUBFRAME` in C API)
+  variant: IEC958_SUBFRAME_BE
     doc: IEC-958 Big Endian
-  variant: SND_PCM_FORMAT_MU_LAW
+  variant: MU_LAW
     doc: Mu-Law
-  variant: SND_PCM_FORMAT_A_LAW
+  variant: A_LAW
     doc: A-Law
-  variant: SND_PCM_FORMAT_IMA_ADPCM
+  variant: IMA_ADPCM
     doc: Ima-ADPCM
-  variant: SND_PCM_FORMAT_MPEG
+  variant: MPEG
     doc: MPEG
-  variant: SND_PCM_FORMAT_GSM
+  variant: GSM
     doc: GSM
-  variant: SND_PCM_FORMAT_S20_LE
+  variant: S20_LE
     doc: Signed 20bit Little/Native Endian in 4bytes format, LSB justified
-    doc:>(a.k.a `SND_PCM_FORMAT_S20` in C API)
-  variant: SND_PCM_FORMAT_S20_BE
+    doc:>(a.k.a `S20` in C API)
+  variant: S20_BE
     doc: Signed 20bit Big Endian in 4bytes format, LSB justified
-  variant: SND_PCM_FORMAT_U20_LE
+  variant: U20_LE
     doc: Unsigned 20bit Little/Native Endian in 4bytes format, LSB justified
-    doc:>(a.k.a `SND_PCM_FORMAT_U20` in C API)
-  variant: SND_PCM_FORMAT_U20_BE
+    doc:>(a.k.a `U20` in C API)
+  variant: U20_BE
     doc: Unsigned 20bit Big Endian in 4bytes format, LSB justified
-  variant: SND_PCM_FORMAT_SPECIAL
+  variant: SPECIAL
     doc: Special
     value: 31
-  variant: SND_PCM_FORMAT_S24_3LE
+  variant: S24_3LE
     doc: Signed 24bit Little Endian in 3bytes format
     value: 32
-  variant: SND_PCM_FORMAT_S24_3BE
+  variant: S24_3BE
     doc: Signed 24bit Big Endian in 3bytes format
-  variant: SND_PCM_FORMAT_U24_3LE
+  variant: U24_3LE
     doc: Unsigned 24bit Little Endian in 3bytes format
-  variant: SND_PCM_FORMAT_U24_3BE
+  variant: U24_3BE
     doc: Unsigned 24bit Big Endian in 3bytes format
-  variant: SND_PCM_FORMAT_S20_3LE
+  variant: S20_3LE
     doc: Signed 20bit Little Endian in 3bytes format
-  variant: SND_PCM_FORMAT_S20_3BE
+  variant: S20_3BE
     doc: Signed 20bit Big Endian in 3bytes format
-  variant: SND_PCM_FORMAT_U20_3LE
+  variant: U20_3LE
     doc: Unsigned 20bit Little Endian in 3bytes format
-  variant: SND_PCM_FORMAT_U20_3BE
+  variant: U20_3BE
     doc: Unsigned 20bit Big Endian in 3bytes format
-  variant: SND_PCM_FORMAT_S18_3LE
+  variant: S18_3LE
     doc: Signed 18bit Little Endian in 3bytes format
-  variant: SND_PCM_FORMAT_S18_3BE
+  variant: S18_3BE
     doc: Signed 18bit Big Endian in 3bytes format
-  variant: SND_PCM_FORMAT_U18_3LE
+  variant: U18_3LE
     doc: Unsigned 18bit Little Endian in 3bytes format
-  variant: SND_PCM_FORMAT_U18_3BE
+  variant: U18_3BE
     doc: Unsigned 18bit Big Endian in 3bytes format
-  variant: SND_PCM_FORMAT_G723_24
+  variant: G723_24
     doc: Signed 16 bit CPU endian
-  variant: SND_PCM_FORMAT_G723_24_1B
+  variant: G723_24_1B
     doc: Unsigned 16 bit CPU endian
-  variant: SND_PCM_FORMAT_G723_40
+  variant: G723_40
     doc: Signed 24 bit CPU endian
-  variant: SND_PCM_FORMAT_G723_40_1B
+  variant: G723_40_1B
     doc: Unsigned 24 bit CPU endian
-  variant: SND_PCM_FORMAT_DSD_U8
+  variant: DSD_U8
     doc: Signed 32 bit CPU endian
-  variant: SND_PCM_FORMAT_DSD_U16_LE
+  variant: DSD_U16_LE
     doc: Unsigned 32 bit CPU endian
-  variant: SND_PCM_FORMAT_DSD_U32_LE
+  variant: DSD_U32_LE
     doc: Float 32 bit CPU endian
-  variant: SND_PCM_FORMAT_DSD_U16_BE
+  variant: DSD_U16_BE
     doc: Float 64 bit CPU endian
-  variant: SND_PCM_FORMAT_DSD_U32_BE,
+  variant: DSD_U32_BE,
     doc: IEC-958 CPU Endian
 
 address: Pcm

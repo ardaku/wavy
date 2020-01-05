@@ -26,3 +26,142 @@ unsafe fn sym(dll: &NonNull<c_void>, name: &[u8]) -> Option<NonNull<c_void>> {
     NonNull::new(dlsym(dll, name.as_ptr().cast()))
 }
 
+/// PCM stream (direction)
+#[repr(C)]
+pub(crate) enum snd_pcm_stream_t {
+    /// Playback stream
+    Playback = 0,
+    /// Capture stream
+    Capture,
+}
+
+/// PCM access type
+#[repr(C)]
+pub(crate) enum snd_pcm_access_t {
+    /// mmap access with simple interleaved channels
+    MmapInterleaved = 0,
+    /// mmap access with simple non interleaved channels
+    MmapNoninterleaved,
+    /// mmap access with complex placement
+    MmapComplex,
+    /// snd_pcm_readi/snd_pcm_writei access
+    RwInterleaved,
+    /// snd_pcm_readn/snd_pcm_writen access
+    RwNoninterleaved,
+}
+
+/// PCM sample format
+#[repr(C)]
+pub(crate) enum snd_pcm_format_t {
+    /// Unknown
+    Unknown = -1,
+    /// Signed 8 bit
+    S8 = 0,
+    /// Unsigned 8 bit
+    U8,
+    /// Signed 16 bit Little Endian (a.k.a `S16` in C API)
+    S16Le,
+    /// Signed 16 bit Big Endian
+    S16Be,
+    /// Unsigned 16 bit Little Endian (a.k.a `U16` in C API)
+    U16Le,
+    /// Unsigned 16 bit Big Endian
+    U16Be,
+    /// Signed 24 bit Little Endian using low three bytes in 32-bit word
+    /// (a.k.a `S24` in C API)
+    S24Le,
+    /// Signed 24 bit Big Endian using low three bytes in 32-bit word
+    S24Be,
+    /// Unsigned 24 bit Little Endian using low three bytes in 32-bit word
+    /// (a.k.a `U24` in C API)
+    U24Le,
+    /// Unsigned 24 bit Big Endian using low three bytes in 32-bit word
+    U24Be,
+    /// Signed 32 bit Little Endian (a.k.a `S32` in C API)
+    S32Le,
+    /// Signed 32 bit Big Endian
+    S32Be,
+    /// Unsigned 32 bit Little Endian (a.k.a `U32` in C API)
+    U32Le,
+    /// Unsigned 32 bit Big Endian
+    U32Be,
+    /// Float 32 bit Little Endian, Range -1.0 to 1.0
+    /// (a.k.a `FLOAT` in C API)
+    FloatLe,
+    /// Float 32 bit Big Endian, Range -1.0 to 1.0
+    FloatBe,
+    /// Float 64 bit Little Endian, Range -1.0 to 1.0
+    /// (a.k.a `FLOAT64` in C API)
+    Float64Le,
+    /// Float 64 bit Big Endian, Range -1.0 to 1.0
+    Float64Be,
+    /// IEC-958 Little Endian (a.k.a `IEC958_SUBFRAME` in C API)
+    Iec958SubframeLe,
+    /// IEC-958 Big Endian
+    Iec958SubframeBe,
+    /// Mu-Law
+    MuLaw,
+    /// A-Law
+    ALaw,
+    /// Ima-ADPCM
+    ImaAdpcm,
+    /// MPEG
+    Mpeg,
+    /// GSM
+    Gsm,
+    /// Signed 20bit Little/Native Endian in 4bytes format, LSB justified
+    /// (a.k.a `S20` in C API)
+    S20Le,
+    /// Signed 20bit Big Endian in 4bytes format, LSB justified
+    S20Be,
+    /// Unsigned 20bit Little/Native Endian in 4bytes format, LSB justified
+    /// (a.k.a `U20` in C API)
+    U20Le,
+    /// Unsigned 20bit Big Endian in 4bytes format, LSB justified
+    U20Be,
+    /// Special
+    Special = 31,
+    /// Signed 24bit Little Endian in 3bytes format
+    S243le = 32,
+    /// Signed 24bit Big Endian in 3bytes format
+    S243be,
+    /// Unsigned 24bit Little Endian in 3bytes format
+    U243le,
+    /// Unsigned 24bit Big Endian in 3bytes format
+    U243be,
+    /// Signed 20bit Little Endian in 3bytes format
+    S203le,
+    /// Signed 20bit Big Endian in 3bytes format
+    S203be,
+    /// Unsigned 20bit Little Endian in 3bytes format
+    U203le,
+    /// Unsigned 20bit Big Endian in 3bytes format
+    U203be,
+    /// Signed 18bit Little Endian in 3bytes format
+    S183le,
+    /// Signed 18bit Big Endian in 3bytes format
+    S183be,
+    /// Unsigned 18bit Little Endian in 3bytes format
+    U183le,
+    /// Unsigned 18bit Big Endian in 3bytes format
+    U183be,
+    /// Signed 16 bit CPU endian
+    G72324,
+    /// Unsigned 16 bit CPU endian
+    G723241b,
+    /// Signed 24 bit CPU endian
+    G72340,
+    /// Unsigned 24 bit CPU endian
+    G723401b,
+    /// Signed 32 bit CPU endian
+    DsdU8,
+    /// Unsigned 32 bit CPU endian
+    DsdU16Le,
+    /// Float 32 bit CPU endian
+    DsdU32Le,
+    /// Float 64 bit CPU endian
+    DsdU16Be,
+    /// IEC-958 CPU Endian
+    DsdU32Be,
+}
+
