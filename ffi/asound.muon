@@ -47,12 +47,12 @@ enum: snd_pcm_format_t
     doc: Unsigned 16 bit Big Endian
   variant: SND_PCM_FORMAT_S24_LE
     doc: Signed 24 bit Little Endian using low three bytes in 32-bit word
-    doc: (a.k.a `SND_PCM_FORMAT_S24` in C API)
+    doc:>(a.k.a `SND_PCM_FORMAT_S24` in C API)
   variant: SND_PCM_FORMAT_S24_BE
     doc: Signed 24 bit Big Endian using low three bytes in 32-bit word
   variant: SND_PCM_FORMAT_U24_LE
     doc: Unsigned 24 bit Little Endian using low three bytes in 32-bit word
-    doc: (a.k.a `SND_PCM_FORMAT_U24` in C API)
+    doc:>(a.k.a `SND_PCM_FORMAT_U24` in C API)
   variant: SND_PCM_FORMAT_U24_BE
     doc: Unsigned 24 bit Big Endian using low three bytes in 32-bit word
   variant: SND_PCM_FORMAT_S32_LE
@@ -65,12 +65,12 @@ enum: snd_pcm_format_t
     doc: Unsigned 32 bit Big Endian
   variant: SND_PCM_FORMAT_FLOAT_LE
     doc: Float 32 bit Little Endian, Range -1.0 to 1.0
-    doc: (a.k.a `SND_PCM_FORMAT_FLOAT` in C API)
+    doc:>(a.k.a `SND_PCM_FORMAT_FLOAT` in C API)
   variant: SND_PCM_FORMAT_FLOAT_BE
     doc: Float 32 bit Big Endian, Range -1.0 to 1.0
   variant: SND_PCM_FORMAT_FLOAT64_LE
     doc: Float 64 bit Little Endian, Range -1.0 to 1.0
-    doc: (a.k.a `SND_PCM_FORMAT_FLOAT64` in C API)
+    doc:>(a.k.a `SND_PCM_FORMAT_FLOAT64` in C API)
   variant: SND_PCM_FORMAT_FLOAT64_BE
     doc: Float 64 bit Big Endian, Range -1.0 to 1.0
   variant: SND_PCM_FORMAT_IEC958_SUBFRAME_LE
@@ -89,12 +89,12 @@ enum: snd_pcm_format_t
     doc: GSM
   variant: SND_PCM_FORMAT_S20_LE
     doc: Signed 20bit Little/Native Endian in 4bytes format, LSB justified
-    doc: (a.k.a `SND_PCM_FORMAT_S20` in C API)
+    doc:>(a.k.a `SND_PCM_FORMAT_S20` in C API)
   variant: SND_PCM_FORMAT_S20_BE
     doc: Signed 20bit Big Endian in 4bytes format, LSB justified
   variant: SND_PCM_FORMAT_U20_LE
     doc: Unsigned 20bit Little/Native Endian in 4bytes format, LSB justified
-    doc: (a.k.a `SND_PCM_FORMAT_U20` in C API)
+    doc:>(a.k.a `SND_PCM_FORMAT_U20` in C API)
   variant: SND_PCM_FORMAT_U20_BE
     doc: Unsigned 20bit Big Endian in 4bytes format, LSB justified
   variant: SND_PCM_FORMAT_SPECIAL
@@ -146,52 +146,52 @@ enum: snd_pcm_format_t
 
 address: Pcm
   doc: Pointer to a snd_pcm_t
-  doc: 
-  doc: PCM handle
+  doc:>
+  doc:>PCM handle
 
 address: PcmHwParams
   doc: Pointer to a snd_pcm_hw_params_t
-  doc: 
-  doc: PCM hardware configuration space container
-  doc: 
-  doc: snd_pcm_hw_params_t is an opaque structure which contains a set of
-  doc: possible PCM hardware configurations. For example, a given instance might
-  doc: include a range of buffer sizes, a range of period sizes, and a set of
-  doc: several sample formats. Some subset of all possible combinations these
-  doc: sets may be valid, but not necessarily any combination will be valid.
-  doc:
-  doc: When a parameter is set or restricted using a snd_pcm_hw_params_set*
-  doc: function, all of the other ranges will be updated to exclude as many
-  doc: impossible configurations as possible. Attempting to set a parameter
-  doc: outside of its acceptable range will result in the function failing and
-  doc: an error code being returned.
+  doc:>
+  doc:>PCM hardware configuration space container
+  doc:>
+  doc:>snd_pcm_hw_params_t is an opaque structure which contains a set of
+  doc:>possible PCM hardware configurations. For example, a given instance might
+  doc:>include a range of buffer sizes, a range of period sizes, and a set of
+  doc:>several sample formats. Some subset of all possible combinations these
+  doc:>sets may be valid, but not necessarily any combination will be valid.
+  doc:>
+  doc:>When a parameter is set or restricted using a snd_pcm_hw_params_set*
+  doc:>function, all of the other ranges will be updated to exclude as many
+  doc:>impossible configurations as possible. Attempting to set a parameter
+  doc:>outside of its acceptable range will result in the function failing and
+  doc:>an error code being returned.
   old: snd_pcm_hw_params_free
 
 address: PcmStatus
   doc: Pointer to a snd_pcm_status_t
-  doc: 
-  doc: PCM status container
+  doc:>
+  doc:>PCM status container
 
 func: snd_pcm_open
   mod: Player Recorder
   doc: Opens a PCM.
-  doc: - `pcmp`: Returned PCM handle
-  doc: - `name`: ASCII identifier of the PCM handle
-  doc: - `stream`: Wanted stream
-  doc: - `mode`: Open mode (see SND_PCM_NONBLOCK, SND_PCM_ASYNC)
-  doc: Return 0 on success otherwise a negative error code
+  doc:>- `pcmp`: Returned PCM handle
+  doc:>- `name`: ASCII identifier of the PCM handle
+  doc:>- `stream`: Wanted stream
+  doc:>- `mode`: Open mode (see SND_PCM_NONBLOCK, SND_PCM_ASYNC)
+  doc:>Return 0 on success otherwise a negative error code
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: New
     type: Pcm
-  field: name
+  par: name
     attr: Ref
     type: .textz
-  field: stream
+  par: stream
     attr: Val
     type: snd_pcm_stream_t
-  field: mode
+  par: mode
     attr: Val
     type: c_int
 
@@ -201,7 +201,7 @@ func: snd_pcm_hw_params_malloc
   doc: allocate an invalid snd_pcm_hw_params_t using standard malloc
   err: c_int
     success: 0
-  field: ptr
+  par: ptr
     attr: Out
     type: PcmHwParams
 
@@ -210,10 +210,10 @@ func: snd_pcm_hw_params_any
   doc: Fill params with a full configuration space for a PCM.
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: params
+  par: params
     attr: Mut
     type: PcmHwParams
 
@@ -221,36 +221,36 @@ func: snd_pcm_hw_params_any
 func: snd_pcm_hw_params_set_rate_resample
   mod: Player Recorder
   doc: Restrict a configuration space to contain only real hardware rates.
-  doc: - `pcm`: PCM handle
-  doc: - `params`: Configuration space 
-  doc: - `val`: 0 = disable, 1 = enable (default) rate resampling 
+  doc:>- `pcm`: PCM handle
+  doc:>- `params`: Configuration space 
+  doc:>- `val`: 0 = disable, 1 = enable (default) rate resampling 
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: params
+  par: params
     attr: Mut
     type: PcmHwParams
-  field: val
+  par: val
     attr: Val
     type: c_uint
 
 func: snd_pcm_hw_params_set_access
   mod: Player Recorder
   doc: Restrict a configuration space to contain only one access type.
-  doc: - `pcm`: PCM handle
-  doc: - `params`: Configuration space
-  doc: - `access`: access type
+  doc:>- `pcm`: PCM handle
+  doc:>- `params`: Configuration space
+  doc:>- `access`: access type
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: params
+  par: params
     attr: Mut
     type: PcmHwParams
-  field: access
+  par: access
     attr: Val
     type: snd_pcm_access_t
 
@@ -259,13 +259,13 @@ func: snd_pcm_hw_params_set_format
   doc: Restrict a configuration space to contain only one format.
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: params
+  par: params
     attr: Mut
     type: PcmHwParams
-  field: val
+  par: val
     attr: Val
     type: snd_pcm_format_t
 
@@ -274,13 +274,13 @@ func: snd_pcm_hw_params_set_channels
   doc: Restrict a configuration space to contain only one channels count.
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: params
+  par: params
     attr: Mut
     type: PcmHwParams
-  field: val
+  par: val
     attr: Val
     type: c_uint
 
@@ -288,76 +288,76 @@ func: snd_pcm_hw_params_set_channels
 func: snd_pcm_hw_params_set_rate_near
   mod: Player Recorder
   doc: Restrict a configuration space to have rate nearest to a target.
-  doc: - `pcm`: PCM handle
-  doc: - `params`: Configuration space
-  doc: - `val`: approximate target rate / returned approximate set rate
-  doc: - `dir`: Sub unit direction 
+  doc:>- `pcm`: PCM handle
+  doc:>- `params`: Configuration space
+  doc:>- `val`: approximate target rate / returned approximate set rate
+  doc:>- `dir`: Sub unit direction 
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: params
+  par: params
     attr: Mut
     type: PcmHwParams
-  field: val
+  par: val
     attr: Mut
     type: c_uint
-  field: dir
+  par: dir
     attr: Mut
     type: c_int
 
 func: snd_pcm_hw_params
   mod: Player Recorder
   doc: Install one PCM hardware configuration chosen from a configuration space
-  doc: and snd_pcm_prepare it.
-  doc: - `pcm`: PCM handle
-  doc: - `params`: Configuration space definition container
+  doc:>and snd_pcm_prepare it.
+  doc:>- `pcm`: PCM handle
+  doc:>- `params`: Configuration space definition container
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: params
+  par: params
     attr: Mut
     type: PcmHwParams
 
 func: snd_pcm_hw_params_get_buffer_size
   mod: Player Recorder
   doc: Extract buffer size from a configuration space.
-  doc: - `params`: Configuration space
-  doc: - `val`: Returned buffer size in frames 
+  doc:>- `params`: Configuration space
+  doc:>- `val`: Returned buffer size in frames 
   err: c_int
     success: 0
-  field: params
+  par: params
     attr: Ref
     type: PcmHwParams
-  field: val
+  par: val
     attr: Out
     type: c_ulong
 
 func: snd_pcm_hw_params_get_period_size
   mod: Player Recorder
   doc: Extract period size from a configuration space.
-  doc: - `params`: Configuration space
-  doc: - `val`: Returned approximate period size in frames
-  doc: - `dir`: Sub unit direction
+  doc:>- `params`: Configuration space
+  doc:>- `val`: Returned approximate period size in frames
+  doc:>- `dir`: Sub unit direction
   err: c_int
     success: 0
-  field: params
+  par: params
     attr: Ref
     type: PcmHwParams
-  field: val
+  par: val
     attr: Out
     type: c_ulong
-  field: dir
+  par: dir
     attr: Mut
     type: c_int
 
 func: snd_pcm_hw_params_free
   mod: Player Recorder
   doc: Frees a previously allocated snd_pcm_hw_params_t
-  field: obj
+  par: obj
     attr: Mut
     type: PcmHwParams
 
@@ -366,54 +366,54 @@ func: snd_pcm_prepare
   doc: Prepare PCM for use.
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
 
 func: snd_pcm_writei
   mod: Player
   doc: Write interleaved frames to a PCM.
-  doc: - `pcm`: PCM handle
-  doc: - `buffer`: frames containing buffer
-  doc: - `size`: frames to be written
-  doc: If the blocking behaviour is selected and it is running, then routine
-  doc: waits until all requested frames are played or put to the playback ring
-  doc: buffer. The returned number of frames can be less only if a signal or
-  doc: underrun occurred.
-  doc: 
-  doc: If the non-blocking behaviour is selected, then routine doesn't wait at
-  doc: all.
+  doc:>- `pcm`: PCM handle
+  doc:>- `buffer`: frames containing buffer
+  doc:>- `size`: frames to be written
+  doc:>If the blocking behaviour is selected and it is running, then routine
+  doc:>waits until all requested frames are played or put to the playback ring
+  doc:>buffer. The returned number of frames can be less only if a signal or
+  doc:>underrun occurred.
+  doc:>
+  doc:>If the non-blocking behaviour is selected, then routine doesn't wait at
+  doc:>all.
   ret: c_long
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: buffers
+  par: buffers
     attr: Arr Ref
     type: i16
-  field: size
+  par: size
     attr: Len
     type: c_ulong
 
 func: snd_pcm_readi
   mod: Recorder
   doc: Read interleaved frames from a PCM.
-  doc: - `pcm`: PCM handle
-  doc: - `buffer`: frames containing buffer
-  doc: - `size`: frames to be read
-  doc: If the blocking behaviour was selected and it is running, then routine
-  doc: waits until all requested frames are filled. The returned number of
-  doc: frames can be less only if a signal or underrun occurred.
-  doc: 
-  doc: If the non-blocking behaviour is selected, then routine doesn't wait at
-  doc: all.
+  doc:>- `pcm`: PCM handle
+  doc:>- `buffer`: frames containing buffer
+  doc:>- `size`: frames to be read
+  doc:>If the blocking behaviour was selected and it is running, then routine
+  doc:>waits until all requested frames are filled. The returned number of
+  doc:>frames can be less only if a signal or underrun occurred.
+  doc:>
+  doc:>If the non-blocking behaviour is selected, then routine doesn't wait at
+  doc:>all.
   ret: c_long
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: buffer
+  par: buffer
     attr: Arr Out
     type: i16
-  field: size
+  par: size
     attr: Val
     type: c_ulong
 
@@ -425,23 +425,23 @@ func: snd_pcm_status_sizeof
 func: snd_pcm_status
   mod: Player Recorder
   doc: Obtain status (runtime) information for PCM handle. 
-  doc: - `pcm`: PCM handle
-  doc: - `status`: Status container
+  doc:>- `pcm`: PCM handle
+  doc:>- `status`: Status container
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
-  field: status
+  par: status
     attr: Out
     type: PcmStatus
 
 func: snd_pcm_status_get_avail
   mod: Player Recorder
   doc: Get number of frames available from a PCM status container (see
-  doc: snd_pcm_avail_update)
+  doc:>snd_pcm_avail_update)
   ret: c_ulong
-  field: obj
+  par: obj
     attr: Ref
     type: PcmStatus
 
@@ -450,7 +450,7 @@ func: snd_pcm_close
   doc: close PCM handle
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
 
@@ -459,6 +459,6 @@ func: snd_pcm_start
   doc: Start a PCM.
   err: c_int
     success: 0
-  field: pcm
+  par: pcm
     attr: Mut
     type: Pcm
