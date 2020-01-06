@@ -180,7 +180,7 @@ func: snd_pcm_open
   doc:>- `stream`: Wanted stream
   doc:>- `mode`: Open mode (see SND_PCM_NONBLOCK, SND_PCM_ASYNC)
   doc:>Return 0 on success otherwise a negative error code
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: New
@@ -193,13 +193,13 @@ func: snd_pcm_open
     type: snd_pcm_stream_t
   par: mode
     attr: Val
-    type: c_int
+    type: int
 
 # TODO: dl_api support safe way of invalid malloc in conjunction w/ other func.
 func: snd_pcm_hw_params_malloc
   mod: Player Recorder
   doc: allocate an invalid snd_pcm_hw_params_t using standard malloc
-  err: c_int
+  err: int
     success: 0
   par: ptr
     attr: Out
@@ -208,7 +208,7 @@ func: snd_pcm_hw_params_malloc
 func: snd_pcm_hw_params_any
   mod: Player Recorder
   doc: Fill params with a full configuration space for a PCM.
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -224,7 +224,7 @@ func: snd_pcm_hw_params_set_rate_resample
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space 
   doc:>- `val`: 0 = disable, 1 = enable (default) rate resampling 
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -234,7 +234,7 @@ func: snd_pcm_hw_params_set_rate_resample
     type: PcmHwParams
   par: val
     attr: Val
-    type: c_uint
+    type: unsigned int
 
 func: snd_pcm_hw_params_set_access
   mod: Player Recorder
@@ -242,7 +242,7 @@ func: snd_pcm_hw_params_set_access
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space
   doc:>- `access`: access type
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -257,7 +257,7 @@ func: snd_pcm_hw_params_set_access
 func: snd_pcm_hw_params_set_format
   mod: Player Recorder
   doc: Restrict a configuration space to contain only one format.
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -272,7 +272,7 @@ func: snd_pcm_hw_params_set_format
 func: snd_pcm_hw_params_set_channels
   mod: Player Recorder
   doc: Restrict a configuration space to contain only one channels count.
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -282,7 +282,7 @@ func: snd_pcm_hw_params_set_channels
     type: PcmHwParams
   par: val
     attr: Val
-    type: c_uint
+    type: unsigned int
 
 # TODO: maybe use snd_pcm_hw_params_set_rate_resample w/ snd_pcm_hw_params_set_rate
 func: snd_pcm_hw_params_set_rate_near
@@ -292,7 +292,7 @@ func: snd_pcm_hw_params_set_rate_near
   doc:>- `params`: Configuration space
   doc:>- `val`: approximate target rate / returned approximate set rate
   doc:>- `dir`: Sub unit direction 
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -302,10 +302,10 @@ func: snd_pcm_hw_params_set_rate_near
     type: PcmHwParams
   par: val
     attr: Mut
-    type: c_uint
+    type: unsigned int
   par: dir
     attr: Mut
-    type: c_int
+    type: int
 
 func: snd_pcm_hw_params
   mod: Player Recorder
@@ -313,7 +313,7 @@ func: snd_pcm_hw_params
   doc:>and snd_pcm_prepare it.
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space definition container
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -327,14 +327,14 @@ func: snd_pcm_hw_params_get_buffer_size
   doc: Extract buffer size from a configuration space.
   doc:>- `params`: Configuration space
   doc:>- `val`: Returned buffer size in frames 
-  err: c_int
+  err: int
     success: 0
   par: params
     attr: Ref
     type: PcmHwParams
   par: val
     attr: Out
-    type: c_ulong
+    type: unsigned long
 
 func: snd_pcm_hw_params_get_period_size
   mod: Player Recorder
@@ -342,17 +342,17 @@ func: snd_pcm_hw_params_get_period_size
   doc:>- `params`: Configuration space
   doc:>- `val`: Returned approximate period size in frames
   doc:>- `dir`: Sub unit direction
-  err: c_int
+  err: int
     success: 0
   par: params
     attr: Ref
     type: PcmHwParams
   par: val
     attr: Out
-    type: c_ulong
+    type: unsigned long
   par: dir
     attr: Mut
-    type: c_int
+    type: int
 
 func: snd_pcm_hw_params_free
   mod: Player Recorder
@@ -364,7 +364,7 @@ func: snd_pcm_hw_params_free
 func: snd_pcm_prepare
   mod: Player Recorder
   doc: Prepare PCM for use.
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -383,16 +383,16 @@ func: snd_pcm_writei
   doc:>
   doc:>If the non-blocking behaviour is selected, then routine doesn't wait at
   doc:>all.
-  ret: c_long
+  ret: long
   par: pcm
     attr: Mut
     type: Pcm
   par: buffers
     attr: Arr Ref
-    type: i16
+    type: int16_t
   par: size
     attr: Len
-    type: c_ulong
+    type: unsigned long
 
 func: snd_pcm_readi
   mod: Recorder
@@ -406,16 +406,16 @@ func: snd_pcm_readi
   doc:>
   doc:>If the non-blocking behaviour is selected, then routine doesn't wait at
   doc:>all.
-  ret: c_long
+  ret: long
   par: pcm
     attr: Mut
     type: Pcm
   par: buffer
     attr: Arr Out
-    type: i16
+    type: int16_t
   par: size
     attr: Val
-    type: c_ulong
+    type: unsigned long
 
 func: snd_pcm_status_sizeof
   mod: Player Recorder
@@ -427,7 +427,7 @@ func: snd_pcm_status
   doc: Obtain status (runtime) information for PCM handle. 
   doc:>- `pcm`: PCM handle
   doc:>- `status`: Status container
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -440,7 +440,7 @@ func: snd_pcm_status_get_avail
   mod: Player Recorder
   doc: Get number of frames available from a PCM status container (see
   doc:>snd_pcm_avail_update)
-  ret: c_ulong
+  ret: unsigned long
   par: obj
     attr: Ref
     type: PcmStatus
@@ -448,7 +448,7 @@ func: snd_pcm_status_get_avail
 func: snd_pcm_close
   mod: Player Recorder
   doc: close PCM handle
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
@@ -457,7 +457,7 @@ func: snd_pcm_close
 func: snd_pcm_start
   mod: Player Recorder
   doc: Start a PCM.
-  err: c_int
+  err: int
     success: 0
   par: pcm
     attr: Mut
