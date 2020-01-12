@@ -144,15 +144,11 @@ enum: snd_pcm_format_t
   variant: DSD_U32_BE,
     doc: IEC-958 CPU Endian
 
-address: Pcm
-  doc: Pointer to a snd_pcm_t
-  doc:>
-  doc:>PCM handle
+address: snd_pcm_t
+  doc: PCM handle
 
-address: PcmHwParams
-  doc: Pointer to a snd_pcm_hw_params_t
-  doc:>
-  doc:>PCM hardware configuration space container
+address: snd_pcm_hw_params_t
+  doc: PCM hardware configuration space container
   doc:>
   doc:>snd_pcm_hw_params_t is an opaque structure which contains a set of
   doc:>possible PCM hardware configurations. For example, a given instance might
@@ -167,12 +163,11 @@ address: PcmHwParams
   doc:>an error code being returned.
   old: snd_pcm_hw_params_free
 
-address: PcmStatus
-  doc: Pointer to a snd_pcm_status_t
-  doc:>
-  doc:>PCM status container
+address: snd_pcm_status_t
+  doc: PCM status container
+  bytes: snd_pcm_status_sizeof
 
-func: snd_pcm_open
+func: int snd_pcm_open(snd_pcm_t** pcmp, const char* name, snd_pcm_stream_t stream, int mode)
   mod: Player Recorder
   doc: Opens a PCM.
   doc:>- `pcmp`: Returned PCM handle
@@ -180,197 +175,121 @@ func: snd_pcm_open
   doc:>- `stream`: Wanted stream
   doc:>- `mode`: Open mode (see SND_PCM_NONBLOCK, SND_PCM_ASYNC)
   doc:>Return 0 on success otherwise a negative error code
-  err: int
-    success: 0
-  par: pcm
-    attr: New
-    type: Pcm
-  par: name
-    attr: Ref
-    type: .textz
-  par: stream
-    attr: Val
-    type: snd_pcm_stream_t
-  par: mode
-    attr: Val
-    type: int
+  pat: NEW pcmp
+  pat: STR name
+  pat: VAL stream
+  pat: VAL mode
+  pat: OK = 0
 
 # TODO: dl_api support safe way of invalid malloc in conjunction w/ other func.
-func: snd_pcm_hw_params_malloc
+func: int snd_pcm_hw_params_malloc(snd_pcm_hw_params_t** ptr)
   mod: Player Recorder
-  doc: allocate an invalid snd_pcm_hw_params_t using standard malloc
-  err: int
-    success: 0
-  par: ptr
-    attr: Out
-    type: PcmHwParams
+  doc: Allocate an invalid snd_pcm_hw_params_t using standard malloc
+  pat: NEW ptr
+  pat: OK = 0
 
-func: snd_pcm_hw_params_any
+func: int snd_pcm_hw_params_any(snd_pcm_t* pcm, snd_pcm_hw_params_t* params)
   mod: Player Recorder
   doc: Fill params with a full configuration space for a PCM.
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: params
-    attr: Mut
-    type: PcmHwParams
+  pat: VAL pcm
+  pat: VAL params
+  pat: OK = 0
 
 # TODO: How are we using this / why?
-func: snd_pcm_hw_params_set_rate_resample
+func: int snd_pcm_hw_params_set_rate_resample(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int val)
   mod: Player Recorder
   doc: Restrict a configuration space to contain only real hardware rates.
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space 
-  doc:>- `val`: 0 = disable, 1 = enable (default) rate resampling 
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: params
-    attr: Mut
-    type: PcmHwParams
-  par: val
-    attr: Val
-    type: unsigned int
+  doc:>- `val`: 0 = disable, 1 = enable (default) rate resampling
+  pat: VAL pcm
+  pat: VAL params
+  pat: VAL val
+  pat: OK = 0
 
-func: snd_pcm_hw_params_set_access
+func: int snd_pcm_hw_params_set_access(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, snd_pcm_access_t access)
   mod: Player Recorder
   doc: Restrict a configuration space to contain only one access type.
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space
   doc:>- `access`: access type
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: params
-    attr: Mut
-    type: PcmHwParams
-  par: access
-    attr: Val
-    type: snd_pcm_access_t
+  pat: VAL pcm
+  pat: VAL params
+  pat: VAL access
+  pat: OK = 0
 
-func: snd_pcm_hw_params_set_format
+func: int snd_pcm_hw_params_set_format(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, snd_pcm_format_t format)
   mod: Player Recorder
   doc: Restrict a configuration space to contain only one format.
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: params
-    attr: Mut
-    type: PcmHwParams
-  par: val
-    attr: Val
-    type: snd_pcm_format_t
+  pat: VAL pcm
+  pat: VAL params
+  pat: VAL format
+  pat: OK = 0
 
-func: snd_pcm_hw_params_set_channels
+func: int snd_pcm_hw_params_set_channels(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int val)
   mod: Player Recorder
   doc: Restrict a configuration space to contain only one channels count.
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: params
-    attr: Mut
-    type: PcmHwParams
-  par: val
-    attr: Val
-    type: unsigned int
+  pat: VAL pcm
+  pat: VAL params
+  pat: VAL val
+  pat: OK = 0
 
 # TODO: maybe use snd_pcm_hw_params_set_rate_resample w/ snd_pcm_hw_params_set_rate
-func: snd_pcm_hw_params_set_rate_near
+func: int snd_pcm_hw_params_set_rate_near(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int* val, int* dir)
   mod: Player Recorder
   doc: Restrict a configuration space to have rate nearest to a target.
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space
   doc:>- `val`: approximate target rate / returned approximate set rate
   doc:>- `dir`: Sub unit direction 
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: params
-    attr: Mut
-    type: PcmHwParams
-  par: val
-    attr: Mut
-    type: unsigned int
-  par: dir
-    attr: Mut
-    type: int
+  pat: VAL pcm
+  pat: VAL params
+  pat: MUT val
+  pat: OPT_MUT dir
+  pat: OK = 0
 
-func: snd_pcm_hw_params
+func: int snd_pcm_hw_params(snd_pcm_t* pcm, snd_pcm_hw_params_t* params)
   mod: Player Recorder
   doc: Install one PCM hardware configuration chosen from a configuration space
   doc:>and snd_pcm_prepare it.
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space definition container
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: params
-    attr: Mut
-    type: PcmHwParams
+  pat: VAL pcm
+  pat: VAL params
+  pat: OK = 0
 
-func: snd_pcm_hw_params_get_buffer_size
+func: int snd_pcm_hw_params_get_buffer_size(const snd_pcm_hw_params_t* params, unsigned long* val)
   mod: Player Recorder
   doc: Extract buffer size from a configuration space.
   doc:>- `params`: Configuration space
-  doc:>- `val`: Returned buffer size in frames 
-  err: int
-    success: 0
-  par: params
-    attr: Ref
-    type: PcmHwParams
-  par: val
-    attr: Out
-    type: unsigned long
+  doc:>- `val`: Returned buffer size in frames
+  pat: VAL params
+  pat: OUT val
+  pat: OK = 0
 
-func: snd_pcm_hw_params_get_period_size
+func: int snd_pcm_hw_params_get_period_size(const snd_pcm_hw_params_t* params, unsigned long* frames, int* dir)
   mod: Player Recorder
   doc: Extract period size from a configuration space.
   doc:>- `params`: Configuration space
   doc:>- `val`: Returned approximate period size in frames
   doc:>- `dir`: Sub unit direction
-  err: int
-    success: 0
-  par: params
-    attr: Ref
-    type: PcmHwParams
-  par: val
-    attr: Out
-    type: unsigned long
-  par: dir
-    attr: Mut
-    type: int
+  pat: VAL params
+  pat: OUT frames
+  pat: OPT_MUT dir
+  pat: OK = 0
 
-func: snd_pcm_hw_params_free
+func: void snd_pcm_hw_params_free(snd_pcm_hw_params_t* obj)
   mod: Player Recorder
   doc: Frees a previously allocated snd_pcm_hw_params_t
-  par: obj
-    attr: Mut
-    type: PcmHwParams
+  pat: OLD obj
 
-func: snd_pcm_prepare
+func: int snd_pcm_prepare(snd_pcm_t* pcm)
   mod: Player Recorder
   doc: Prepare PCM for use.
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
+  pat: VAL pcm
+  pat: OK = 0
 
-func: snd_pcm_writei
+func: long snd_pcm_writei(snd_pcm_t* pcm, const void* buffer, unsigned long size)
   mod: Player
   doc: Write interleaved frames to a PCM.
   doc:>- `pcm`: PCM handle
@@ -383,18 +302,12 @@ func: snd_pcm_writei
   doc:>
   doc:>If the non-blocking behaviour is selected, then routine doesn't wait at
   doc:>all.
-  ret: long
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: buffers
-    attr: Arr Ref
-    type: int16_t
-  par: size
-    attr: Len
-    type: unsigned long
+  pat: VAL pcm
+  pat: SLICE size buffer
+  pat: OUT
+  pat: OK > -1
 
-func: snd_pcm_readi
+func: long snd_pcm_readi(snd_pcm_t* pcm, void* buffer, unsigned long size)
   mod: Recorder
   doc: Read interleaved frames from a PCM.
   doc:>- `pcm`: PCM handle
@@ -406,59 +319,33 @@ func: snd_pcm_readi
   doc:>
   doc:>If the non-blocking behaviour is selected, then routine doesn't wait at
   doc:>all.
-  ret: long
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: buffer
-    attr: Arr Out
-    type: int16_t
-  par: size
-    attr: Val
-    type: unsigned long
+  pat: VAL pcm
+  pat: OUT_VEC size buffer
+  pat: OK > -1
 
-func: snd_pcm_status_sizeof
-  mod: Player Recorder
-  doc: get size of snd_pcm_status_t
-  ret: usize
-
-func: snd_pcm_status
+func: int snd_pcm_status_malloc(snd_pcm_status_t** ptr)
   mod: Player Recorder
   doc: Obtain status (runtime) information for PCM handle. 
   doc:>- `pcm`: PCM handle
   doc:>- `status`: Status container
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
-  par: status
-    attr: Out
-    type: PcmStatus
+  pat: NEW ptr
+  pat: OK = 0
 
-func: snd_pcm_status_get_avail
+func: unsigned long snd_pcm_status_get_avail(const snd_pcm_status_t* obj)
   mod: Player Recorder
   doc: Get number of frames available from a PCM status container (see
   doc:>snd_pcm_avail_update)
-  ret: unsigned long
-  par: obj
-    attr: Ref
-    type: PcmStatus
+  pat: VAL obj
+  pat: OUT
 
-func: snd_pcm_close
+func: int snd_pcm_close(snd_pcm_t* pcm)
   mod: Player Recorder
   doc: close PCM handle
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
+  pat: OLD pcm
+  pat: OK = 0
 
-func: snd_pcm_start
+func: int snd_pcm_start(snd_pcm_t* pcm)
   mod: Player Recorder
   doc: Start a PCM.
-  err: int
-    success: 0
-  par: pcm
-    attr: Mut
-    type: Pcm
+  pat: VAL pcm
+  pat: OK = 0

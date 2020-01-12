@@ -3,8 +3,9 @@
 #![allow(unsafe_code)]
 #![rustfmt::skip]
 
-use std::ffi::{c_void, c_char, c_int};
+use std::ffi::{c_void, c_char, c_int, c_long};
 use std::ptr::NonNull;
+use std::convert::TryInto;
 
 const LM_ID_NEWLM: c_long = -1;
 const RTLD_NOW: c_int = 0x00002;
@@ -30,7 +31,8 @@ unsafe fn sym(dll: &NonNull<c_void>, name: &[u8]) -> Option<NonNull<c_void>> {
 
 static mut THREAD_ID: std::mem::MaybeUninit<std::thread::ThreadID>
     = std::mem::MaybeUninit::uninit();
-static mut DLL: std::mem::MaybeUninit<NonNull<c_void>>;
+static mut DLL: std::mem::MaybeUninit<NonNull<c_void>>
+    = std::mem::MaybeUninit::uninit();
 static mut START_FFI: std::sync::Once = std::sync::Once::new();
 
 unsafe fn check_thread() -> Option<NonNull<c_void>> {
@@ -188,14 +190,10 @@ pub(crate) enum SndPcmFormat {
     DsdU32Be,
 }
 
-/// Pointer to a snd_pcm_t
-/// 
 /// PCM handle
 #[repr(C)]
-pub struct Pcm(*mut c_void);
+pub struct snd_pcm_t(*mut [u8]);
 
-/// Pointer to a snd_pcm_hw_params_t
-/// 
 /// PCM hardware configuration space container
 /// 
 /// snd_pcm_hw_params_t is an opaque structure which contains a set of
@@ -210,99 +208,105 @@ pub struct Pcm(*mut c_void);
 /// outside of its acceptable range will result in the function failing and
 /// an error code being returned.
 #[repr(C)]
-pub struct PcmHwParams(*mut c_void);
+pub struct snd_pcm_hw_params_t(*mut [u8]);
 
-impl Drop for PcmHwParams {
+impl Drop for snd_pcm_hw_params_t {
     fn drop(&mut self) {
         snd_pcm_hw_params_free(self.0);
     }
 }
 
-/// Pointer to a snd_pcm_status_t
-/// 
 /// PCM status container
 #[repr(C)]
-pub struct PcmStatus(*mut c_void);
+pub struct snd_pcm_status_t(*mut [u8]);
+
+impl snd_pcm_status_t {
+    unsafe fn uninit() -> Self {
+        Self(Vec::<u8>::with_capacity(snd_pcm_status_sizeof).into_boxed_slice().into_raw());
+    }
+}
+
+impl Drop for snd_pcm_status_t {
+    fn drop(&mut self) {
+        let _ = unsafe { Box::<[u8]>::from_raw(self.0) }
+    }
+}
 
 static mut FUNC_SND_PCM_OPEN: std::mem::MaybeUninit<extern fn(
-    *mut *mut Pcm, *const Textz, SndPcmStreamT, std::os::raw::c_int, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_MALLOC: std::mem::MaybeUninit<extern fn(
-    *mut PcmHwParams, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_ANY: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *mut PcmHwParams, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *mut PcmHwParams, std::os::raw::c_uint, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_SET_ACCESS: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *mut PcmHwParams, SndPcmAccessT, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_SET_FORMAT: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *mut PcmHwParams, SndPcmFormatT, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_SET_CHANNELS: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *mut PcmHwParams, std::os::raw::c_uint, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_SET_RATE_NEAR: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *mut PcmHwParams, *mut std::os::raw::c_uint, *mut std::os::raw::c_int, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *mut PcmHwParams, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE: std::mem::MaybeUninit<extern fn(
-    *const PcmHwParams, *mut std::os::raw::c_ulong, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE: std::mem::MaybeUninit<extern fn(
-    *const PcmHwParams, *mut std::os::raw::c_ulong, *mut std::os::raw::c_int, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_HW_PARAMS_FREE: std::mem::MaybeUninit<extern fn(
-    *mut PcmHwParams, 
-) -> ()> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_PREPARE: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_WRITEI: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *const i16, std::os::raw::c_ulong, 
-) -> long> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_READI: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *mut i16, std::os::raw::c_ulong, 
-) -> long> = std::mem::MaybeUninit::uninit();
-
-static mut FUNC_SND_PCM_STATUS_SIZEOF: std::mem::MaybeUninit<extern fn(
     
-) -> usize> = std::mem::MaybeUninit::uninit();
+) -> > = std::mem::MaybeUninit::uninit();
 
-static mut FUNC_SND_PCM_STATUS: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, *mut PcmStatus, 
-) -> int> = std::mem::MaybeUninit::uninit();
+static mut FUNC_SND_PCM_STATUS_MALLOC: std::mem::MaybeUninit<extern fn(
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
-static mut FUNC_SND_PCM_STATUS_GET_AVAIL: std::mem::MaybeUninit<extern fn(
-    *const PcmStatus, 
-) -> unsigned long> = std::mem::MaybeUninit::uninit();
+static mut FUNC_LONG: std::mem::MaybeUninit<extern fn(
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_CLOSE: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 static mut FUNC_SND_PCM_START: std::mem::MaybeUninit<extern fn(
-    *mut Pcm, 
-) -> int> = std::mem::MaybeUninit::uninit();
+    
+) -> > = std::mem::MaybeUninit::uninit();
 
 /// A module contains functions.
 pub struct Player;
@@ -314,51 +318,58 @@ impl Player {
     /// - `stream`: Wanted stream
     /// - `mode`: Open mode (see SND_PCM_NONBLOCK, SND_PCM_ASYNC)
     /// Return 0 on success otherwise a negative error code
-    fn snd_pcm_open(&std::ffi::CStr, snd_pcm_stream_t, int, ) -> Result<Pcm,int> {
+    fn snd_pcm_open()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_OPEN).assume_init())() };
-        _ret
     }
 
-    /// allocate an invalid snd_pcm_hw_params_t using standard malloc
-    fn snd_pcm_hw_params_malloc() -> Result<PcmHwParams,int> {
+    /// Allocate an invalid snd_pcm_hw_params_t using standard malloc
+    fn snd_pcm_hw_params_malloc()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_MALLOC).assume_init())() };
-        _ret
     }
 
     /// Fill params with a full configuration space for a PCM.
-    fn snd_pcm_hw_params_any(&mut Pcm, &mut PcmHwParams, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_any()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_ANY).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to contain only real hardware rates.
     /// - `pcm`: PCM handle
     /// - `params`: Configuration space 
-    /// - `val`: 0 = disable, 1 = enable (default) rate resampling 
-    fn snd_pcm_hw_params_set_rate_resample(&mut Pcm, &mut PcmHwParams, unsigned int, ) -> Result<(),int> {
+    /// - `val`: 0 = disable, 1 = enable (default) rate resampling
+    fn snd_pcm_hw_params_set_rate_resample()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to contain only one access type.
     /// - `pcm`: PCM handle
     /// - `params`: Configuration space
     /// - `access`: access type
-    fn snd_pcm_hw_params_set_access(&mut Pcm, &mut PcmHwParams, snd_pcm_access_t, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_set_access()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_ACCESS).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to contain only one format.
-    fn snd_pcm_hw_params_set_format(&mut Pcm, &mut PcmHwParams, snd_pcm_format_t, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_set_format()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_FORMAT).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to contain only one channels count.
-    fn snd_pcm_hw_params_set_channels(&mut Pcm, &mut PcmHwParams, unsigned int, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_set_channels()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_CHANNELS).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to have rate nearest to a target.
@@ -366,47 +377,53 @@ impl Player {
     /// - `params`: Configuration space
     /// - `val`: approximate target rate / returned approximate set rate
     /// - `dir`: Sub unit direction 
-    fn snd_pcm_hw_params_set_rate_near(&mut Pcm, &mut PcmHwParams, &mut unsigned int, &mut int, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_set_rate_near()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_RATE_NEAR).assume_init())() };
-        _ret
     }
 
     /// Install one PCM hardware configuration chosen from a configuration space
     /// and snd_pcm_prepare it.
     /// - `pcm`: PCM handle
     /// - `params`: Configuration space definition container
-    fn snd_pcm_hw_params(&mut Pcm, &mut PcmHwParams, ) -> Result<(),int> {
+    fn snd_pcm_hw_params()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS).assume_init())() };
-        _ret
     }
 
     /// Extract buffer size from a configuration space.
     /// - `params`: Configuration space
-    /// - `val`: Returned buffer size in frames 
-    fn snd_pcm_hw_params_get_buffer_size(&PcmHwParams, ) -> Result<unsigned long,int> {
+    /// - `val`: Returned buffer size in frames
+    fn snd_pcm_hw_params_get_buffer_size()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE).assume_init())() };
-        _ret
     }
 
     /// Extract period size from a configuration space.
     /// - `params`: Configuration space
     /// - `val`: Returned approximate period size in frames
     /// - `dir`: Sub unit direction
-    fn snd_pcm_hw_params_get_period_size(&PcmHwParams, &mut int, ) -> Result<unsigned long,int> {
+    fn snd_pcm_hw_params_get_period_size()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE).assume_init())() };
-        _ret
     }
 
     /// Frees a previously allocated snd_pcm_hw_params_t
-    fn snd_pcm_hw_params_free(&mut PcmHwParams, ) -> () {
+    fn snd_pcm_hw_params_free()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_FREE).assume_init())() };
-        _ret
     }
 
     /// Prepare PCM for use.
-    fn snd_pcm_prepare(&mut Pcm, ) -> Result<(),int> {
+    fn snd_pcm_prepare()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_PREPARE).assume_init())() };
-        _ret
     }
 
     /// Write interleaved frames to a PCM.
@@ -420,42 +437,41 @@ impl Player {
     /// 
     /// If the non-blocking behaviour is selected, then routine doesn't wait at
     /// all.
-    fn snd_pcm_writei(&mut Pcm, &[&int16_t], , ) -> long {
-        let _ret = unsafe { ((FUNC_SND_PCM_WRITEI).assume_init())(DL_API_PLACEHOLDER_LEN.len()) };
-        _ret
-    }
-
-    /// get size of snd_pcm_status_t
-    fn snd_pcm_status_sizeof() -> usize {
-        let _ret = unsafe { ((FUNC_SND_PCM_STATUS_SIZEOF).assume_init())() };
-        _ret
+    fn snd_pcm_writei()
+        -> 
+    {
+        let _ret = unsafe { ((FUNC_SND_PCM_WRITEI).assume_init())() };
     }
 
     /// Obtain status (runtime) information for PCM handle. 
     /// - `pcm`: PCM handle
     /// - `status`: Status container
-    fn snd_pcm_status(&mut Pcm, ) -> Result<PcmStatus,int> {
-        let _ret = unsafe { ((FUNC_SND_PCM_STATUS).assume_init())() };
-        _ret
+    fn snd_pcm_status_malloc()
+        -> 
+    {
+        let _ret = unsafe { ((FUNC_SND_PCM_STATUS_MALLOC).assume_init())() };
     }
 
     /// Get number of frames available from a PCM status container (see
     /// snd_pcm_avail_update)
-    fn snd_pcm_status_get_avail(&PcmStatus, ) -> unsigned long {
-        let _ret = unsafe { ((FUNC_SND_PCM_STATUS_GET_AVAIL).assume_init())() };
-        _ret
+    fn long()
+        -> 
+    {
+        let _ret = unsafe { ((FUNC_LONG).assume_init())() };
     }
 
     /// close PCM handle
-    fn snd_pcm_close(&mut Pcm, ) -> Result<(),int> {
+    fn snd_pcm_close()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_CLOSE).assume_init())() };
-        _ret
     }
 
     /// Start a PCM.
-    fn snd_pcm_start(&mut Pcm, ) -> Result<(),int> {
+    fn snd_pcm_start()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_START).assume_init())() };
-        _ret
     }
 
 }
@@ -470,51 +486,58 @@ impl Recorder {
     /// - `stream`: Wanted stream
     /// - `mode`: Open mode (see SND_PCM_NONBLOCK, SND_PCM_ASYNC)
     /// Return 0 on success otherwise a negative error code
-    fn snd_pcm_open(&std::ffi::CStr, snd_pcm_stream_t, int, ) -> Result<Pcm,int> {
+    fn snd_pcm_open()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_OPEN).assume_init())() };
-        _ret
     }
 
-    /// allocate an invalid snd_pcm_hw_params_t using standard malloc
-    fn snd_pcm_hw_params_malloc() -> Result<PcmHwParams,int> {
+    /// Allocate an invalid snd_pcm_hw_params_t using standard malloc
+    fn snd_pcm_hw_params_malloc()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_MALLOC).assume_init())() };
-        _ret
     }
 
     /// Fill params with a full configuration space for a PCM.
-    fn snd_pcm_hw_params_any(&mut Pcm, &mut PcmHwParams, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_any()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_ANY).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to contain only real hardware rates.
     /// - `pcm`: PCM handle
     /// - `params`: Configuration space 
-    /// - `val`: 0 = disable, 1 = enable (default) rate resampling 
-    fn snd_pcm_hw_params_set_rate_resample(&mut Pcm, &mut PcmHwParams, unsigned int, ) -> Result<(),int> {
+    /// - `val`: 0 = disable, 1 = enable (default) rate resampling
+    fn snd_pcm_hw_params_set_rate_resample()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to contain only one access type.
     /// - `pcm`: PCM handle
     /// - `params`: Configuration space
     /// - `access`: access type
-    fn snd_pcm_hw_params_set_access(&mut Pcm, &mut PcmHwParams, snd_pcm_access_t, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_set_access()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_ACCESS).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to contain only one format.
-    fn snd_pcm_hw_params_set_format(&mut Pcm, &mut PcmHwParams, snd_pcm_format_t, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_set_format()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_FORMAT).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to contain only one channels count.
-    fn snd_pcm_hw_params_set_channels(&mut Pcm, &mut PcmHwParams, unsigned int, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_set_channels()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_CHANNELS).assume_init())() };
-        _ret
     }
 
     /// Restrict a configuration space to have rate nearest to a target.
@@ -522,47 +545,53 @@ impl Recorder {
     /// - `params`: Configuration space
     /// - `val`: approximate target rate / returned approximate set rate
     /// - `dir`: Sub unit direction 
-    fn snd_pcm_hw_params_set_rate_near(&mut Pcm, &mut PcmHwParams, &mut unsigned int, &mut int, ) -> Result<(),int> {
+    fn snd_pcm_hw_params_set_rate_near()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_SET_RATE_NEAR).assume_init())() };
-        _ret
     }
 
     /// Install one PCM hardware configuration chosen from a configuration space
     /// and snd_pcm_prepare it.
     /// - `pcm`: PCM handle
     /// - `params`: Configuration space definition container
-    fn snd_pcm_hw_params(&mut Pcm, &mut PcmHwParams, ) -> Result<(),int> {
+    fn snd_pcm_hw_params()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS).assume_init())() };
-        _ret
     }
 
     /// Extract buffer size from a configuration space.
     /// - `params`: Configuration space
-    /// - `val`: Returned buffer size in frames 
-    fn snd_pcm_hw_params_get_buffer_size(&PcmHwParams, ) -> Result<unsigned long,int> {
+    /// - `val`: Returned buffer size in frames
+    fn snd_pcm_hw_params_get_buffer_size()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE).assume_init())() };
-        _ret
     }
 
     /// Extract period size from a configuration space.
     /// - `params`: Configuration space
     /// - `val`: Returned approximate period size in frames
     /// - `dir`: Sub unit direction
-    fn snd_pcm_hw_params_get_period_size(&PcmHwParams, &mut int, ) -> Result<unsigned long,int> {
+    fn snd_pcm_hw_params_get_period_size()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE).assume_init())() };
-        _ret
     }
 
     /// Frees a previously allocated snd_pcm_hw_params_t
-    fn snd_pcm_hw_params_free(&mut PcmHwParams, ) -> () {
+    fn snd_pcm_hw_params_free()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_HW_PARAMS_FREE).assume_init())() };
-        _ret
     }
 
     /// Prepare PCM for use.
-    fn snd_pcm_prepare(&mut Pcm, ) -> Result<(),int> {
+    fn snd_pcm_prepare()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_PREPARE).assume_init())() };
-        _ret
     }
 
     /// Read interleaved frames from a PCM.
@@ -575,42 +604,41 @@ impl Recorder {
     /// 
     /// If the non-blocking behaviour is selected, then routine doesn't wait at
     /// all.
-    fn snd_pcm_readi(&mut Pcm, &[unsigned long, ) -> long {
+    fn snd_pcm_readi()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_READI).assume_init())() };
-        _ret
-    }
-
-    /// get size of snd_pcm_status_t
-    fn snd_pcm_status_sizeof() -> usize {
-        let _ret = unsafe { ((FUNC_SND_PCM_STATUS_SIZEOF).assume_init())() };
-        _ret
     }
 
     /// Obtain status (runtime) information for PCM handle. 
     /// - `pcm`: PCM handle
     /// - `status`: Status container
-    fn snd_pcm_status(&mut Pcm, ) -> Result<PcmStatus,int> {
-        let _ret = unsafe { ((FUNC_SND_PCM_STATUS).assume_init())() };
-        _ret
+    fn snd_pcm_status_malloc()
+        -> 
+    {
+        let _ret = unsafe { ((FUNC_SND_PCM_STATUS_MALLOC).assume_init())() };
     }
 
     /// Get number of frames available from a PCM status container (see
     /// snd_pcm_avail_update)
-    fn snd_pcm_status_get_avail(&PcmStatus, ) -> unsigned long {
-        let _ret = unsafe { ((FUNC_SND_PCM_STATUS_GET_AVAIL).assume_init())() };
-        _ret
+    fn long()
+        -> 
+    {
+        let _ret = unsafe { ((FUNC_LONG).assume_init())() };
     }
 
     /// close PCM handle
-    fn snd_pcm_close(&mut Pcm, ) -> Result<(),int> {
+    fn snd_pcm_close()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_CLOSE).assume_init())() };
-        _ret
     }
 
     /// Start a PCM.
-    fn snd_pcm_start(&mut Pcm, ) -> Result<(),int> {
+    fn snd_pcm_start()
+        -> 
+    {
         let _ret = unsafe { ((FUNC_SND_PCM_START).assume_init())() };
-        _ret
     }
 
 }

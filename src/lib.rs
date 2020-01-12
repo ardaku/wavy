@@ -48,6 +48,10 @@ mod sample_rate;
 mod system;
 // mod resampler;
 
+mod gen {
+    mod asound;
+}
+
 mod ffi {
     #![allow(non_camel_case_types)]
 
