@@ -20,8 +20,9 @@ matrix:
         rust: stable
         compiler: gcc
 
-      - os: windows
-        rust: stable
+      # TODO: add Windows support
+      # - os: windows
+      #   rust: stable
 
       - os: osx
         rust: stable
