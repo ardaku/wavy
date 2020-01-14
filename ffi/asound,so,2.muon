@@ -1,0 +1,360 @@
+### Alsa Safe API specification in MuON for Linux port.
+###
+### Based on docs from
+### https://www.alsa-project.org/alsa-doc/alsa-lib/group___p_c_m.html
+
+# No unions
+
+enum: snd_pcm_stream_t
+  doc: PCM stream (direction)
+  variant: PLAYBACK
+    doc: Playback stream
+    value: 0
+  variant: CAPTURE
+    doc: Capture stream
+
+enum: snd_pcm_access_t
+  doc: PCM access type
+  variant: MMAP_INTERLEAVED
+    doc: mmap access with simple interleaved channels
+    value: 0
+  variant: MMAP_NONINTERLEAVED
+    doc: mmap access with simple non interleaved channels
+  variant: MMAP_COMPLEX
+    doc: mmap access with complex placement
+  variant: RW_INTERLEAVED
+    doc: snd_pcm_readi/snd_pcm_writei access
+  variant: RW_NONINTERLEAVED
+    doc: snd_pcm_readn/snd_pcm_writen access
+
+enum: snd_pcm_format_t
+  doc: PCM sample format
+  variant: UNKNOWN
+    doc: Unknown
+    value: -1
+  variant: S8
+    doc: Signed 8 bit
+    value: 0
+  variant: U8
+    doc: Unsigned 8 bit
+  variant: S16_LE
+    doc: Signed 16 bit Little Endian (a.k.a `S16` in C API)
+  variant: S16_BE
+    doc: Signed 16 bit Big Endian
+  variant: U16_LE
+    doc: Unsigned 16 bit Little Endian (a.k.a `U16` in C API)
+  variant: U16_BE
+    doc: Unsigned 16 bit Big Endian
+  variant: S24_LE
+    doc: Signed 24 bit Little Endian using low three bytes in 32-bit word
+    doc:>(a.k.a `S24` in C API)
+  variant: S24_BE
+    doc: Signed 24 bit Big Endian using low three bytes in 32-bit word
+  variant: U24_LE
+    doc: Unsigned 24 bit Little Endian using low three bytes in 32-bit word
+    doc:>(a.k.a `U24` in C API)
+  variant: U24_BE
+    doc: Unsigned 24 bit Big Endian using low three bytes in 32-bit word
+  variant: S32_LE
+    doc: Signed 32 bit Little Endian (a.k.a `S32` in C API)
+  variant: S32_BE
+    doc: Signed 32 bit Big Endian
+  variant: U32_LE
+    doc: Unsigned 32 bit Little Endian (a.k.a `U32` in C API)
+  variant: U32_BE
+    doc: Unsigned 32 bit Big Endian
+  variant: FLOAT_LE
+    doc: Float 32 bit Little Endian, Range -1.0 to 1.0
+    doc:>(a.k.a `FLOAT` in C API)
+  variant: FLOAT_BE
+    doc: Float 32 bit Big Endian, Range -1.0 to 1.0
+  variant: FLOAT64_LE
+    doc: Float 64 bit Little Endian, Range -1.0 to 1.0
+    doc:>(a.k.a `FLOAT64` in C API)
+  variant: FLOAT64_BE
+    doc: Float 64 bit Big Endian, Range -1.0 to 1.0
+  variant: IEC958_SUBFRAME_LE
+    doc: IEC-958 Little Endian (a.k.a `IEC958_SUBFRAME` in C API)
+  variant: IEC958_SUBFRAME_BE
+    doc: IEC-958 Big Endian
+  variant: MU_LAW
+    doc: Mu-Law
+  variant: A_LAW
+    doc: A-Law
+  variant: IMA_ADPCM
+    doc: Ima-ADPCM
+  variant: MPEG
+    doc: MPEG
+  variant: GSM
+    doc: GSM
+  variant: S20_LE
+    doc: Signed 20bit Little/Native Endian in 4bytes format, LSB justified
+    doc:>(a.k.a `S20` in C API)
+  variant: S20_BE
+    doc: Signed 20bit Big Endian in 4bytes format, LSB justified
+  variant: U20_LE
+    doc: Unsigned 20bit Little/Native Endian in 4bytes format, LSB justified
+    doc:>(a.k.a `U20` in C API)
+  variant: U20_BE
+    doc: Unsigned 20bit Big Endian in 4bytes format, LSB justified
+  variant: SPECIAL
+    doc: Special
+    value: 31
+  variant: S24_3LE
+    doc: Signed 24bit Little Endian in 3bytes format
+    value: 32
+  variant: S24_3BE
+    doc: Signed 24bit Big Endian in 3bytes format
+  variant: U24_3LE
+    doc: Unsigned 24bit Little Endian in 3bytes format
+  variant: U24_3BE
+    doc: Unsigned 24bit Big Endian in 3bytes format
+  variant: S20_3LE
+    doc: Signed 20bit Little Endian in 3bytes format
+  variant: S20_3BE
+    doc: Signed 20bit Big Endian in 3bytes format
+  variant: U20_3LE
+    doc: Unsigned 20bit Little Endian in 3bytes format
+  variant: U20_3BE
+    doc: Unsigned 20bit Big Endian in 3bytes format
+  variant: S18_3LE
+    doc: Signed 18bit Little Endian in 3bytes format
+  variant: S18_3BE
+    doc: Signed 18bit Big Endian in 3bytes format
+  variant: U18_3LE
+    doc: Unsigned 18bit Little Endian in 3bytes format
+  variant: U18_3BE
+    doc: Unsigned 18bit Big Endian in 3bytes format
+  variant: G723_24
+    doc: Signed 16 bit CPU endian
+  variant: G723_24_1B
+    doc: Unsigned 16 bit CPU endian
+  variant: G723_40
+    doc: Signed 24 bit CPU endian
+  variant: G723_40_1B
+    doc: Unsigned 24 bit CPU endian
+  variant: DSD_U8
+    doc: Signed 32 bit CPU endian
+  variant: DSD_U16_LE
+    doc: Unsigned 32 bit CPU endian
+  variant: DSD_U32_LE
+    doc: Float 32 bit CPU endian
+  variant: DSD_U16_BE
+    doc: Float 64 bit CPU endian
+  variant: DSD_U32_BE,
+    doc: IEC-958 CPU Endian
+
+address: snd_pcm_t
+  doc: PCM handle
+
+address: snd_pcm_hw_params_t
+  doc: PCM hardware configuration space container
+  doc:>
+  doc:>snd_pcm_hw_params_t is an opaque structure which contains a set of
+  doc:>possible PCM hardware configurations. For example, a given instance might
+  doc:>include a range of buffer sizes, a range of period sizes, and a set of
+  doc:>several sample formats. Some subset of all possible combinations these
+  doc:>sets may be valid, but not necessarily any combination will be valid.
+  doc:>
+  doc:>When a parameter is set or restricted using a snd_pcm_hw_params_set*
+  doc:>function, all of the other ranges will be updated to exclude as many
+  doc:>impossible configurations as possible. Attempting to set a parameter
+  doc:>outside of its acceptable range will result in the function failing and
+  doc:>an error code being returned.
+  old: snd_pcm_hw_params_free
+
+address: snd_pcm_status_t
+  doc: PCM status container
+  bytes: snd_pcm_status_sizeof
+
+func: int snd_pcm_open(snd_pcm_t** pcmp, const char* name, snd_pcm_stream_t stream, int mode)
+  mod: AudioDevice
+  doc: Opens a PCM.
+  doc:>- `pcmp`: Returned PCM handle
+  doc:>- `name`: ASCII identifier of the PCM handle
+  doc:>- `stream`: Wanted stream
+  doc:>- `mode`: Open mode (see SND_PCM_NONBLOCK, SND_PCM_ASYNC)
+  doc:>Return 0 on success otherwise a negative error code
+  pat:=NEW pcmp
+  pat:=STR name
+  pat:=VAL stream
+  pat:=VAL mode
+  pat:=OK >= 0
+
+# TODO: dl_api support safe way of invalid malloc in conjunction w/ other func.
+func: int snd_pcm_hw_params_malloc(snd_pcm_hw_params_t** ptr)
+  mod: AudioDevice
+  doc: Allocate an invalid snd_pcm_hw_params_t using standard malloc
+  pat:=NEW ptr
+  pat:=OK >= 0
+
+func: int snd_pcm_hw_params_any(snd_pcm_t* pcm, snd_pcm_hw_params_t* params)
+  mod: AudioDevice
+  doc: Fill params with a full configuration space for a PCM.
+  pat:=VAL pcm
+  pat:=VAL params
+  pat:=OK >= 0
+
+# TODO: How are we using this / why?
+func: int snd_pcm_hw_params_set_rate_resample(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int val)
+  mod: AudioDevice
+  doc: Restrict a configuration space to contain only real hardware rates.
+  doc:>- `pcm`: PCM handle
+  doc:>- `params`: Configuration space 
+  doc:>- `val`: 0 = disable, 1 = enable (default) rate resampling
+  pat:=VAL pcm
+  pat:=VAL params
+  pat:=VAL val
+  pat:=OK >= 0
+
+func: int snd_pcm_hw_params_set_access(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, snd_pcm_access_t access)
+  mod: AudioDevice
+  doc: Restrict a configuration space to contain only one access type.
+  doc:>- `pcm`: PCM handle
+  doc:>- `params`: Configuration space
+  doc:>- `access`: access type
+  pat:=VAL pcm
+  pat:=VAL params
+  pat:=VAL access
+  pat:=OK >= 0
+
+func: int snd_pcm_hw_params_set_format(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, snd_pcm_format_t format)
+  mod: AudioDevice
+  doc: Restrict a configuration space to contain only one format.
+  pat:=VAL pcm
+  pat:=VAL params
+  pat:=VAL format
+  pat:=OK >= 0
+
+func: int snd_pcm_hw_params_set_channels(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int val)
+  mod: AudioDevice
+  doc: Restrict a configuration space to contain only one channels count.
+  pat:=VAL pcm
+  pat:=VAL params
+  pat:=VAL val
+  pat:=OK >= 0
+
+# TODO: maybe use snd_pcm_hw_params_set_rate_resample w/ snd_pcm_hw_params_set_rate
+func: int snd_pcm_hw_params_set_rate_near(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int* val, int* dir)
+  mod: AudioDevice
+  doc: Restrict a configuration space to have rate nearest to a target.
+  doc:>- `pcm`: PCM handle
+  doc:>- `params`: Configuration space
+  doc:>- `val`: approximate target rate / returned approximate set rate
+  doc:>- `dir`: Sub unit direction 
+  pat:=VAL pcm
+  pat:=VAL params
+  pat:=MUT val
+  pat:=OPT_MUT dir
+  pat:=OK >= 0
+
+func: int snd_pcm_hw_params(snd_pcm_t* pcm, snd_pcm_hw_params_t* params)
+  mod: AudioDevice
+  doc: Install one PCM hardware configuration chosen from a configuration space
+  doc:>and snd_pcm_prepare it.
+  doc:>- `pcm`: PCM handle
+  doc:>- `params`: Configuration space definition container
+  pat:=VAL pcm
+  pat:=VAL params
+  pat:=OK >= 0
+
+func: int snd_pcm_hw_params_get_buffer_size(const snd_pcm_hw_params_t* params, unsigned long* val)
+  mod: AudioDevice
+  doc: Extract buffer size from a configuration space.
+  doc:>- `params`: Configuration space
+  doc:>- `val`: Returned buffer size in frames
+  pat:=VAL params
+  pat:=OUT val
+  pat:=OK >= 0
+
+func: int snd_pcm_hw_params_get_period_size(const snd_pcm_hw_params_t* params, unsigned long* frames, int* dir)
+  mod: AudioDevice
+  doc: Extract period size from a configuration space.
+  doc:>- `params`: Configuration space
+  doc:>- `val`: Returned approximate period size in frames
+  doc:>- `dir`: Sub unit direction
+  pat:=VAL params
+  pat:=OUT frames
+  pat:=OPT_MUT dir
+  pat:=OK >= 0
+
+func: void snd_pcm_hw_params_free(snd_pcm_hw_params_t* obj)
+  mod: AudioDevice
+  doc: Frees a previously allocated snd_pcm_hw_params_t
+  pat:=OLD obj
+
+func: int snd_pcm_prepare(snd_pcm_t* pcm)
+  mod: Player
+  doc: Prepare PCM for use.
+  pat:=VAL pcm
+  pat:=OK >= 0
+
+func: long snd_pcm_writei(snd_pcm_t* pcm, const uint32_t* buffer, unsigned long size)
+  mod: Player
+  doc: Write interleaved frames to a PCM.
+  doc:>- `pcm`: PCM handle
+  doc:>- `buffer`: frames containing buffer
+  doc:>- `size`: frames to be written
+  doc:>If the blocking behaviour is selected and it is running, then routine
+  doc:>waits until all requested frames are played or put to the playback ring
+  doc:>buffer. The returned number of frames can be less only if a signal or
+  doc:>underrun occurred.
+  doc:>
+  doc:>If the non-blocking behaviour is selected, then routine doesn't wait at
+  doc:>all.
+  pat:=VAL pcm
+  pat:=SLICE size buffer
+  pat:=OUT
+  pat:=OK >= 0
+
+func: long snd_pcm_readi(snd_pcm_t* pcm, uint32_t* buffer, unsigned long size)
+  mod: Recorder
+  doc: Read interleaved frames from a PCM.
+  doc:>- `pcm`: PCM handle
+  doc:>- `buffer`: frames containing buffer
+  doc:>- `size`: frames to be read
+  doc:>If the blocking behaviour was selected and it is running, then routine
+  doc:>waits until all requested frames are filled. The returned number of
+  doc:>frames can be less only if a signal or underrun occurred.
+  doc:>
+  doc:>If the non-blocking behaviour is selected, then routine doesn't wait at
+  doc:>all.
+  pat:=VAL pcm
+  pat:=OUT_VEC size buffer
+  pat:=OK >= 0
+
+func: int snd_pcm_status_malloc(snd_pcm_status_t** ptr)
+  mod: AudioDevice
+  doc: Obtain status (runtime) information for PCM handle. 
+  doc:>- `pcm`: PCM handle
+  doc:>- `status`: Status container
+  pat:=NEW ptr # TODO
+  pat:=OK >= 0
+
+func: int snd_pcm_status(snd_pcm_t* pcm, snd_pcm_status_t* status)
+  mod: AudioDevice
+  doc: Obtain status (runtime) information for PCM handle. 
+  doc:>- `pcm`: PCM handle
+  doc:>- `status`: Status container
+  pat:=VAL pcm
+  pat:=VAL status
+  pat:=OK >= 0
+
+func: unsigned long snd_pcm_status_get_avail(const snd_pcm_status_t* obj)
+  mod: AudioDevice
+  doc: Get number of frames available from a PCM status container (see
+  doc:>snd_pcm_avail_update)
+  pat:=VAL obj
+  pat:=OUT
+
+func: int snd_pcm_close(snd_pcm_t* pcm)
+  mod: AudioDevice
+  doc: close PCM handle
+  pat:=OLD pcm
+  pat:=OK >= 0
+
+func: int snd_pcm_start(snd_pcm_t* pcm)
+  mod: AudioDevice
+  doc: Start a PCM.
+  pat:=VAL pcm
+  pat:=OK >= 0

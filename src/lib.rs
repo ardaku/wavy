@@ -48,6 +48,11 @@ mod sample_rate;
 mod system;
 // mod resampler;
 
+mod gen {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    pub(crate) mod asound;
+}
+
 mod ffi {
     #![allow(non_camel_case_types)]
 
