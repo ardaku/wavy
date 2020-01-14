@@ -49,7 +49,8 @@ mod system;
 // mod resampler;
 
 mod gen {
-    mod asound;
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    pub(crate) mod asound;
 }
 
 mod ffi {
