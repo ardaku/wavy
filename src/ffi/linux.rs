@@ -160,7 +160,6 @@ impl Speaker {
         let _ = self.player.snd_pcm_writei(
             &self.sound_device,
             &self.buffer,
-//            write as u64,
         ).map_err(|_| println!("Buffer underrun"));
     }
 }
@@ -229,13 +228,11 @@ impl Microphone {
         let _ = self.device.snd_pcm_status(&self.sound_device, &self.status);
         let avail = self.device.snd_pcm_status_get_avail(&self.status);
 
-//        self.buffer.reserve(avail as usize);
         self.buffer = Vec::with_capacity(avail as usize);
 
         let _ = self.recorder.snd_pcm_readi(
             &self.sound_device,
             &mut self.buffer,
-//            avail as u64,
         ).map_err(|_| println!("Buffer Overflow"));
 
         for i in 0..avail as usize {

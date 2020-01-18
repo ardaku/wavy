@@ -21,7 +21,7 @@ unsafe fn new(name: &[u8]) -> Option<std::ptr::NonNull<std::ffi::c_void>> {
     std::ptr::NonNull::new(dlmopen(LM_ID_NEWLM, name.as_ptr().cast(), RTLD_NOW))
 }
 
-unsafe fn sym(dll: &std::ptr::NonNull<std::ffi::c_void>, name: &[u8])
+unsafe fn sym(dll: std::ptr::NonNull<std::ffi::c_void>, name: &[u8])
     -> Option<std::ptr::NonNull<std::ffi::c_void>>
 {
     std::ptr::NonNull::new(dlsym(dll.as_ptr(), name.as_ptr().cast()))
@@ -333,23 +333,23 @@ impl AudioDevice {
     pub fn new() -> Option<Self> {
         unsafe {
             let dll = check_thread()?;
-            FN_SND_PCM_OPEN = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_open\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_MALLOC = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_malloc\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_ANY = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_any\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_set_rate_resample\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_SET_ACCESS = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_set_access\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_SET_FORMAT = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_set_format\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_SET_CHANNELS = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_set_channels\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_SET_RATE_NEAR = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_set_rate_near\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_get_buffer_size\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_get_period_size\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_FREE = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_hw_params_free\0")?.as_ptr()));
-            FN_SND_PCM_STATUS_MALLOC = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_status_malloc\0")?.as_ptr()));
-            FN_SND_PCM_STATUS = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_status\0")?.as_ptr()));
-            FN_SND_PCM_STATUS_GET_AVAIL = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_status_get_avail\0")?.as_ptr()));
-            FN_SND_PCM_CLOSE = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_close\0")?.as_ptr()));
-            FN_SND_PCM_START = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_start\0")?.as_ptr()));
+            FN_SND_PCM_OPEN = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_open\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_MALLOC = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_malloc\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_ANY = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_any\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_rate_resample\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_SET_ACCESS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_access\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_SET_FORMAT = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_format\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_SET_CHANNELS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_channels\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_SET_RATE_NEAR = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_rate_near\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_get_buffer_size\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_get_period_size\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_FREE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_free\0")?.as_ptr()));
+            FN_SND_PCM_STATUS_MALLOC = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_status_malloc\0")?.as_ptr()));
+            FN_SND_PCM_STATUS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_status\0")?.as_ptr()));
+            FN_SND_PCM_STATUS_GET_AVAIL = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_status_get_avail\0")?.as_ptr()));
+            FN_SND_PCM_CLOSE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_close\0")?.as_ptr()));
+            FN_SND_PCM_START = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_start\0")?.as_ptr()));
             Some(Self(std::marker::PhantomData))
         }
     }
@@ -665,8 +665,8 @@ impl Player {
     pub fn new() -> Option<Self> {
         unsafe {
             let dll = check_thread()?;
-            FN_SND_PCM_PREPARE = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_prepare\0")?.as_ptr()));
-            FN_SND_PCM_WRITEI = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_writei\0")?.as_ptr()));
+            FN_SND_PCM_PREPARE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_prepare\0")?.as_ptr()));
+            FN_SND_PCM_WRITEI = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_writei\0")?.as_ptr()));
             Some(Self(std::marker::PhantomData))
         }
     }
@@ -719,7 +719,7 @@ impl Recorder {
     pub fn new() -> Option<Self> {
         unsafe {
             let dll = check_thread()?;
-            FN_SND_PCM_READI = std::mem::MaybeUninit::new(std::mem::transmute(sym(&dll, b"snd_pcm_readi\0")?.as_ptr()));
+            FN_SND_PCM_READI = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_readi\0")?.as_ptr()));
             Some(Self(std::marker::PhantomData))
         }
     }
