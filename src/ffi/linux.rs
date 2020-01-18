@@ -1,11 +1,30 @@
 use std::ffi::CString;
+use std::task::{Waker, Poll};
+use std::task::Context;
+use std::pin::Pin;
+use std::future::Future;
+use std::convert::TryInto;
+use std::iter::IntoIterator;
+use std::borrow::Borrow;
 
-use crate::gen::asound::{Player, Recorder, AudioDevice, SndPcmStatus, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess};
-use crate::{AudioError, SampleRate};
+use crate::gen::asound::{AlsaPlayer, AlsaRecorder, AlsaDevice, SndPcmStatus, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess, SndAsyncHandler, SndPcmMode};
+use crate::{AudioError, SampleRate, StereoS16Frame};
+
+// A C Callback that gets called when an audio device's period boundary elapses.
+// In ALSA this is implemented as a linux signal handler.
+unsafe extern "C" fn elapse_period(handler: *mut std::os::raw::c_void) {
+    let handler = SndAsyncHandler::from_raw(handler);
+    let device = AlsaDevice::new().unwrap(); // Should never fail here
+    let waker: *mut Option<Waker> = device.snd_async_handler_get_callback_private(&handler).cast();
+
+    if let Some(waker) = (*waker).take() {
+        waker.wake();
+    }
+}
 
 fn pcm_hw_params(
-    device: &AudioDevice,
-    sr: SampleRate,
+    device: &AlsaDevice,
+    sr: u32,
     sound_device: &SndPcm,
 ) -> Result<SndPcmHwParams, AudioError> {
     let hw_params = device.snd_pcm_hw_params_malloc().map_err(|_|
@@ -44,7 +63,7 @@ fn pcm_hw_params(
         )
     )?;
     // Set Sample rate.
-    let mut actual_rate = sr as u32;
+    let mut actual_rate = sr;
     device.snd_pcm_hw_params_set_rate_near(
         sound_device,
         &hw_params,
@@ -55,10 +74,10 @@ fn pcm_hw_params(
             "Cannot set sample rate!".to_string(),
         )
     )?;
-    if actual_rate != sr as u32 {
+    if actual_rate != sr {
         return Err(AudioError::InternalError(format!(
             "Failed to set rate: {}, Got: {} instead!",
-            sr as u32, actual_rate
+            sr, actual_rate
         )));
     }
     // Apply the hardware parameters that just got set.
@@ -71,183 +90,242 @@ fn pcm_hw_params(
     Ok(hw_params)
 }
 
-pub struct Speaker {
-    player: Player,
-    device: AudioDevice,
+// Player/Recorder Shared Code for ALSA.
+pub struct Pcm {
+    device: AlsaDevice,
     sound_device: SndPcm,
-    buffer_size: u64,
-    period_size: u64,
-    status: SndPcmStatus,
-    buffer: Vec<u32>,
+    waker: Box<Option<Waker>>,
+    handler: SndAsyncHandler,
+    buffer_size: usize,
+    period_size: usize,
 }
 
-impl Speaker {
-    pub fn new(sr: SampleRate) -> Result<Speaker, AudioError> {
-        let player = Player::new().ok_or_else(|| AudioError::InternalError(
-            "Could not load Player module in shared object!".to_string(),
+impl Pcm {
+    /// Create a new async PCM.
+    fn new(direction: SndPcmStream, sr: u32) -> Result<Self, AudioError> {
+        // Load shared alsa module.
+        let device = AlsaDevice::new().ok_or_else(|| AudioError::InternalError(
+            "Could not load AlsaDevice module in shared object!".to_string(),
         ))?;
-        let device = AudioDevice::new().ok_or_else(|| AudioError::InternalError(
-            "Could not load AudioDevice module in shared object!".to_string(),
-        ))?;
-
-        // FIXME: Blocking IO => Use async
+        // Create a box for the waker, when it is created.
+        let waker = Box::new(None);
+        // FIXME: Currently only the default device is supported.
         let device_name = CString::new("default").unwrap();
+        // Create the ALSA PCM.
         let sound_device: SndPcm = device.snd_pcm_open(
-            &device_name, SndPcmStream::Playback, 0 /* blocking IO */
+            &device_name, direction, SndPcmMode::Async
         ).map_err(|_| AudioError::NoDevice)?;
-
+        // Configure Hardware Parameters
         let mut hw_params = pcm_hw_params(&device, sr, &sound_device)?;
-
-        // Get the buffer size.
+        // Get the buffer size (in frames).
         let buffer_size = device.snd_pcm_hw_params_get_buffer_size(&hw_params)
 .map_err(|_| AudioError::InternalError("Get Buffer Size".to_string()))?;
+        // Get the period size (in frames).
         let mut d = 0;
         let period_size = device.snd_pcm_hw_params_get_period_size(
             &hw_params,
             Some(&mut d),
         ).map_err(|_| AudioError::InternalError("Get Period Size".to_string()))?;
-
+        // Free Hardware Parameters
         device.snd_pcm_hw_params_free(&mut hw_params);
+        // Make async signal handler
+        let (waker, handler) = unsafe {
+            let waker = Box::into_raw(waker);
+            let handler = device.snd_async_add_pcm_handler(
+                &sound_device,
+                elapse_period as _,
+                waker.cast(),
+            );
+            let waker = Box::from_raw(waker);
 
-        player.snd_pcm_prepare(&sound_device).map_err(|_|
-            AudioError::InternalError(
-                "Could not prepare!".to_string(),
-            )
-        )?;
-
-        let buffer_size = buffer_size as u64;
-        let period_size = period_size as u64;
-
-        let status = device.snd_pcm_status_malloc().map_err(|_| AudioError::InternalError("Status alloc".to_string()))?;
-        let buffer = Vec::new();
-
-        Ok(Speaker {
-            player,
-            device,
-            sound_device,
-            buffer_size,
-            status,
-            period_size,
-            buffer,
-        })
-    }
-
-    pub fn play(&mut self, generator: &mut dyn FnMut() -> (i16, i16)) {
-        let _ = self.device.snd_pcm_status(
-            &self.sound_device,
-            &self.status,
-        );
-        let avail = self.device.snd_pcm_status_get_avail(&self.status);
-        let left = self.buffer_size - avail as u64;
-
-        let buffer_length = self.period_size * 4; // 16 bit (2 bytes) * Stereo (2 channels)
-
-        let write = if left < buffer_length {
-            buffer_length - left
-        } else {
-            0
+            (waker, handler)
         };
 
-        self.buffer.clear();
-
-        for _i in 0..write/2 {
-            let (l, r) = generator();
-            let [byte0, byte1] = l.to_le_bytes();
-            let [byte2, byte3] = r.to_le_bytes();
-            self.buffer.push(u32::from_le_bytes([byte0, byte1, byte2, byte3]));
-        }
-
-        let _ = self.player.snd_pcm_writei(
-            &self.sound_device,
-            &self.buffer,
-        ).map_err(|_| println!("Buffer underrun"));
+        Ok(Pcm {
+            device, sound_device, waker, period_size, buffer_size, handler
+        })
     }
 }
 
-impl Drop for Speaker {
+impl Drop for Pcm {
     fn drop(&mut self) {
-        // Shouldn't fail
+        // Unregister async callback before boxed waker is dropped.
+        self.device.snd_async_del_handler(&mut self.handler).unwrap();
+        // Should never fail here
         self.device.snd_pcm_close(&mut self.sound_device).unwrap();
     }
 }
 
-pub struct Microphone {
-    recorder: Recorder,
-    device: AudioDevice,
-    sound_device: SndPcm,
+impl Future for &mut Pcm {
+    type Output = Result<usize, AudioError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let avail = self.device.snd_pcm_avail_update(&self.sound_device).map_err(|_|
+            AudioError::InternalError("Couldn't get available".to_string())
+        );
+        let avail: usize = match avail {
+            // Should never fail, negative is error.
+            Ok(avail) => avail.try_into().unwrap(),
+            Err(error) => return Poll::Ready(Err(error)),
+        };
+        if avail >= self.period_size {
+            Poll::Ready(Ok(avail))
+        } else {
+            *self.waker = Some(cx.waker().clone());
+            Poll::Pending
+        }
+    }
+}
+
+pub struct Player {
+    player: AlsaPlayer,
+    pcm: Pcm,
     status: SndPcmStatus,
     buffer: Vec<u32>,
 }
 
-impl Microphone {
-    pub fn new(sr: SampleRate) -> Result<Microphone, AudioError> {
-        let recorder = Recorder::new().ok_or_else(|| AudioError::InternalError(
-            "Could not load Recorder module in shared object!".to_string(),
+impl Player {
+    pub fn new(sr: SampleRate) -> Result<Player, AudioError> {
+        // Load Player ALSA module
+        let player = AlsaPlayer::new().ok_or_else(|| AudioError::InternalError(
+            "Could not load AlsaPlayer module in shared object!".to_string(),
         ))?;
-        let device = AudioDevice::new().ok_or_else(|| AudioError::InternalError(
-            "Could not load AudioDevice module in shared object!".to_string(),
-        ))?;
-
-        // FIXME: Blocking IO => Use async
-        let device_name = CString::new("default").unwrap();
-        let sound_device: SndPcm = device.snd_pcm_open(
-            &device_name, SndPcmStream::Capture, 0 /* blocking IO */
-        ).map_err(|_| AudioError::NoDevice)?;
-
-        let mut hw_params = pcm_hw_params(&device, sr, &sound_device)?;
-
-        // FIXME? Get the buffer size.
-        let _buffer_size = device.snd_pcm_hw_params_get_buffer_size(&hw_params).map_err(|_| AudioError::InternalError("Get Buffer Size".to_string()))?;
-
-        let mut d = 0;
-        // FIXME?
-        let _period_size = device.snd_pcm_hw_params_get_period_size(
-            &hw_params,
-            Some(&mut d),
-        ).map_err(|_| AudioError::InternalError("Get Period Size".to_string()))?;
-
-        device.snd_pcm_hw_params_free(&mut hw_params);
-
-        device.snd_pcm_start(&sound_device).map_err(|_| 
-            AudioError::InternalError("Could not start!".to_string())
+        // Create Playback PCM.
+        let pcm = Pcm::new(SndPcmStream::Playback, sr as u32)?;
+        // Prepare PCM device
+        player.snd_pcm_prepare(&pcm.sound_device).map_err(|_|
+            AudioError::InternalError("Could not prepare!".to_string())
         )?;
-
-        let status = device.snd_pcm_status_malloc().map_err(|_| AudioError::InternalError("Status alloc".to_string()))?;
+        // FIXME: Do we need to get status with async?
+        let status = pcm.device.snd_pcm_status_malloc().map_err(|_|
+             AudioError::InternalError("Status alloc".to_string())
+        )?;
+        // Create buffer
         let buffer = Vec::new();
 
-        Ok(Microphone {
-            recorder,
-            device,
-            sound_device,
-            buffer,
+        Ok(Player {
+            player,
+            pcm,
             status,
+            buffer,
         })
     }
 
-    pub fn record(&mut self, generator: &mut dyn FnMut(usize, i16, i16)) {
-        let _ = self.device.snd_pcm_status(&self.sound_device, &self.status);
-        let avail = self.device.snd_pcm_status_get_avail(&self.status);
+    pub async fn play_last<T>(&mut self, iter: impl IntoIterator<Item=T>) -> Result<usize, AudioError>
+        where T: Borrow<crate::StereoS16Frame>
+    {
+        let mut iter = iter.into_iter();
 
-        self.buffer = Vec::with_capacity(avail as usize);
+        // Wait for a number of frames to available.
+        let nframes = (&mut self.pcm).await?;
+        let mut avail: usize = nframes;
 
-        let _ = self.recorder.snd_pcm_readi(
-            &self.sound_device,
-            &mut self.buffer,
-        ).map_err(|_| println!("Buffer Overflow"));
-
-        for i in 0..avail as usize {
-            let frame = self.buffer[i].to_le_bytes();
-            let l = i16::from_le_bytes([frame[0], frame[1]]);
-            let r = i16::from_le_bytes([frame[2], frame[3]]);
-
-            generator(0, l, r);
+        // Add avail frames to the speaker's buffer.
+        while avail >= self.pcm.period_size {
+            // Clear the temporary buffer
+            self.buffer.clear();
+            // Write # of frames equal to the period size into the buffer.
+            for _ in 0..self.pcm.period_size {
+                let f = match iter.next() {
+                    Some(f) => f.borrow().clone(),
+                    None => StereoS16Frame::new(0, 0),
+                };
+                let [byte0, byte1] = f.left().to_le_bytes();
+                let [byte2, byte3] = f.right().to_le_bytes();
+                self.buffer.push(u32::from_le_bytes([byte0, byte1, byte2, byte3]));
+            }
+            // Copy the temporary buffer into the speaker hw buffer.
+            let _ = self.player.snd_pcm_writei(
+                &self.pcm.sound_device,
+                &self.buffer,
+            ).map_err(|_| println!("Buffer underrun"));
+            // Update how many more frames need to be iterated.
+            let avail2 = self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
+                AudioError::InternalError("Couldn't get available".to_string())
+            );
+            avail = match avail2 {
+                // Should never fail, negative is error.
+                Ok(avail3) => avail3.try_into().unwrap(),
+                Err(error) => return Err(error),
+            };
         }
+
+        Ok(nframes)
     }
 }
 
-impl Drop for Microphone {
-    fn drop(&mut self) {
-        // Shouldn't fail
-        self.device.snd_pcm_close(&mut self.sound_device).unwrap();
+pub struct Recorder {
+    recorder: AlsaRecorder,
+    pcm: Pcm,
+    status: SndPcmStatus,
+    buffer: Vec<u32>,
+    out: Vec<StereoS16Frame>,
+}
+
+impl Recorder {
+    pub fn new(sr: SampleRate) -> Result<Recorder, AudioError> {
+        // Load Recorder ALSA module
+        let recorder = AlsaRecorder::new().ok_or_else(|| AudioError::InternalError(
+            "Could not load AlsaRecorder module in shared object!".to_string(),
+        ))?;
+        // Create Capture PCM.
+        let pcm = Pcm::new(SndPcmStream::Capture, sr as u32)?;
+        // Start the PCM.
+        pcm.device.snd_pcm_start(&pcm.sound_device).map_err(|_| 
+            AudioError::InternalError("Could not start!".to_string())
+        )?;
+        // FIXME: Do we need to get status with async?
+        let status = pcm.device.snd_pcm_status_malloc().map_err(|_| AudioError::InternalError("Status alloc".to_string()))?;
+        // Create buffers
+        let buffer = Vec::new();
+        let out = Vec::new();
+
+        Ok(Recorder {
+            recorder,
+            pcm,
+            buffer,
+            status,
+            out,
+        })
+    }
+
+    pub async fn record_last(&mut self) -> Result<&[StereoS16Frame], AudioError> {
+        // Wait for a number of frames to available.
+        let nframes = (&mut self.pcm).await?;
+        let mut avail: usize = nframes;
+        // Clear the output buffer
+        self.out.clear();
+
+        // Add avail frames to the speaker's buffer.
+        while avail >= self.pcm.period_size {
+            // Create temporary buffer.
+            self.buffer = Vec::with_capacity(self.pcm.period_size);
+            // Record into temporary buffer.
+            let _ = self.recorder.snd_pcm_readi(
+                &self.pcm.sound_device,
+                &mut self.buffer,
+            ).map_err(|_| println!("Buffer Overflow"));
+            // Copy the temporary buffer into the output buffer
+            for i in 0..self.pcm.period_size {
+                let frame = self.buffer[i].to_le_bytes();
+                let l = i16::from_le_bytes([frame[0], frame[1]]);
+                let r = i16::from_le_bytes([frame[2], frame[3]]);
+
+                self.out.push(StereoS16Frame::new(l, r));
+            }
+            // Update how many more frames need to be iterated.
+            let avail2 = self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
+                AudioError::InternalError("Couldn't get available".to_string())
+            );
+            avail = match avail2 {
+                // Should never fail, negative is error.
+                Ok(avail3) => avail3.try_into().unwrap(),
+                Err(error) => return Err(error),
+            };
+        }
+
+        // assert_eq!(nframes, self.out.len());
+
+        Ok(&self.out)
     }
 }

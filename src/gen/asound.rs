@@ -56,6 +56,19 @@ unsafe fn check_thread() -> Option<std::ptr::NonNull<std::ffi::c_void>> {
 
 const DL_API_SHARED_OBJECT_NAME: &[u8] = b"libasound.so.2\0";
 
+/// Stream Mode
+#[repr(C)]
+#[non_exhaustive]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum SndPcmMode {
+    /// Blocking mode
+    Block = 0,
+    /// Non blocking mode
+    Nonblock = 1,
+    /// Async notification
+    Async = 2,
+}
+
 /// PCM stream (direction)
 #[repr(C)]
 #[non_exhaustive]
@@ -204,6 +217,13 @@ pub enum SndPcmFormat {
 /// PCM handle
 pub struct SndPcm(*mut std::os::raw::c_void);
 
+impl SndPcm {
+    /// Create address struct from raw pointer.
+    pub unsafe fn from_raw(raw: *mut std::os::raw::c_void) -> Self {
+        Self(raw)
+    }
+}
+
 /// PCM hardware configuration space container
 /// 
 /// snd_pcm_hw_params_t is an opaque structure which contains a set of
@@ -219,15 +239,39 @@ pub struct SndPcm(*mut std::os::raw::c_void);
 /// an error code being returned.
 pub struct SndPcmHwParams(*mut std::os::raw::c_void);
 
+impl SndPcmHwParams {
+    /// Create address struct from raw pointer.
+    pub unsafe fn from_raw(raw: *mut std::os::raw::c_void) -> Self {
+        Self(raw)
+    }
+}
+
 /// PCM status container
 pub struct SndPcmStatus(*mut std::os::raw::c_void);
+
+impl SndPcmStatus {
+    /// Create address struct from raw pointer.
+    pub unsafe fn from_raw(raw: *mut std::os::raw::c_void) -> Self {
+        Self(raw)
+    }
+}
+
+/// Internal structure for an async notification client handler.
+pub struct SndAsyncHandler(*mut std::os::raw::c_void);
+
+impl SndAsyncHandler {
+    /// Create address struct from raw pointer.
+    pub unsafe fn from_raw(raw: *mut std::os::raw::c_void) -> Self {
+        Self(raw)
+    }
+}
 
 static mut FN_SND_PCM_OPEN:
     std::mem::MaybeUninit<extern fn(
         pcmp: *mut *mut std::os::raw::c_void,
         name: *const std::os::raw::c_char,
         stream: SndPcmStream,
-        mode: std::os::raw::c_int,
+        mode: SndPcmMode,
     ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_MALLOC:
     std::mem::MaybeUninit<extern fn(
@@ -326,15 +370,40 @@ static mut FN_SND_PCM_START:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
     ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_ASYNC_ADD_PCM_HANDLER:
+    std::mem::MaybeUninit<extern fn(
+        handler: *mut *mut std::os::raw::c_void,
+        pcm: *mut std::os::raw::c_void,
+        callback: *mut std::ffi::c_void,
+        private_data: *mut std::ffi::c_void,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_ASYNC_DEL_HANDLER:
+    std::mem::MaybeUninit<extern fn(
+        handler: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_ASYNC_HANDLER_GET_CALLBACK_PRIVATE:
+    std::mem::MaybeUninit<extern fn(
+        handler: *mut std::os::raw::c_void,
+    ) -> *mut ()> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_AVAIL_UPDATE:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_long> = std::mem::MaybeUninit::uninit();
+
+static mut ALSA_DEVICE_INIT: Option<AlsaDevice> = None;
 
 /// A module contains functions.
-pub struct AudioDevice(std::marker::PhantomData<*mut u8>);
+#[derive(Clone)]
+pub struct AlsaDevice(std::marker::PhantomData<*mut u8>);
 
-impl AudioDevice {
-    /// Load a module.
+impl AlsaDevice {
+    /// Get a handle to this module.  Loads module functions on first call.
     pub fn new() -> Option<Self> {
         unsafe {
             let dll = check_thread()?;
+            if let Some(ref module) = ALSA_DEVICE_INIT {
+                return Some(module.clone());
+            }
             FN_SND_PCM_OPEN = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_open\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_MALLOC = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_malloc\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_ANY = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_any\0")?.as_ptr()));
@@ -352,6 +421,11 @@ impl AudioDevice {
             FN_SND_PCM_STATUS_GET_AVAIL = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_status_get_avail\0")?.as_ptr()));
             FN_SND_PCM_CLOSE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_close\0")?.as_ptr()));
             FN_SND_PCM_START = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_start\0")?.as_ptr()));
+            FN_SND_ASYNC_ADD_PCM_HANDLER = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_async_add_pcm_handler\0")?.as_ptr()));
+            FN_SND_ASYNC_DEL_HANDLER = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_async_del_handler\0")?.as_ptr()));
+            FN_SND_ASYNC_HANDLER_GET_CALLBACK_PRIVATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_async_handler_get_callback_private\0")?.as_ptr()));
+            FN_SND_PCM_AVAIL_UPDATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_avail_update\0")?.as_ptr()));
+            ALSA_DEVICE_INIT = Some(Self(std::marker::PhantomData));
             Some(Self(std::marker::PhantomData))
         }
     }
@@ -359,12 +433,12 @@ impl AudioDevice {
     /// - `pcmp`: Returned PCM handle
     /// - `name`: ASCII identifier of the PCM handle
     /// - `stream`: Wanted stream
-    /// - `mode`: Open mode (see SND_PCM_NONBLOCK, SND_PCM_ASYNC)
+    /// - `mode`: Open mode
     /// Return 0 on success otherwise a negative error code
     pub fn snd_pcm_open(&self,
         name: &std::ffi::CStr,
         stream: SndPcmStream,
-        mode: i32,
+        mode: SndPcmMode,
     ) -> Result<SndPcm, i32>
     {
         unsafe {
@@ -657,18 +731,86 @@ impl AudioDevice {
             Ok(())
         }
     }
+    /// Add an async handler for a PCM.
+    pub fn snd_async_add_pcm_handler(&self,
+        pcm: &SndPcm,
+        callback: *mut std::os::raw::c_void,
+        private_data: *mut std::os::raw::c_void,
+    ) -> SndAsyncHandler
+    {
+        unsafe {
+            let mut handler = std::mem::MaybeUninit::uninit();
+            let __ret = ((FN_SND_ASYNC_ADD_PCM_HANDLER).assume_init())(
+                handler.as_mut_ptr(),
+                pcm.0,
+                callback,
+                private_data,
+            );
+            let handler = handler.assume_init();
+            SndAsyncHandler(handler) as _
+        }
+    }
+    /// Deletes an async handler.
+    pub fn snd_async_del_handler(&self,
+        handler: &mut SndAsyncHandler,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            if handler.0.is_null() { panic!("Object free'd twice!") }
+            let __ret = ((FN_SND_ASYNC_DEL_HANDLER).assume_init())(
+                handler.0,
+            );
+            handler.0 = std::ptr::null_mut();
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
+        }
+    }
+    /// Returns the private data assigned to an async handler.
+    /// - `handler`: Handle to an async handler.
+    pub fn snd_async_handler_get_callback_private(&self,
+        handler: &SndAsyncHandler,
+    ) -> *mut std::os::raw::c_void
+    {
+        unsafe {
+            let __ret = ((FN_SND_ASYNC_HANDLER_GET_CALLBACK_PRIVATE).assume_init())(
+                handler.0,
+            );
+            __ret as _
+        }
+    }
+    /// Return number of frames ready to be read (capture) / written (playback)
+    /// - `pcm`: PCM handle
+    pub fn snd_pcm_avail_update(&self,
+        pcm: &SndPcm,
+    ) -> Result<isize, isize>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_AVAIL_UPDATE).assume_init())(
+                pcm.0,
+            );
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(__ret as _)
+        }
+    }
 }
 
-/// A module contains functions.
-pub struct Player(std::marker::PhantomData<*mut u8>);
+static mut ALSA_PLAYER_INIT: Option<AlsaPlayer> = None;
 
-impl Player {
-    /// Load a module.
+/// A module contains functions.
+#[derive(Clone)]
+pub struct AlsaPlayer(std::marker::PhantomData<*mut u8>);
+
+impl AlsaPlayer {
+    /// Get a handle to this module.  Loads module functions on first call.
     pub fn new() -> Option<Self> {
         unsafe {
             let dll = check_thread()?;
+            if let Some(ref module) = ALSA_PLAYER_INIT {
+                return Some(module.clone());
+            }
             FN_SND_PCM_PREPARE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_prepare\0")?.as_ptr()));
             FN_SND_PCM_WRITEI = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_writei\0")?.as_ptr()));
+            ALSA_PLAYER_INIT = Some(Self(std::marker::PhantomData));
             Some(Self(std::marker::PhantomData))
         }
     }
@@ -713,15 +855,22 @@ impl Player {
     }
 }
 
-/// A module contains functions.
-pub struct Recorder(std::marker::PhantomData<*mut u8>);
+static mut ALSA_RECORDER_INIT: Option<AlsaRecorder> = None;
 
-impl Recorder {
-    /// Load a module.
+/// A module contains functions.
+#[derive(Clone)]
+pub struct AlsaRecorder(std::marker::PhantomData<*mut u8>);
+
+impl AlsaRecorder {
+    /// Get a handle to this module.  Loads module functions on first call.
     pub fn new() -> Option<Self> {
         unsafe {
             let dll = check_thread()?;
+            if let Some(ref module) = ALSA_RECORDER_INIT {
+                return Some(module.clone());
+            }
             FN_SND_PCM_READI = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_readi\0")?.as_ptr()));
+            ALSA_RECORDER_INIT = Some(Self(std::marker::PhantomData));
             Some(Self(std::marker::PhantomData))
         }
     }

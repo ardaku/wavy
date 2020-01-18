@@ -5,6 +5,18 @@
 
 # No unions
 
+enum: SndPcmMode
+  doc: Stream Mode
+  variant: BLOCK
+    doc: Blocking mode
+    value: 0
+  variant: NONBLOCK
+    doc: Non blocking mode
+    value: 1
+  variant: ASYNC
+    doc: Async notification
+    value: 2
+
 enum: snd_pcm_stream_t
   doc: PCM stream (direction)
   variant: PLAYBACK
@@ -167,13 +179,16 @@ address: snd_pcm_status_t
   doc: PCM status container
   bytes: snd_pcm_status_sizeof
 
-func: int snd_pcm_open(snd_pcm_t** pcmp, const char* name, snd_pcm_stream_t stream, int mode)
-  mod: AudioDevice
+address: snd_async_handler_t
+  doc: Internal structure for an async notification client handler.
+
+func: int snd_pcm_open(snd_pcm_t** pcmp, const char* name, snd_pcm_stream_t stream, SndPcmMode mode)
+  mod: AlsaDevice
   doc: Opens a PCM.
   doc:>- `pcmp`: Returned PCM handle
   doc:>- `name`: ASCII identifier of the PCM handle
   doc:>- `stream`: Wanted stream
-  doc:>- `mode`: Open mode (see SND_PCM_NONBLOCK, SND_PCM_ASYNC)
+  doc:>- `mode`: Open mode
   doc:>Return 0 on success otherwise a negative error code
   pat:=NEW pcmp
   pat:=STR name
@@ -183,13 +198,13 @@ func: int snd_pcm_open(snd_pcm_t** pcmp, const char* name, snd_pcm_stream_t stre
 
 # TODO: dl_api support safe way of invalid malloc in conjunction w/ other func.
 func: int snd_pcm_hw_params_malloc(snd_pcm_hw_params_t** ptr)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Allocate an invalid snd_pcm_hw_params_t using standard malloc
   pat:=NEW ptr
   pat:=OK >= 0
 
 func: int snd_pcm_hw_params_any(snd_pcm_t* pcm, snd_pcm_hw_params_t* params)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Fill params with a full configuration space for a PCM.
   pat:=VAL pcm
   pat:=VAL params
@@ -197,7 +212,7 @@ func: int snd_pcm_hw_params_any(snd_pcm_t* pcm, snd_pcm_hw_params_t* params)
 
 # TODO: How are we using this / why?
 func: int snd_pcm_hw_params_set_rate_resample(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int val)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Restrict a configuration space to contain only real hardware rates.
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space 
@@ -208,7 +223,7 @@ func: int snd_pcm_hw_params_set_rate_resample(snd_pcm_t* pcm, snd_pcm_hw_params_
   pat:=OK >= 0
 
 func: int snd_pcm_hw_params_set_access(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, snd_pcm_access_t access)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Restrict a configuration space to contain only one access type.
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space
@@ -219,7 +234,7 @@ func: int snd_pcm_hw_params_set_access(snd_pcm_t* pcm, snd_pcm_hw_params_t* para
   pat:=OK >= 0
 
 func: int snd_pcm_hw_params_set_format(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, snd_pcm_format_t format)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Restrict a configuration space to contain only one format.
   pat:=VAL pcm
   pat:=VAL params
@@ -227,7 +242,7 @@ func: int snd_pcm_hw_params_set_format(snd_pcm_t* pcm, snd_pcm_hw_params_t* para
   pat:=OK >= 0
 
 func: int snd_pcm_hw_params_set_channels(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int val)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Restrict a configuration space to contain only one channels count.
   pat:=VAL pcm
   pat:=VAL params
@@ -236,7 +251,7 @@ func: int snd_pcm_hw_params_set_channels(snd_pcm_t* pcm, snd_pcm_hw_params_t* pa
 
 # TODO: maybe use snd_pcm_hw_params_set_rate_resample w/ snd_pcm_hw_params_set_rate
 func: int snd_pcm_hw_params_set_rate_near(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int* val, int* dir)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Restrict a configuration space to have rate nearest to a target.
   doc:>- `pcm`: PCM handle
   doc:>- `params`: Configuration space
@@ -249,7 +264,7 @@ func: int snd_pcm_hw_params_set_rate_near(snd_pcm_t* pcm, snd_pcm_hw_params_t* p
   pat:=OK >= 0
 
 func: int snd_pcm_hw_params(snd_pcm_t* pcm, snd_pcm_hw_params_t* params)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Install one PCM hardware configuration chosen from a configuration space
   doc:>and snd_pcm_prepare it.
   doc:>- `pcm`: PCM handle
@@ -259,7 +274,7 @@ func: int snd_pcm_hw_params(snd_pcm_t* pcm, snd_pcm_hw_params_t* params)
   pat:=OK >= 0
 
 func: int snd_pcm_hw_params_get_buffer_size(const snd_pcm_hw_params_t* params, unsigned long* val)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Extract buffer size from a configuration space.
   doc:>- `params`: Configuration space
   doc:>- `val`: Returned buffer size in frames
@@ -268,7 +283,7 @@ func: int snd_pcm_hw_params_get_buffer_size(const snd_pcm_hw_params_t* params, u
   pat:=OK >= 0
 
 func: int snd_pcm_hw_params_get_period_size(const snd_pcm_hw_params_t* params, unsigned long* frames, int* dir)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Extract period size from a configuration space.
   doc:>- `params`: Configuration space
   doc:>- `val`: Returned approximate period size in frames
@@ -279,18 +294,18 @@ func: int snd_pcm_hw_params_get_period_size(const snd_pcm_hw_params_t* params, u
   pat:=OK >= 0
 
 func: void snd_pcm_hw_params_free(snd_pcm_hw_params_t* obj)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Frees a previously allocated snd_pcm_hw_params_t
   pat:=OLD obj
 
 func: int snd_pcm_prepare(snd_pcm_t* pcm)
-  mod: Player
+  mod: AlsaPlayer
   doc: Prepare PCM for use.
   pat:=VAL pcm
   pat:=OK >= 0
 
 func: long snd_pcm_writei(snd_pcm_t* pcm, const uint32_t* buffer, unsigned long size)
-  mod: Player
+  mod: AlsaPlayer
   doc: Write interleaved frames to a PCM.
   doc:>- `pcm`: PCM handle
   doc:>- `buffer`: frames containing buffer
@@ -308,7 +323,7 @@ func: long snd_pcm_writei(snd_pcm_t* pcm, const uint32_t* buffer, unsigned long 
   pat:=OK >= 0
 
 func: long snd_pcm_readi(snd_pcm_t* pcm, uint32_t* buffer, unsigned long size)
-  mod: Recorder
+  mod: AlsaRecorder
   doc: Read interleaved frames from a PCM.
   doc:>- `pcm`: PCM handle
   doc:>- `buffer`: frames containing buffer
@@ -324,7 +339,7 @@ func: long snd_pcm_readi(snd_pcm_t* pcm, uint32_t* buffer, unsigned long size)
   pat:=OK >= 0
 
 func: int snd_pcm_status_malloc(snd_pcm_status_t** ptr)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Obtain status (runtime) information for PCM handle. 
   doc:>- `pcm`: PCM handle
   doc:>- `status`: Status container
@@ -332,7 +347,7 @@ func: int snd_pcm_status_malloc(snd_pcm_status_t** ptr)
   pat:=OK >= 0
 
 func: int snd_pcm_status(snd_pcm_t* pcm, snd_pcm_status_t* status)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Obtain status (runtime) information for PCM handle. 
   doc:>- `pcm`: PCM handle
   doc:>- `status`: Status container
@@ -341,20 +356,49 @@ func: int snd_pcm_status(snd_pcm_t* pcm, snd_pcm_status_t* status)
   pat:=OK >= 0
 
 func: unsigned long snd_pcm_status_get_avail(const snd_pcm_status_t* obj)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Get number of frames available from a PCM status container (see
   doc:>snd_pcm_avail_update)
   pat:=VAL obj
   pat:=OUT
 
 func: int snd_pcm_close(snd_pcm_t* pcm)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: close PCM handle
   pat:=OLD pcm
   pat:=OK >= 0
 
 func: int snd_pcm_start(snd_pcm_t* pcm)
-  mod: AudioDevice
+  mod: AlsaDevice
   doc: Start a PCM.
   pat:=VAL pcm
+  pat:=OK >= 0
+
+func: int snd_async_add_pcm_handler(snd_async_handler_t** handler, snd_pcm_t* pcm, void* callback, void* private_data)
+  mod: AlsaDevice
+  doc: Add an async handler for a PCM.
+  pat:=NEW handler
+  pat:=VAL pcm
+  pat:=RAW callback
+  pat:=RAW private_data
+
+func: int snd_async_del_handler(snd_async_handler_t* handler)
+  mod: AlsaDevice
+  doc: Deletes an async handler.
+  pat:=OLD handler
+  pat:=OK >= 0
+
+func: void* snd_async_handler_get_callback_private(snd_async_handler_t* handler)
+  mod: AlsaDevice
+  doc: Returns the private data assigned to an async handler.
+  doc:>- `handler`: Handle to an async handler.
+  pat:=VAL handler
+  pat:=OUT
+
+func: long snd_pcm_avail_update(snd_pcm_t* pcm)
+  mod: AlsaDevice
+  doc: Return number of frames ready to be read (capture) / written (playback)
+  doc:>- `pcm`: PCM handle
+  pat:=VAL pcm
+  pat:=OUT
   pat:=OK >= 0

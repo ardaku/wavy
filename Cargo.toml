@@ -21,5 +21,8 @@ readme = "README.md"
 keywords = ["audio", "realtime", "cross-platform", "record", "play"]
 categories = ["game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"]
 
+[dev-dependencies]
+pasts = "0.0"
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = "0.4"

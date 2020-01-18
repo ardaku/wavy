@@ -45,8 +45,11 @@
 
 mod error;
 mod sample_rate;
-mod system;
+// mod system;
+mod stereo;
 // mod resampler;
+mod player;
+mod recorder;
 
 mod gen {
     #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -67,6 +70,6 @@ mod ffi {
 
 pub use error::AudioError;
 pub use sample_rate::SampleRate;
-pub use system::AudioSample;
-pub use system::MicrophoneList;
-pub use system::SpeakerList;
+pub use stereo::StereoS16Frame;
+pub use recorder::Recorder;
+pub use player::Player;

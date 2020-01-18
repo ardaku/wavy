@@ -1,5 +1,7 @@
 //! Audio System (SpeakerList & MicrophoneList).
 
+// FIXME: Probably remove
+
 /// An AudioSample (with surround sound 5.1 support).
 pub struct AudioSample {
     front_left: i16,
@@ -49,52 +51,5 @@ impl AudioSample {
             surround_left,
             surround_right,
         }
-    }
-}
-
-/// Audio (Speaker) output.  This type represents a speaker system.
-pub struct SpeakerList(crate::ffi::Speaker);
-
-impl SpeakerList {
-    /// Connect to the speaker system at a specific sample rate.
-    pub fn new(
-        sr: crate::SampleRate,
-    ) -> Result<SpeakerList, crate::AudioError> {
-        Ok(SpeakerList(crate::ffi::Speaker::new(sr)?))
-    }
-
-    /// Generate audio samples as they are needed.  In your closure return S16_LE audio samples.
-    pub fn play(&mut self, generator: &mut dyn FnMut() -> AudioSample) {
-        // TODO: Right now we're just combining into a stereo track for playback whether or not we
-        // have 5.1 support.
-        self.0.play(&mut || {
-            let sample = generator();
-
-            let l = (i32::from(sample.front_left)
-                + i32::from(sample.surround_left))
-                / 2;
-            let r = (i32::from(sample.front_right)
-                + i32::from(sample.surround_right))
-                / 2;
-            (l as i16, r as i16)
-        })
-    }
-}
-
-/// Audio (Microphone) input.
-pub struct MicrophoneList(crate::ffi::Microphone);
-
-impl MicrophoneList {
-    /// Connect to the microphone system at a specific sample rate.
-    pub fn new(
-        sr: crate::SampleRate,
-    ) -> Result<MicrophoneList, crate::AudioError> {
-        Ok(MicrophoneList(crate::ffi::Microphone::new(sr)?))
-    }
-
-    /// Record audio from the microphone system.  The closures first parameter is the microphone id.
-    /// The 2nd and 3rd are left and right sample.
-    pub fn record(&mut self, generator: &mut dyn FnMut(usize, i16, i16)) {
-        self.0.record(generator);
     }
 }
