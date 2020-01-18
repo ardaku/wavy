@@ -50,6 +50,7 @@ mod system;
 
 mod gen {
     #[cfg(any(target_os = "linux", target_os = "android"))]
+    #[rustfmt::skip]
     pub(crate) mod asound;
 }
 

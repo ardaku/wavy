@@ -83,10 +83,10 @@ pub struct Speaker {
 
 impl Speaker {
     pub fn new(sr: SampleRate) -> Result<Speaker, AudioError> {
-        let player = Player::new().ok_or(AudioError::InternalError(
+        let player = Player::new().ok_or_else(|| AudioError::InternalError(
             "Could not load Player module in shared object!".to_string(),
         ))?;
-        let device = AudioDevice::new().ok_or(AudioError::InternalError(
+        let device = AudioDevice::new().ok_or_else(|| AudioError::InternalError(
             "Could not load AudioDevice module in shared object!".to_string(),
         ))?;
 
@@ -181,10 +181,10 @@ pub struct Microphone {
 
 impl Microphone {
     pub fn new(sr: SampleRate) -> Result<Microphone, AudioError> {
-        let recorder = Recorder::new().ok_or(AudioError::InternalError(
+        let recorder = Recorder::new().ok_or_else(|| AudioError::InternalError(
             "Could not load Recorder module in shared object!".to_string(),
         ))?;
-        let device = AudioDevice::new().ok_or(AudioError::InternalError(
+        let device = AudioDevice::new().ok_or_else(|| AudioError::InternalError(
             "Could not load AudioDevice module in shared object!".to_string(),
         ))?;
 
