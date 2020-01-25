@@ -266,6 +266,14 @@ impl SndAsyncHandler {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct PollFd {
+    pub fd: std::os::raw::c_int,
+    pub events: std::os::raw::c_short,
+    pub revents: std::os::raw::c_short,
+}
+
 static mut FN_SND_PCM_OPEN:
     std::mem::MaybeUninit<extern fn(
         pcmp: *mut *mut std::os::raw::c_void,
@@ -389,6 +397,16 @@ static mut FN_SND_PCM_AVAIL_UPDATE:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
     ) -> std::os::raw::c_long> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_POLL_DESCRIPTORS_COUNT:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_POLL_DESCRIPTORS:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+        pfds: *mut PollFd,
+        space: std::os::raw::c_uint,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
 
 static mut ALSA_DEVICE_INIT: Option<AlsaDevice> = None;
 
@@ -425,6 +443,8 @@ impl AlsaDevice {
             FN_SND_ASYNC_DEL_HANDLER = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_async_del_handler\0")?.as_ptr()));
             FN_SND_ASYNC_HANDLER_GET_CALLBACK_PRIVATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_async_handler_get_callback_private\0")?.as_ptr()));
             FN_SND_PCM_AVAIL_UPDATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_avail_update\0")?.as_ptr()));
+            FN_SND_PCM_POLL_DESCRIPTORS_COUNT = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors_count\0")?.as_ptr()));
+            FN_SND_PCM_POLL_DESCRIPTORS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors\0")?.as_ptr()));
             ALSA_DEVICE_INIT = Some(Self(std::marker::PhantomData));
             Some(Self(std::marker::PhantomData))
         }
@@ -790,6 +810,40 @@ impl AlsaDevice {
             );
             if __ret < 0 { return Err(__ret as _) };
             Ok(__ret as _)
+        }
+    }
+    /// Get count of poll descriptors for PCM handle
+    pub fn snd_pcm_poll_descriptors_count(&self,
+        pcm: &SndPcm,
+    ) -> Result<i32, i32>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_POLL_DESCRIPTORS_COUNT).assume_init())(
+                pcm.0,
+            );
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(__ret as _)
+        }
+    }
+    /// Get poll descriptors
+    /// - `pcm`: PCM handle
+    /// - `pfds`: Array of poll descriptors
+    /// - `space`: space in the poll descriptor array 
+    /// -Returns count of filled descriptors
+    pub fn snd_pcm_poll_descriptors(&self,
+        pcm: &SndPcm,
+        pfds: &mut Vec<PollFd>,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_POLL_DESCRIPTORS).assume_init())(
+                pcm.0,
+                pfds.as_mut_ptr(),
+                pfds.capacity() as _,
+            );
+            pfds.set_len(__ret as _);
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
         }
     }
 }

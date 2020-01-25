@@ -51,22 +51,20 @@ mod stereo;
 mod player;
 mod recorder;
 
-mod gen {
-    #[cfg(any(target_os = "linux", target_os = "android"))]
-    #[rustfmt::skip]
-    pub(crate) mod asound;
-}
+#[cfg(any(target_os = "linux", target_os = "android"))]
+mod linux;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+use linux as ffi;
 
-mod ffi {
-    #![allow(non_camel_case_types)]
+#[cfg(target_arch = "wasm32")]
+mod wasm;
+#[cfg(target_arch = "wasm32")]
+use wasm as ffi;
 
-    #[cfg(any(target_os = "linux", target_os = "android"))]
-    include!("ffi/linux.rs");
-    #[cfg(target_arch = "wasm32")]
-    include!("ffi/wasm.rs");
-    #[cfg(target_os = "macos")]
-    include!("ffi/apple.rs");
-}
+#[cfg(target_os = "macos")]
+mod apple;
+#[cfg(target_os = "macos")]
+use apple as ffi;
 
 pub use error::AudioError;
 pub use sample_rate::SampleRate;

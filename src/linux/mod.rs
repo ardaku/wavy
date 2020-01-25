@@ -7,7 +7,13 @@ use std::convert::TryInto;
 use std::iter::IntoIterator;
 use std::borrow::Borrow;
 
-use crate::gen::asound::{AlsaPlayer, AlsaRecorder, AlsaDevice, SndPcmStatus, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess, SndAsyncHandler, SndPcmMode};
+// Update with: `dl_api ffi/asound,so,2.muon src/linux/gen.rs`
+#[rustfmt::skip]
+mod gen;
+
+mod epoll;
+
+use self::gen::{AlsaPlayer, AlsaRecorder, AlsaDevice, SndPcmStatus, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess, SndAsyncHandler, SndPcmMode};
 use crate::{AudioError, SampleRate, StereoS16Frame};
 
 // A C Callback that gets called when an audio device's period boundary elapses.
@@ -16,6 +22,8 @@ unsafe extern "C" fn elapse_period(handler: *mut std::os::raw::c_void) {
     let handler = SndAsyncHandler::from_raw(handler);
     let device = AlsaDevice::new().unwrap(); // Should never fail here
     let waker: *mut Option<Waker> = device.snd_async_handler_get_callback_private(&handler).cast();
+
+    println!("Got SIGNAL!");
 
     if let Some(waker) = (*waker).take() {
         waker.wake();
@@ -221,7 +229,7 @@ impl Player {
         let mut avail: usize = nframes;
 
         // Add avail frames to the speaker's buffer.
-        while avail >= self.pcm.period_size {
+        while self.pcm.buffer_size - avail <= self.pcm.period_size {
             // Clear the temporary buffer
             self.buffer.clear();
             // Write # of frames equal to the period size into the buffer.

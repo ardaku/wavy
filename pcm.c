@@ -12,7 +12,7 @@
 #include <sys/time.h>
 #include <math.h>
 
-static char *device = "plughw:0,0";         /* playback device */
+static char *device = "pulse";         /* playback device */
 static snd_pcm_format_t format = SND_PCM_FORMAT_S16;    /* sample format */
 static unsigned int rate = 44100;           /* stream rate */
 static unsigned int channels = 1;           /* count of channels */
@@ -246,7 +246,7 @@ static int wait_for_poll(snd_pcm_t *handle, struct pollfd *ufds, unsigned int co
 {
     unsigned short revents;
     while (1) {
-        poll(ufds, count, -1);
+        poll(ufds /* fds */, count /* number of fds */, -1 /* timeout */);
         snd_pcm_poll_descriptors_revents(handle, ufds, count, &revents);
         if (revents & POLLERR)
             return -EIO;
@@ -267,9 +267,10 @@ static int write_and_poll_loop(snd_pcm_t *handle, signed short *samples,
         printf("Invalid poll descriptors count\n");
         return count;
     }
+    printf("PDC: %d\n", count);
     ufds = malloc(sizeof(struct pollfd) * count);
     if (ufds == NULL) {
-        printf("No enough memory\n");
+        printf("Not enough memory\n");
         return -ENOMEM;
     }
     if ((err = snd_pcm_poll_descriptors(handle, ufds, count)) < 0) {

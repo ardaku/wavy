@@ -25,6 +25,14 @@ impl StereoS16Frame {
     pub fn right(&self) -> i16 {
         i16::from_le(self.right)
     }
+
+    /// Get a byte representation of this frame.
+    pub fn bytes(&self) -> [u8; 4] {
+        let [a, b] = self.left.to_ne_bytes();
+        let [c, d] = self.right.to_ne_bytes();
+
+        [a, b, c, d]
+    }
 }
 
 #[cfg(tests)]
