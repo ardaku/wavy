@@ -226,34 +226,60 @@ impl Player {
         where T: Borrow<crate::StereoS16Frame>
     {
         let mut iter = iter.into_iter();
-
-        // Wait for a number of frames to available.
-        let nframes = (&mut self.pcm).await?;
-
-        // Add avail frames to the speaker's buffer. //
-
-        // Clear the temporary buffer
-        self.buffer.clear();
-        // Write # of frames equal to the period size into the buffer.
-        for _ in 0..self.pcm.period_size {
-            let f = match iter.next() {
-                Some(f) => f.borrow().clone(),
-                None => StereoS16Frame::new(0, 0),
-            };
-            self.buffer.push(f);
+        // If buffer is empty, fill it.
+        if self.buffer.is_empty() {
+            // Write # of frames equal to the period size into the buffer.
+            for _ in 0..self.pcm.period_size {
+                let f = match iter.next() {
+                    Some(f) => f.borrow().clone(),
+                    None => StereoS16Frame::new(0, 0),
+                };
+                self.buffer.push(f);
+            }
         }
-        // Copy the temporary buffer into the speaker hw buffer.
-        let len = self.player.snd_pcm_writei(
-            &self.pcm.sound_device,
-            unsafe { std::mem::transmute(self.buffer.as_slice()) },
-        ).map_err(|_| println!("Buffer underrun")).unwrap() as usize;
-        assert_eq!(len, self.buffer.len());
-        // Update how many more frames need to be iterated.
-        self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
-            AudioError::InternalError("Play: Couldn't get available".to_string())
-        )?;
-
+        // 
+        let nframes = (&mut *self).await;
         Ok(nframes)
+    }
+}
+
+impl Future for &mut Player {
+    type Output = usize;
+
+    #[allow(unsafe_code)]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = Pin::into_inner(self);
+
+        // Record into temporary buffer.
+        let len = match this.player.snd_pcm_writei(
+            &this.pcm.sound_device,
+            unsafe { std::mem::transmute(this   .buffer.as_slice()) },
+        ) {
+        Err(error) => {
+            // println!("{:?}", this.pcm.device.snd_pcm_state(&this.pcm.sound_device));
+            match error {
+                // Edge-triggered epoll should only go into pending mode if
+                // read/write call results in EAGAIN (according to epoll man
+                // page)
+                -11 => {
+                    this.pcm.fd.register_waker(cx.waker().clone());
+                    return Poll::Pending;
+                },
+                -77 => panic!("Incorrect state (-EBADFD): FIXME"),
+                -32 => panic!("Buffer Overrun (Underflow): FIXME"),
+                -86 => panic!("Stream got suspended, must be recovered (-ESTRPIPE): FIXME"),
+                _ => unreachable!(),
+            }
+        }
+        Ok(len) => {
+            len as usize
+        }
+        };
+        assert_eq!(len, this.buffer.len());
+        // Clear the output buffer (Keeps capacity of 1 period the same)
+        this.buffer.clear();
+        // Return ready, successfully read some data into the buffer.
+        Poll::Ready(len)
     }
 }
 
@@ -305,6 +331,8 @@ impl Future for &mut Recorder {
             unsafe { std::mem::transmute(&mut this.buffer) },
         )
         {
+            // Len is garbage, this resets it to 0
+            this.buffer.clear();
             // println!("{:?}", this.pcm.device.snd_pcm_state(&this.pcm.sound_device));
             match error {
                 // Edge-triggered epoll should only go into pending mode if
@@ -317,7 +345,7 @@ impl Future for &mut Recorder {
                 -77 => panic!("Incorrect state (-EBADFD): FIXME"),
                 -32 => panic!("Buffer Overrun (Underflow): FIXME"),
                 -86 => panic!("Stream got suspended, must be recovered (-ESTRPIPE): FIXME"),
-                a => unreachable!(),
+                _ => unreachable!(),
             }
         }
         // Return ready, successfully read some data into the buffer.
