@@ -21,18 +21,27 @@ struct Shared {
 async fn monitor() -> Result<(), AudioError> {
     /// Extend buffer by slice of new frames from last plugged in device.
     async fn record(shared: &mut Shared) {
-        // println!("Recording…");
+        println!("Recording…");
         let frames = shared.recorder.record_last().await.unwrap();
         // println!("Recorded {} frames…", frames.len());
         shared.buffer.extend(frames);
     }
     /// Drain double ended queue frames into last plugged in device.
     async fn play(shared: &mut Shared) {
-        // println!("Playing…");
+        println!("Playing…");
         let n_frames = shared.player.play_last(shared.buffer.iter()).await.unwrap();
         // println!("Played {} frames…", n_frames);
         shared.buffer.drain(..n_frames.min(shared.buffer.len()));
     }
+
+    async fn doit(shared: &mut Shared) {
+        println!("DOIT S");
+        pasts::spawn_blocking(|| {
+            std::thread::sleep(std::time::Duration::from_millis(1_000));
+        }).await;
+        println!("DOIT Z");
+        shared.running = false;
+    };
 
     let running = true;
     let buffer = VecDeque::new();

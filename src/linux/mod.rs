@@ -72,6 +72,29 @@ fn pcm_hw_params(
             sr, actual_rate
         )));
     }
+    // 
+    let mut period_size = 1024;
+    device.snd_pcm_hw_params_set_period_size_near(
+        sound_device,
+        &hw_params,
+        &mut period_size,
+        None,
+    ).unwrap();
+    println!(
+        "Tried to set period size: {}, Got: {}!",
+        1024, period_size
+    );
+    // 
+    let mut buffer_size = period_size * 2;
+    device.snd_pcm_hw_params_set_buffer_size_near(
+        sound_device,
+        &hw_params,
+        &mut buffer_size,
+    ).unwrap();
+    println!(
+        "Tried to set buffer size: {}, Got: {}!",
+        period_size * 2, buffer_size
+    );
     // Apply the hardware parameters that just got set.
     device.snd_pcm_hw_params(sound_device, &hw_params).map_err(|_|
         AudioError::InternalError(
@@ -208,10 +231,12 @@ impl Player {
 
         // Wait for a number of frames to available.
         let nframes = (&mut self.pcm).await?;
-        let mut avail: usize = nframes;
+        let avail: usize = nframes;
 
-        // Add avail frames to the speaker's buffer.
-        while self.pcm.buffer_size - avail <= self.pcm.period_size {
+        dbg!(avail);
+
+        // Add avail frames to the speaker's buffer. //
+
             // Clear the temporary buffer
             self.buffer.clear();
             // Write # of frames equal to the period size into the buffer.
@@ -232,15 +257,9 @@ impl Player {
             ).map_err(|_| println!("Buffer underrun")).unwrap() as usize;
             assert_eq!(len, self.buffer.len());
             // Update how many more frames need to be iterated.
-            let avail2 = self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
+            self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
                 AudioError::InternalError("Play: Couldn't get available".to_string())
-            );
-            avail = match avail2 {
-                // Should never fail, negative is error.
-                Ok(avail3) => avail3.try_into().unwrap(),
-                Err(error) => return Err(error),
-            };
-        }
+            )?;
 
         Ok(nframes)
     }
@@ -296,7 +315,7 @@ impl Recorder {
             self.recorder.snd_pcm_readi(
                 &self.pcm.sound_device,
                 &mut self.buffer,
-            ).map_err(|_| println!("Buffer Overflow"));
+            ).map_err(|_| println!("Buffer Overflow")).unwrap();
             // Copy the temporary buffer into the output buffer
             for i in 0..self.pcm.period_size {
                 let frame = self.buffer[i].to_le_bytes();

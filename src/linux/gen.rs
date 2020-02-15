@@ -311,6 +311,19 @@ static mut FN_SND_PCM_HW_PARAMS_SET_RATE_NEAR:
         val: *mut std::os::raw::c_uint,
         dir: *mut std::os::raw::c_int,
     ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_HW_PARAMS_SET_PERIOD_SIZE_NEAR:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+        params: *mut std::os::raw::c_void,
+        val: *mut std::os::raw::c_uint,
+        dir: *mut std::os::raw::c_int,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_HW_PARAMS_SET_BUFFER_SIZE_NEAR:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+        params: *mut std::os::raw::c_void,
+        val: *mut std::os::raw::c_uint,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
@@ -405,6 +418,8 @@ impl AlsaDevice {
             FN_SND_PCM_HW_PARAMS_SET_FORMAT = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_format\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_SET_CHANNELS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_channels\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_SET_RATE_NEAR = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_rate_near\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_SET_PERIOD_SIZE_NEAR = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_period_size_near\0")?.as_ptr()));
+            FN_SND_PCM_HW_PARAMS_SET_BUFFER_SIZE_NEAR = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_buffer_size_near\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_get_buffer_size\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_get_period_size\0")?.as_ptr()));
@@ -550,10 +565,10 @@ impl AlsaDevice {
         }
     }
     /// Restrict a configuration space to have rate nearest to a target.
-    /// - `pcm`: PCM handle
-    /// - `params`: Configuration space
-    /// - `val`: approximate target rate / returned approximate set rate
-    /// - `dir`: Sub unit direction 
+    ///  - `pcm`: PCM handle
+    ///  - `params`: Configuration space
+    ///  - `val`: approximate target rate / returned approximate set rate
+    ///  - `dir`: Sub unit direction 
     pub fn snd_pcm_hw_params_set_rate_near(&self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -572,6 +587,57 @@ impl AlsaDevice {
             );
             *val = __val as _;
             if let Some(_temp) = dir { *_temp = __dir.unwrap() as _; }
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
+        }
+    }
+    /// Restrict a configuration space to have period size nearest to a target.
+    ///  - `pcm`: PCM handle
+    ///  - `params`: Configuration space
+    ///  - `val`: approximate target period size in frames / returned chosen
+    ///    approximate target period size
+    ///  - `dir`: Sub unit direction 
+    pub fn snd_pcm_hw_params_set_period_size_near(&self,
+        pcm: &SndPcm,
+        params: &SndPcmHwParams,
+        val: &mut u32,
+        dir: Option<&mut i32>,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            let mut __val: _ = *val as _;
+            let mut __dir: _ = if let Some(_temp) = dir.iter().next() { Some(**_temp as _) } else { None };
+            let __ret = ((FN_SND_PCM_HW_PARAMS_SET_PERIOD_SIZE_NEAR).assume_init())(
+                pcm.0,
+                params.0,
+                &mut __val,
+                if let Some(ref mut _temp) = __dir { _temp } else { std::ptr::null_mut() },
+            );
+            *val = __val as _;
+            if let Some(_temp) = dir { *_temp = __dir.unwrap() as _; }
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
+        }
+    }
+    /// Restrict a configuration space to have buffer size nearest to a target. 
+    ///  - `pcm`: PCM handle
+    ///  - `params`: Configuration space
+    ///  - `val`: Approximate target buffer size in frames / returned chosen
+    ///    approximate target buffer size in frames
+    pub fn snd_pcm_hw_params_set_buffer_size_near(&self,
+        pcm: &SndPcm,
+        params: &SndPcmHwParams,
+        val: &mut u32,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            let mut __val: _ = *val as _;
+            let __ret = ((FN_SND_PCM_HW_PARAMS_SET_BUFFER_SIZE_NEAR).assume_init())(
+                pcm.0,
+                params.0,
+                &mut __val,
+            );
+            *val = __val as _;
             if __ret < 0 { return Err(__ret as _) };
             Ok(())
         }

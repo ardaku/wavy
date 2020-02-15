@@ -258,14 +258,40 @@ func: int snd_pcm_hw_params_set_channels(snd_pcm_t* pcm, snd_pcm_hw_params_t* pa
 func: int snd_pcm_hw_params_set_rate_near(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int* val, int* dir)
   mod: AlsaDevice
   doc: Restrict a configuration space to have rate nearest to a target.
-  doc:>- `pcm`: PCM handle
-  doc:>- `params`: Configuration space
-  doc:>- `val`: approximate target rate / returned approximate set rate
-  doc:>- `dir`: Sub unit direction 
+  doc:> - `pcm`: PCM handle
+  doc:> - `params`: Configuration space
+  doc:> - `val`: approximate target rate / returned approximate set rate
+  doc:> - `dir`: Sub unit direction 
   pat:=VAL pcm
   pat:=VAL params
   pat:=MUT val
   pat:=OPT_MUT dir
+  pat:=OK >= 0
+
+func: int snd_pcm_hw_params_set_period_size_near(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int* val, int* dir)
+  mod: AlsaDevice
+  doc: Restrict a configuration space to have period size nearest to a target.
+  doc:> - `pcm`: PCM handle
+  doc:> - `params`: Configuration space
+  doc:> - `val`: approximate target period size in frames / returned chosen
+  doc:>   approximate target period size
+  doc:> - `dir`: Sub unit direction 
+  pat:=VAL pcm
+  pat:=VAL params
+  pat:=MUT val
+  pat:=OPT_MUT dir
+  pat:=OK >= 0
+
+func: int snd_pcm_hw_params_set_buffer_size_near(snd_pcm_t* pcm, snd_pcm_hw_params_t* params, unsigned int* val)
+  mod: AlsaDevice
+  doc: Restrict a configuration space to have buffer size nearest to a target. 
+  doc:> - `pcm`: PCM handle
+  doc:> - `params`: Configuration space
+  doc:> - `val`: Approximate target buffer size in frames / returned chosen
+  doc:>   approximate target buffer size in frames
+  pat:=VAL pcm
+  pat:=VAL params
+  pat:=MUT val
   pat:=OK >= 0
 
 func: int snd_pcm_hw_params(snd_pcm_t* pcm, snd_pcm_hw_params_t* params)
