@@ -156,6 +156,28 @@ enum: snd_pcm_format_t
   variant: DSD_U32_BE,
     doc: IEC-958 CPU Endian
 
+enum: snd_pcm_state_t
+  doc: PCM state
+  variant: Open
+    doc: Open
+    value: 0
+  variant: SETUP
+    doc: Setup installed
+  variant: PREPARED
+    doc: Ready to start
+  variant: RUNNING
+    doc: Running 
+  variant: XRUN
+    doc: Stopped: underrun (playback) or overrun (capture) detected
+  variant: DRAINING
+    doc: Draining: running (playback) or stopped (capture) 
+  variant: PAUSED
+    doc: Paused
+  variant: SUSPENDED
+    doc: Hardware is suspended
+  variant: DISCONNECTED
+    doc: Hardware is disconnected (Also known as LAST in the C API)
+
 struct: PollFD
   field: fd
     type: int
@@ -395,10 +417,17 @@ func: int snd_pcm_poll_descriptors_count(snd_pcm_t* pcm)
 func: int snd_pcm_poll_descriptors(snd_pcm_t* pcm, PollFD* pfds, unsigned int space)
   mod: AlsaDevice
   doc: Get poll descriptors
-  doc:>- `pcm`: PCM handle
-  doc:>- `pfds`: Array of poll descriptors
-  doc:>- `space`: space in the poll descriptor array 
-  doc:>-Returns count of filled descriptors
+  doc:> - `pcm`: PCM handle
+  doc:> - `pfds`: Array of poll descriptors
+  doc:> - `space`: space in the poll descriptor array 
+  doc:> -Returns count of filled descriptors
   pat:=VAL pcm
   pat:=OUT_VEC space pfds
   pat:=OK >= 0
+
+func: snd_pcm_state_t snd_pcm_state(snd_pcm_t* pcm)
+  mod: AlsaDevice
+  doc: Return PCM state.
+  doc:> - `pcm`: PCM handle
+  pat:=VAL pcm
+  pat:=OUT

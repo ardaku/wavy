@@ -214,6 +214,31 @@ pub enum SndPcmFormat {
     DsdU32Be,
 }
 
+/// PCM state
+#[repr(C)]
+#[non_exhaustive]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum SndPcmState {
+    /// Open
+    Open = 0,
+    /// Setup installed
+    Setup,
+    /// Ready to start
+    Prepared,
+    /// Running 
+    Running,
+    /// Stopped: underrun (playback) or overrun (capture) detected
+    Xrun,
+    /// Draining: running (playback) or stopped (capture) 
+    Draining,
+    /// Paused
+    Paused,
+    /// Hardware is suspended
+    Suspended,
+    /// Hardware is disconnected (Also known as LAST in the C API)
+    Disconnected,
+}
+
 /// PCM handle
 pub struct SndPcm(*mut std::os::raw::c_void);
 
@@ -372,6 +397,10 @@ static mut FN_SND_PCM_POLL_DESCRIPTORS:
         pfds: *mut PollFd,
         space: std::os::raw::c_uint,
     ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_STATE:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+    ) -> SndPcmState> = std::mem::MaybeUninit::uninit();
 
 static mut ALSA_DEVICE_INIT: Option<AlsaDevice> = None;
 
@@ -406,6 +435,7 @@ impl AlsaDevice {
             FN_SND_PCM_AVAIL_UPDATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_avail_update\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS_COUNT = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors_count\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors\0")?.as_ptr()));
+            FN_SND_PCM_STATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_state\0")?.as_ptr()));
             ALSA_DEVICE_INIT = Some(Self(std::marker::PhantomData));
             Some(Self(std::marker::PhantomData))
         }
@@ -745,10 +775,10 @@ impl AlsaDevice {
         }
     }
     /// Get poll descriptors
-    /// - `pcm`: PCM handle
-    /// - `pfds`: Array of poll descriptors
-    /// - `space`: space in the poll descriptor array 
-    /// -Returns count of filled descriptors
+    ///  - `pcm`: PCM handle
+    ///  - `pfds`: Array of poll descriptors
+    ///  - `space`: space in the poll descriptor array 
+    ///  -Returns count of filled descriptors
     pub fn snd_pcm_poll_descriptors(&self,
         pcm: &SndPcm,
         pfds: &mut Vec<PollFd>,
@@ -763,6 +793,19 @@ impl AlsaDevice {
             pfds.set_len(__ret as _);
             if __ret < 0 { return Err(__ret as _) };
             Ok(())
+        }
+    }
+    /// Return PCM state.
+    ///  - `pcm`: PCM handle
+    pub fn snd_pcm_state(&self,
+        pcm: &SndPcm,
+    ) -> SndPcmState
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_STATE).assume_init())(
+                pcm.0,
+            );
+            __ret as _
         }
     }
 }

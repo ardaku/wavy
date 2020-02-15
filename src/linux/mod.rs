@@ -286,23 +286,6 @@ impl Recorder {
     }
 
     pub async fn record_last(&mut self) -> Result<&[StereoS16Frame], AudioError> {
-        /*// Wait for a number of frames to available.
-        let _nframes = (&mut self.pcm).await?;
-        // Clear the output buffer
-        self.buffer.clear();
-
-        // Add avail frames to the speaker's buffer. //
-
-        // Record into temporary buffer.
-        self.recorder.snd_pcm_readi(
-            &self.pcm.sound_device,
-            unsafe { std::mem::transmute(&mut self.buffer) },
-        ).map_err(|_| println!("Buffer Overflow")).unwrap();
-        // Update how many more frames need to be iterated.
-        self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
-            AudioError::InternalError("Record: Couldn't get available".to_string())
-        )?;*/
-
         (&mut *self).await;
         Ok(&self.buffer)
     }
@@ -322,32 +305,22 @@ impl Future for &mut Recorder {
             unsafe { std::mem::transmute(&mut this.buffer) },
         )
         {
+            // println!("{:?}", this.pcm.device.snd_pcm_state(&this.pcm.sound_device));
             match error {
+                // Edge-triggered epoll should only go into pending mode if
+                // read/write call results in EAGAIN (according to epoll man
+                // page)
+                -11 => {
+                    this.pcm.fd.register_waker(cx.waker().clone());
+                    return Poll::Pending;
+                },
                 -77 => panic!("Incorrect state (-EBADFD): FIXME"),
                 -32 => panic!("Buffer Overrun (Underflow): FIXME"),
                 -86 => panic!("Stream got suspended, must be recovered (-ESTRPIPE): FIXME"),
-                a => {
-                    println!("error is: {}", a);
-                    unreachable!()
-                },
+                a => unreachable!(),
             }
         }
-        // Return
-        match this.buffer.len() {
-            // No Data was read, go to sleep
-            0 => {
-                this.pcm.fd.register_waker(cx.waker().clone());
-                Poll::Pending
-            }
-            _ => {
-                Poll::Ready(())
-            }
-/*            // A period of data was read
-            x if x == this.pcm.period_size => {
-                Poll::Ready(())
-            }
-            // Incomplete Read
-            s => panic!("Incomplete Read of size {}!  Shouldn't Happen", s)*/
-        }
+        // Return ready, successfully read some data into the buffer.
+        Poll::Ready(())
     }
 }
