@@ -39,9 +39,10 @@
 
 #![warn(missing_docs)]
 #![doc(
-    html_logo_url = "http://free.plopgrizzly.com/plop/icon.svg",
-    html_favicon_url = "http://free.plopgrizzly.com/plop/icon.svg"
+    html_logo_url = "https://libcala.github.io/logo.svg",
+    html_favicon_url = "https://libcala.github.io/icon.svg"
 )]
+#![deny(unsafe_code)]
 
 mod error;
 mod sample_rate;

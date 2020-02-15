@@ -1,5 +1,5 @@
 /// Frame with Stereo Signed 16-Bit Little Endian format.  Always 32 bits.
-#[repr(C)]
+#[repr(packed, C)]
 #[derive(Copy, Clone, Debug)]
 pub struct StereoS16Frame {
     /// Always stored as Little Endian

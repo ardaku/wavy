@@ -189,7 +189,7 @@ impl Future for &mut Pcm {
 pub struct Player {
     player: AlsaPlayer,
     pcm: Pcm,
-    buffer: Vec<u32>,
+    raw_buffer: Vec<u32>,
 }
 
 impl Player {
@@ -205,12 +205,12 @@ impl Player {
             AudioError::InternalError("Could not prepare!".to_string())
         )?;
         // Create buffer
-        let buffer = Vec::new();
+        let raw_buffer = Vec::with_capacity(pcm.period_size);
 
         Ok(Player {
             player,
             pcm,
-            buffer,
+            raw_buffer,
         })
     }
 
@@ -225,7 +225,7 @@ impl Player {
         // Add avail frames to the speaker's buffer. //
 
         // Clear the temporary buffer
-        self.buffer.clear();
+        self.raw_buffer.clear();
         // Write # of frames equal to the period size into the buffer.
         for _ in 0..self.pcm.period_size {
             let f = match iter.next() {
@@ -235,14 +235,14 @@ impl Player {
 //                dbg!(f);
             let [byte0, byte1] = f.left().to_le_bytes();
             let [byte2, byte3] = f.right().to_le_bytes();
-            self.buffer.push(u32::from_le_bytes([byte0, byte1, byte2, byte3]));
+            self.raw_buffer.push(u32::from_le_bytes([byte0, byte1, byte2, byte3]));
         }
         // Copy the temporary buffer into the speaker hw buffer.
         let len = self.player.snd_pcm_writei(
             &self.pcm.sound_device,
-            &self.buffer,
+            &self.raw_buffer,
         ).map_err(|_| println!("Buffer underrun")).unwrap() as usize;
-        assert_eq!(len, self.buffer.len());
+        assert_eq!(len, self.raw_buffer.len());
         // Update how many more frames need to be iterated.
         self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
             AudioError::InternalError("Play: Couldn't get available".to_string())
@@ -255,7 +255,6 @@ impl Player {
 pub struct Recorder {
     recorder: AlsaRecorder,
     pcm: Pcm,
-    raw_buffer: Vec<u32>,
     out_buffer: Vec<StereoS16Frame>,
 }
 
@@ -272,17 +271,16 @@ impl Recorder {
             AudioError::InternalError("Could not start!".to_string())
         )?;
         // Create buffers (TODO: Shouldn't be necessary to have 2 buffers)
-        let raw_buffer = Vec::with_capacity(pcm.period_size);
         let out_buffer = Vec::with_capacity(pcm.period_size);
         // Return successfully
         Ok(Recorder {
             recorder,
             pcm,
-            raw_buffer,
             out_buffer,
         })
     }
 
+    #[allow(unsafe_code)]
     pub async fn record_last(&mut self) -> Result<&[StereoS16Frame], AudioError> {
         // Wait for a number of frames to available.
         let _nframes = (&mut self.pcm).await?;
@@ -294,16 +292,8 @@ impl Recorder {
         // Record into temporary buffer.
         self.recorder.snd_pcm_readi(
             &self.pcm.sound_device,
-            &mut self.raw_buffer,
+            unsafe { std::mem::transmute(&mut self.out_buffer) },
         ).map_err(|_| println!("Buffer Overflow")).unwrap();
-        // Copy the temporary buffer into the output buffer
-        for frame in self.raw_buffer.iter() {
-            let frame = frame.to_le_bytes();
-            let l = i16::from_le_bytes([frame[0], frame[1]]);
-            let r = i16::from_le_bytes([frame[2], frame[3]]);
-
-            self.out_buffer.push(StereoS16Frame::new(l, r));
-        }
         // Update how many more frames need to be iterated.
         self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
             AudioError::InternalError("Record: Couldn't get available".to_string())
