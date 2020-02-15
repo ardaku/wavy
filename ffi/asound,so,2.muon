@@ -187,9 +187,6 @@ address: snd_pcm_status_t
   doc: PCM status container
   bytes: snd_pcm_status_sizeof
 
-address: snd_async_handler_t
-  doc: Internal structure for an async notification client handler.
-
 func: int snd_pcm_open(snd_pcm_t** pcmp, const char* name, snd_pcm_stream_t stream, SndPcmMode mode)
   mod: AlsaDevice
   doc: Opens a PCM.
@@ -381,27 +378,6 @@ func: int snd_pcm_start(snd_pcm_t* pcm)
   doc: Start a PCM.
   pat:=VAL pcm
   pat:=OK >= 0
-
-func: int snd_async_add_pcm_handler(snd_async_handler_t** handler, snd_pcm_t* pcm, void* callback, void* private_data)
-  mod: AlsaDevice
-  doc: Add an async handler for a PCM.
-  pat:=NEW handler
-  pat:=VAL pcm
-  pat:=RAW callback
-  pat:=RAW private_data
-
-func: int snd_async_del_handler(snd_async_handler_t* handler)
-  mod: AlsaDevice
-  doc: Deletes an async handler.
-  pat:=OLD handler
-  pat:=OK >= 0
-
-func: void* snd_async_handler_get_callback_private(snd_async_handler_t* handler)
-  mod: AlsaDevice
-  doc: Returns the private data assigned to an async handler.
-  doc:>- `handler`: Handle to an async handler.
-  pat:=VAL handler
-  pat:=OUT
 
 func: long snd_pcm_avail_update(snd_pcm_t* pcm)
   mod: AlsaDevice

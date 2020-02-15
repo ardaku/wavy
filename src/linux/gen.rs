@@ -256,16 +256,6 @@ impl SndPcmStatus {
     }
 }
 
-/// Internal structure for an async notification client handler.
-pub struct SndAsyncHandler(*mut std::os::raw::c_void);
-
-impl SndAsyncHandler {
-    /// Create address struct from raw pointer.
-    pub unsafe fn from_raw(raw: *mut std::os::raw::c_void) -> Self {
-        Self(raw)
-    }
-}
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct PollFd {
@@ -378,21 +368,6 @@ static mut FN_SND_PCM_START:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
     ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_ASYNC_ADD_PCM_HANDLER:
-    std::mem::MaybeUninit<extern fn(
-        handler: *mut *mut std::os::raw::c_void,
-        pcm: *mut std::os::raw::c_void,
-        callback: *mut std::ffi::c_void,
-        private_data: *mut std::ffi::c_void,
-    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_ASYNC_DEL_HANDLER:
-    std::mem::MaybeUninit<extern fn(
-        handler: *mut std::os::raw::c_void,
-    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_ASYNC_HANDLER_GET_CALLBACK_PRIVATE:
-    std::mem::MaybeUninit<extern fn(
-        handler: *mut std::os::raw::c_void,
-    ) -> *mut ()> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_AVAIL_UPDATE:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
@@ -439,9 +414,6 @@ impl AlsaDevice {
             FN_SND_PCM_STATUS_GET_AVAIL = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_status_get_avail\0")?.as_ptr()));
             FN_SND_PCM_CLOSE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_close\0")?.as_ptr()));
             FN_SND_PCM_START = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_start\0")?.as_ptr()));
-            FN_SND_ASYNC_ADD_PCM_HANDLER = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_async_add_pcm_handler\0")?.as_ptr()));
-            FN_SND_ASYNC_DEL_HANDLER = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_async_del_handler\0")?.as_ptr()));
-            FN_SND_ASYNC_HANDLER_GET_CALLBACK_PRIVATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_async_handler_get_callback_private\0")?.as_ptr()));
             FN_SND_PCM_AVAIL_UPDATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_avail_update\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS_COUNT = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors_count\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors\0")?.as_ptr()));
@@ -749,53 +721,6 @@ impl AlsaDevice {
             );
             if __ret < 0 { return Err(__ret as _) };
             Ok(())
-        }
-    }
-    /// Add an async handler for a PCM.
-    pub fn snd_async_add_pcm_handler(&self,
-        pcm: &SndPcm,
-        callback: *mut std::os::raw::c_void,
-        private_data: *mut std::os::raw::c_void,
-    ) -> SndAsyncHandler
-    {
-        unsafe {
-            let mut handler = std::mem::MaybeUninit::uninit();
-            let __ret = ((FN_SND_ASYNC_ADD_PCM_HANDLER).assume_init())(
-                handler.as_mut_ptr(),
-                pcm.0,
-                callback,
-                private_data,
-            );
-            let handler = handler.assume_init();
-            SndAsyncHandler(handler) as _
-        }
-    }
-    /// Deletes an async handler.
-    pub fn snd_async_del_handler(&self,
-        handler: &mut SndAsyncHandler,
-    ) -> Result<(), i32>
-    {
-        unsafe {
-            if handler.0.is_null() { panic!("Object free'd twice!") }
-            let __ret = ((FN_SND_ASYNC_DEL_HANDLER).assume_init())(
-                handler.0,
-            );
-            handler.0 = std::ptr::null_mut();
-            if __ret < 0 { return Err(__ret as _) };
-            Ok(())
-        }
-    }
-    /// Returns the private data assigned to an async handler.
-    /// - `handler`: Handle to an async handler.
-    pub fn snd_async_handler_get_callback_private(&self,
-        handler: &SndAsyncHandler,
-    ) -> *mut std::os::raw::c_void
-    {
-        unsafe {
-            let __ret = ((FN_SND_ASYNC_HANDLER_GET_CALLBACK_PRIVATE).assume_init())(
-                handler.0,
-            );
-            __ret as _
         }
     }
     /// Return number of frames ready to be read (capture) / written (playback)

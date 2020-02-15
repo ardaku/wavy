@@ -37,6 +37,7 @@ async fn monitor() -> Result<(), AudioError> {
     let mut file = std::fs::File::create("recorded.pcm").unwrap();
     println!("Writing to file…");
     for i in shared.buffer {
+        dbg!(i.left());
         file.write(&i.bytes()).unwrap();
     }
     file.flush().unwrap();

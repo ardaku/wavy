@@ -1,5 +1,5 @@
 use std::ffi::CString;
-use std::task::{Waker, Poll};
+use std::task::Poll;
 use std::task::Context;
 use std::pin::Pin;
 use std::future::Future;
@@ -11,24 +11,8 @@ use std::borrow::Borrow;
 #[rustfmt::skip]
 mod gen;
 
-mod epoll;
-
-use self::gen::{AlsaPlayer, AlsaRecorder, AlsaDevice, SndPcmStatus, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess, SndAsyncHandler, SndPcmMode};
+use self::gen::{AlsaPlayer, AlsaRecorder, AlsaDevice, SndPcmStatus, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess, SndPcmMode};
 use crate::{AudioError, SampleRate, StereoS16Frame};
-
-// A C Callback that gets called when an audio device's period boundary elapses.
-// In ALSA this is implemented as a linux signal handler.
-unsafe extern "C" fn elapse_period(handler: *mut std::os::raw::c_void) {
-    let handler = SndAsyncHandler::from_raw(handler);
-    let device = AlsaDevice::new().unwrap(); // Should never fail here
-    let waker: *mut Option<Waker> = device.snd_async_handler_get_callback_private(&handler).cast();
-
-    println!("Got SIGNAL!");
-
-    if let Some(waker) = (*waker).take() {
-        waker.wake();
-    }
-}
 
 fn pcm_hw_params(
     device: &AlsaDevice,
@@ -102,8 +86,7 @@ fn pcm_hw_params(
 pub struct Pcm {
     device: AlsaDevice,
     sound_device: SndPcm,
-    waker: Box<Option<Waker>>,
-    handler: SndAsyncHandler,
+    fd: smelling_salts::Device,
     buffer_size: usize,
     period_size: usize,
 }
@@ -115,8 +98,6 @@ impl Pcm {
         let device = AlsaDevice::new().ok_or_else(|| AudioError::InternalError(
             "Could not load AlsaDevice module in shared object!".to_string(),
         ))?;
-        // Create a box for the waker, when it is created.
-        let waker = Box::new(None);
         // FIXME: Currently only the default device is supported.
         let device_name = CString::new("default").unwrap();
         // Create the ALSA PCM.
@@ -136,29 +117,30 @@ impl Pcm {
         ).map_err(|_| AudioError::InternalError("Get Period Size".to_string()))?;
         // Free Hardware Parameters
         device.snd_pcm_hw_params_free(&mut hw_params);
-        // Make async signal handler
-        let (waker, handler) = unsafe {
-            let waker = Box::into_raw(waker);
-            let handler = device.snd_async_add_pcm_handler(
-                &sound_device,
-                elapse_period as _,
-                waker.cast(),
-            );
-            let waker = Box::from_raw(waker);
-
-            (waker, handler)
-        };
+        // Get file descriptor
+        let fd_count = device.snd_pcm_poll_descriptors_count(&sound_device).unwrap();
+        let mut fd_list = Vec::with_capacity(fd_count.try_into().unwrap());
+        device.snd_pcm_poll_descriptors(&sound_device, &mut fd_list).unwrap();
+        assert_eq!(fd_count, 1); // TODO: More?
+        // Register file descriptor with OS's I/O Event Notifier
+        let fd = smelling_salts::Device::new(
+            fd_list[0].fd,
+            match direction {
+                SndPcmStream::Playback => smelling_salts::Direction::Write,
+                SndPcmStream::Capture => smelling_salts::Direction::Read,
+            },
+        );
 
         Ok(Pcm {
-            device, sound_device, waker, period_size, buffer_size, handler
+            device, sound_device, period_size, buffer_size, fd
         })
     }
 }
 
 impl Drop for Pcm {
     fn drop(&mut self) {
-        // Unregister async callback before boxed waker is dropped.
-        self.device.snd_async_del_handler(&mut self.handler).unwrap();
+        // Unregister async file descriptor before closing the PCM.
+        self.fd.old();
         // Should never fail here
         self.device.snd_pcm_close(&mut self.sound_device).unwrap();
     }
@@ -167,7 +149,7 @@ impl Drop for Pcm {
 impl Future for &mut Pcm {
     type Output = Result<usize, AudioError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let avail = self.device.snd_pcm_avail_update(&self.sound_device).map_err(|_|
             AudioError::InternalError("Couldn't get available".to_string())
         );
@@ -179,7 +161,7 @@ impl Future for &mut Pcm {
         if avail >= self.period_size {
             Poll::Ready(Ok(avail))
         } else {
-            *self.waker = Some(cx.waker().clone());
+            self.fd.register_waker(cx.waker().clone());
             Poll::Pending
         }
     }
