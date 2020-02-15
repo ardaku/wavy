@@ -18,6 +18,7 @@ fn pcm_hw_params(
     device: &AlsaDevice,
     sr: u32,
     sound_device: &SndPcm,
+    limit_buffer: bool,
 ) -> Result<SndPcmHwParams, AudioError> {
     let hw_params = device.snd_pcm_hw_params_malloc().map_err(|_|
         AudioError::InternalError(
@@ -87,17 +88,19 @@ fn pcm_hw_params(
         )));
     }
     // Set buffer size to about 3 times the period (setting latency).
-    let mut buffer_size = period_size * 3;
-    device.snd_pcm_hw_params_set_buffer_size_near(
-        sound_device,
-        &hw_params,
-        &mut buffer_size,
-    ).unwrap();
-    if buffer_size != period_size * 3 {
-        eprintln!(
-            "Wavy: Tried to set buffer size: {}, Got: {}!",
-            period_size * 3, buffer_size
-        );
+    if limit_buffer {
+        let mut buffer_size = period_size * 3;
+        device.snd_pcm_hw_params_set_buffer_size_near(
+            sound_device,
+            &hw_params,
+            &mut buffer_size,
+        ).unwrap();
+        if buffer_size != period_size * 3 {
+            eprintln!(
+                "Wavy: Tried to set buffer size: {}, Got: {}!",
+                period_size * 3, buffer_size
+            );
+        }
     }
     // Apply the hardware parameters that just got set.
     device.snd_pcm_hw_params(sound_device, &hw_params).map_err(|_|
@@ -131,7 +134,7 @@ impl Pcm {
             &device_name, direction, SndPcmMode::Nonblock
         ).map_err(|_| AudioError::NoDevice)?;
         // Configure Hardware Parameters
-        let mut hw_params = pcm_hw_params(&device, sr, &sound_device)?;
+        let mut hw_params = pcm_hw_params(&device, sr, &sound_device, direction == SndPcmStream::Playback)?;
         // Get the period size (in frames).
         let mut d = 0;
         let period_size = device.snd_pcm_hw_params_get_period_size(
@@ -282,9 +285,8 @@ impl Recorder {
         })
     }
 
-    #[allow(unsafe_code)]
     pub async fn record_last(&mut self) -> Result<&[StereoS16Frame], AudioError> {
-        // Wait for a number of frames to available.
+        /*// Wait for a number of frames to available.
         let _nframes = (&mut self.pcm).await?;
         // Clear the output buffer
         self.buffer.clear();
@@ -299,8 +301,53 @@ impl Recorder {
         // Update how many more frames need to be iterated.
         self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
             AudioError::InternalError("Record: Couldn't get available".to_string())
-        )?;
+        )?;*/
 
+        (&mut *self).await;
         Ok(&self.buffer)
+    }
+}
+
+impl Future for &mut Recorder {
+    type Output = ();
+
+    #[allow(unsafe_code)]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = Pin::into_inner(self);
+        // Clear the output buffer (Keeps capacity of 1 period the same)
+        this.buffer.clear();
+        // Record into temporary buffer.
+        if let Err(error) = this.recorder.snd_pcm_readi(
+            &this.pcm.sound_device,
+            unsafe { std::mem::transmute(&mut this.buffer) },
+        )
+        {
+            match error {
+                -77 => panic!("Incorrect state (-EBADFD): FIXME"),
+                -32 => panic!("Buffer Overrun (Underflow): FIXME"),
+                -86 => panic!("Stream got suspended, must be recovered (-ESTRPIPE): FIXME"),
+                a => {
+                    println!("error is: {}", a);
+                    unreachable!()
+                },
+            }
+        }
+        // Return
+        match this.buffer.len() {
+            // No Data was read, go to sleep
+            0 => {
+                this.pcm.fd.register_waker(cx.waker().clone());
+                Poll::Pending
+            }
+            _ => {
+                Poll::Ready(())
+            }
+/*            // A period of data was read
+            x if x == this.pcm.period_size => {
+                Poll::Ready(())
+            }
+            // Incomplete Read
+            s => panic!("Incomplete Read of size {}!  Shouldn't Happen", s)*/
+        }
     }
 }
