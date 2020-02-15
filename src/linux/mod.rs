@@ -172,27 +172,6 @@ impl Drop for Pcm {
     }
 }
 
-impl Future for &mut Pcm {
-    type Output = Result<usize, AudioError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let avail = self.device.snd_pcm_avail_update(&self.sound_device).map_err(|_|
-            AudioError::InternalError("Poll: Couldn't get available".to_string())
-        );
-        let avail: usize = match avail {
-            // Should never fail, negative is error.
-            Ok(avail) => avail.try_into().unwrap(),
-            Err(error) => return Poll::Ready(Err(error)),
-        };
-        if avail >= self.period_size {
-            Poll::Ready(Ok(avail))
-        } else {
-            self.fd.register_waker(cx.waker().clone());
-            Poll::Pending
-        }
-    }
-}
-
 pub struct Player {
     player: AlsaPlayer,
     pcm: Pcm,
