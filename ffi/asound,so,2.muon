@@ -183,10 +183,6 @@ address: snd_pcm_hw_params_t
   doc:>an error code being returned.
   old: snd_pcm_hw_params_free
 
-address: snd_pcm_status_t
-  doc: PCM status container
-  bytes: snd_pcm_status_sizeof
-
 func: int snd_pcm_open(snd_pcm_t** pcmp, const char* name, snd_pcm_stream_t stream, SndPcmMode mode)
   mod: AlsaDevice
   doc: Opens a PCM.
@@ -368,30 +364,6 @@ func: long snd_pcm_readi(snd_pcm_t* pcm, uint32_t* buffer, unsigned long size)
   pat:=VAL pcm
   pat:=OUT_VEC size buffer
   pat:=OK >= 0
-
-func: int snd_pcm_status_malloc(snd_pcm_status_t** ptr)
-  mod: AlsaDevice
-  doc: Obtain status (runtime) information for PCM handle. 
-  doc:>- `pcm`: PCM handle
-  doc:>- `status`: Status container
-  pat:=NEW ptr # TODO
-  pat:=OK >= 0
-
-func: int snd_pcm_status(snd_pcm_t* pcm, snd_pcm_status_t* status)
-  mod: AlsaDevice
-  doc: Obtain status (runtime) information for PCM handle. 
-  doc:>- `pcm`: PCM handle
-  doc:>- `status`: Status container
-  pat:=VAL pcm
-  pat:=VAL status
-  pat:=OK >= 0
-
-func: unsigned long snd_pcm_status_get_avail(const snd_pcm_status_t* obj)
-  mod: AlsaDevice
-  doc: Get number of frames available from a PCM status container (see
-  doc:>snd_pcm_avail_update)
-  pat:=VAL obj
-  pat:=OUT
 
 func: int snd_pcm_close(snd_pcm_t* pcm)
   mod: AlsaDevice

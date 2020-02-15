@@ -11,7 +11,7 @@ use std::borrow::Borrow;
 #[rustfmt::skip]
 mod gen;
 
-use self::gen::{AlsaPlayer, AlsaRecorder, AlsaDevice, SndPcmStatus, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess, SndPcmMode};
+use self::gen::{AlsaPlayer, AlsaRecorder, AlsaDevice, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess, SndPcmMode};
 use crate::{AudioError, SampleRate, StereoS16Frame};
 
 fn pcm_hw_params(
@@ -110,7 +110,6 @@ pub struct Pcm {
     device: AlsaDevice,
     sound_device: SndPcm,
     fd: smelling_salts::Device,
-    buffer_size: usize,
     period_size: usize,
 }
 
@@ -129,9 +128,6 @@ impl Pcm {
         ).map_err(|_| AudioError::NoDevice)?;
         // Configure Hardware Parameters
         let mut hw_params = pcm_hw_params(&device, sr, &sound_device)?;
-        // Get the buffer size (in frames).
-        let buffer_size = device.snd_pcm_hw_params_get_buffer_size(&hw_params)
-.map_err(|_| AudioError::InternalError("Get Buffer Size".to_string()))?;
         // Get the period size (in frames).
         let mut d = 0;
         let period_size = device.snd_pcm_hw_params_get_period_size(
@@ -155,7 +151,7 @@ impl Pcm {
         );
 
         Ok(Pcm {
-            device, sound_device, period_size, buffer_size, fd
+            device, sound_device, period_size, fd
         })
     }
 }
@@ -193,7 +189,6 @@ impl Future for &mut Pcm {
 pub struct Player {
     player: AlsaPlayer,
     pcm: Pcm,
-    status: SndPcmStatus,
     buffer: Vec<u32>,
 }
 
@@ -209,17 +204,12 @@ impl Player {
         player.snd_pcm_prepare(&pcm.sound_device).map_err(|_|
             AudioError::InternalError("Could not prepare!".to_string())
         )?;
-        // FIXME: Do we need to get status with async?
-        let status = pcm.device.snd_pcm_status_malloc().map_err(|_|
-             AudioError::InternalError("Status alloc".to_string())
-        )?;
         // Create buffer
         let buffer = Vec::new();
 
         Ok(Player {
             player,
             pcm,
-            status,
             buffer,
         })
     }
@@ -268,7 +258,6 @@ impl Player {
 pub struct Recorder {
     recorder: AlsaRecorder,
     pcm: Pcm,
-    status: SndPcmStatus,
     buffer: Vec<u32>,
     out: Vec<StereoS16Frame>,
 }
@@ -285,8 +274,6 @@ impl Recorder {
         pcm.device.snd_pcm_start(&pcm.sound_device).map_err(|_| 
             AudioError::InternalError("Could not start!".to_string())
         )?;
-        // FIXME: Do we need to get status with async?
-        let status = pcm.device.snd_pcm_status_malloc().map_err(|_| AudioError::InternalError("Status alloc".to_string()))?;
         // Create buffers
         let buffer = Vec::new();
         let out = Vec::new();
@@ -295,7 +282,6 @@ impl Recorder {
             recorder,
             pcm,
             buffer,
-            status,
             out,
         })
     }

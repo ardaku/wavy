@@ -246,16 +246,6 @@ impl SndPcmHwParams {
     }
 }
 
-/// PCM status container
-pub struct SndPcmStatus(*mut std::os::raw::c_void);
-
-impl SndPcmStatus {
-    /// Create address struct from raw pointer.
-    pub unsafe fn from_raw(raw: *mut std::os::raw::c_void) -> Self {
-        Self(raw)
-    }
-}
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct PollFd {
@@ -360,19 +350,6 @@ static mut FN_SND_PCM_READI:
         buffer: *mut u32,
         size: std::os::raw::c_ulong,
     ) -> std::os::raw::c_long> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_STATUS_MALLOC:
-    std::mem::MaybeUninit<extern fn(
-        ptr: *mut *mut std::os::raw::c_void,
-    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_STATUS:
-    std::mem::MaybeUninit<extern fn(
-        pcm: *mut std::os::raw::c_void,
-        status: *mut std::os::raw::c_void,
-    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_STATUS_GET_AVAIL:
-    std::mem::MaybeUninit<extern fn(
-        obj: *const std::os::raw::c_void,
-    ) -> std::os::raw::c_ulong> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_CLOSE:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
@@ -424,9 +401,6 @@ impl AlsaDevice {
             FN_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_get_buffer_size\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_get_period_size\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_FREE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_free\0")?.as_ptr()));
-            FN_SND_PCM_STATUS_MALLOC = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_status_malloc\0")?.as_ptr()));
-            FN_SND_PCM_STATUS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_status\0")?.as_ptr()));
-            FN_SND_PCM_STATUS_GET_AVAIL = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_status_get_avail\0")?.as_ptr()));
             FN_SND_PCM_CLOSE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_close\0")?.as_ptr()));
             FN_SND_PCM_START = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_start\0")?.as_ptr()));
             FN_SND_PCM_AVAIL_UPDATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_avail_update\0")?.as_ptr()));
@@ -713,52 +687,6 @@ impl AlsaDevice {
             );
             obj.0 = std::ptr::null_mut();
             ()
-        }
-    }
-    /// Obtain status (runtime) information for PCM handle. 
-    /// - `pcm`: PCM handle
-    /// - `status`: Status container
-    pub fn snd_pcm_status_malloc(&self,
-    ) -> Result<SndPcmStatus, i32>
-    {
-        unsafe {
-            let mut ptr = std::mem::MaybeUninit::uninit();
-            let __ret = ((FN_SND_PCM_STATUS_MALLOC).assume_init())(
-                ptr.as_mut_ptr(),
-            );
-            let ptr = ptr.assume_init();
-            if __ret < 0 { return Err(__ret as _) };
-            Ok(SndPcmStatus(ptr) as _)
-        }
-    }
-    /// Obtain status (runtime) information for PCM handle. 
-    /// - `pcm`: PCM handle
-    /// - `status`: Status container
-    pub fn snd_pcm_status(&self,
-        pcm: &SndPcm,
-        status: &SndPcmStatus,
-    ) -> Result<(), i32>
-    {
-        unsafe {
-            let __ret = ((FN_SND_PCM_STATUS).assume_init())(
-                pcm.0,
-                status.0,
-            );
-            if __ret < 0 { return Err(__ret as _) };
-            Ok(())
-        }
-    }
-    /// Get number of frames available from a PCM status container (see
-    /// snd_pcm_avail_update)
-    pub fn snd_pcm_status_get_avail(&self,
-        obj: &SndPcmStatus,
-    ) -> usize
-    {
-        unsafe {
-            let __ret = ((FN_SND_PCM_STATUS_GET_AVAIL).assume_init())(
-                obj.0,
-            );
-            __ret as _
         }
     }
     /// close PCM handle

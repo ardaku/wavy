@@ -34,15 +34,6 @@ async fn monitor() -> Result<(), AudioError> {
         shared.buffer.drain(..n_frames.min(shared.buffer.len()));
     }
 
-    async fn doit(shared: &mut Shared) {
-        println!("DOIT S");
-        pasts::spawn_blocking(|| {
-            std::thread::sleep(std::time::Duration::from_millis(1_000));
-        }).await;
-        println!("DOIT Z");
-        shared.running = false;
-    };
-
     let running = true;
     let buffer = VecDeque::new();
     println!("Opening recorder…");
