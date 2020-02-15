@@ -255,8 +255,8 @@ impl Player {
 pub struct Recorder {
     recorder: AlsaRecorder,
     pcm: Pcm,
-    buffer: Vec<u32>,
-    out: Vec<StereoS16Frame>,
+    raw_buffer: Vec<u32>,
+    out_buffer: Vec<StereoS16Frame>,
 }
 
 impl Recorder {
@@ -271,15 +271,15 @@ impl Recorder {
         pcm.device.snd_pcm_start(&pcm.sound_device).map_err(|_| 
             AudioError::InternalError("Could not start!".to_string())
         )?;
-        // Create buffers
-        let buffer = Vec::new();
-        let out = Vec::new();
-
+        // Create buffers (TODO: Shouldn't be necessary to have 2 buffers)
+        let raw_buffer = Vec::with_capacity(pcm.period_size);
+        let out_buffer = Vec::with_capacity(pcm.period_size);
+        // Return successfully
         Ok(Recorder {
             recorder,
             pcm,
-            buffer,
-            out,
+            raw_buffer,
+            out_buffer,
         })
     }
 
@@ -287,32 +287,28 @@ impl Recorder {
         // Wait for a number of frames to available.
         let _nframes = (&mut self.pcm).await?;
         // Clear the output buffer
-        self.out.clear();
+        self.out_buffer.clear();
 
         // Add avail frames to the speaker's buffer. //
 
-        // Create temporary buffer.
-        self.buffer = Vec::with_capacity(self.pcm.period_size);
         // Record into temporary buffer.
         self.recorder.snd_pcm_readi(
             &self.pcm.sound_device,
-            &mut self.buffer,
+            &mut self.raw_buffer,
         ).map_err(|_| println!("Buffer Overflow")).unwrap();
         // Copy the temporary buffer into the output buffer
-        for i in 0..self.pcm.period_size {
-            let frame = self.buffer[i].to_le_bytes();
+        for frame in self.raw_buffer.iter() {
+            let frame = frame.to_le_bytes();
             let l = i16::from_le_bytes([frame[0], frame[1]]);
             let r = i16::from_le_bytes([frame[2], frame[3]]);
 
-            self.out.push(StereoS16Frame::new(l, r));
+            self.out_buffer.push(StereoS16Frame::new(l, r));
         }
         // Update how many more frames need to be iterated.
         self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
             AudioError::InternalError("Record: Couldn't get available".to_string())
         )?;
 
-        // assert_eq!(nframes, self.out.len());
-
-        Ok(&self.out)
+        Ok(&self.out_buffer)
     }
 }
