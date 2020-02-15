@@ -72,7 +72,8 @@ fn pcm_hw_params(
             sr, actual_rate
         )));
     }
-    // 
+    // Period size must be a power of two
+    // Currently only tries 1024
     let mut period_size = 1024;
     device.snd_pcm_hw_params_set_period_size_near(
         sound_device,
@@ -80,21 +81,24 @@ fn pcm_hw_params(
         &mut period_size,
         None,
     ).unwrap();
-    println!(
-        "Tried to set period size: {}, Got: {}!",
-        1024, period_size
-    );
-    // 
+    if period_size != 1024 {
+        return Err(AudioError::InternalError(format!(
+            "Wavy: Tried to set period size: {}, Got: {}!", 1024, period_size
+        )));
+    }
+    // Set buffer size to about 3 times the period (setting latency).
     let mut buffer_size = period_size * 3;
     device.snd_pcm_hw_params_set_buffer_size_near(
         sound_device,
         &hw_params,
         &mut buffer_size,
     ).unwrap();
-    println!(
-        "Tried to set buffer size: {}, Got: {}!",
-        period_size * 2, buffer_size
-    );
+    if buffer_size != period_size * 3 {
+        eprintln!(
+            "Wavy: Tried to set buffer size: {}, Got: {}!",
+            period_size * 3, buffer_size
+        );
+    }
     // Apply the hardware parameters that just got set.
     device.snd_pcm_hw_params(sound_device, &hw_params).map_err(|_|
         AudioError::InternalError(
