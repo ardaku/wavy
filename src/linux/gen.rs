@@ -65,7 +65,7 @@ pub enum SndPcmMode {
     Block = 0,
     /// Non blocking mode
     Nonblock = 1,
-    /// Async notification
+    /// Async notification (deprecated)
     Async = 2,
 }
 

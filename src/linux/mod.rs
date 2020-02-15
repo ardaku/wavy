@@ -102,7 +102,7 @@ impl Pcm {
         let device_name = CString::new("default").unwrap();
         // Create the ALSA PCM.
         let sound_device: SndPcm = device.snd_pcm_open(
-            &device_name, direction, SndPcmMode::Async
+            &device_name, direction, SndPcmMode::Nonblock
         ).map_err(|_| AudioError::NoDevice)?;
         // Configure Hardware Parameters
         let mut hw_params = pcm_hw_params(&device, sr, &sound_device)?;
@@ -151,7 +151,7 @@ impl Future for &mut Pcm {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let avail = self.device.snd_pcm_avail_update(&self.sound_device).map_err(|_|
-            AudioError::InternalError("Couldn't get available".to_string())
+            AudioError::InternalError("Poll: Couldn't get available".to_string())
         );
         let avail: usize = match avail {
             // Should never fail, negative is error.
@@ -220,18 +220,20 @@ impl Player {
                     Some(f) => f.borrow().clone(),
                     None => StereoS16Frame::new(0, 0),
                 };
+//                dbg!(f);
                 let [byte0, byte1] = f.left().to_le_bytes();
                 let [byte2, byte3] = f.right().to_le_bytes();
                 self.buffer.push(u32::from_le_bytes([byte0, byte1, byte2, byte3]));
             }
             // Copy the temporary buffer into the speaker hw buffer.
-            let _ = self.player.snd_pcm_writei(
+            let len = self.player.snd_pcm_writei(
                 &self.pcm.sound_device,
                 &self.buffer,
-            ).map_err(|_| println!("Buffer underrun"));
+            ).map_err(|_| println!("Buffer underrun")).unwrap() as usize;
+            assert_eq!(len, self.buffer.len());
             // Update how many more frames need to be iterated.
             let avail2 = self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
-                AudioError::InternalError("Couldn't get available".to_string())
+                AudioError::InternalError("Play: Couldn't get available".to_string())
             );
             avail = match avail2 {
                 // Should never fail, negative is error.
@@ -291,7 +293,7 @@ impl Recorder {
             // Create temporary buffer.
             self.buffer = Vec::with_capacity(self.pcm.period_size);
             // Record into temporary buffer.
-            let _ = self.recorder.snd_pcm_readi(
+            self.recorder.snd_pcm_readi(
                 &self.pcm.sound_device,
                 &mut self.buffer,
             ).map_err(|_| println!("Buffer Overflow"));
@@ -305,7 +307,7 @@ impl Recorder {
             }
             // Update how many more frames need to be iterated.
             let avail2 = self.pcm.device.snd_pcm_avail_update(&self.pcm.sound_device).map_err(|_|
-                AudioError::InternalError("Couldn't get available".to_string())
+                AudioError::InternalError("Record: Couldn't get available".to_string())
             );
             avail = match avail2 {
                 // Should never fail, negative is error.

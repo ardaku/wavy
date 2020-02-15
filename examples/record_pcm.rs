@@ -30,7 +30,7 @@ async fn monitor() -> Result<(), AudioError> {
     println!("Opening player…");
     let mut shared = Shared { buffer, recorder };
     println!("Done, entering async loop…");
-    pasts::run!(shared while shared.buffer.len() <= 48_000; record);
+    pasts::run!(shared while shared.buffer.len() <= 48_000 * 10; record);
 
     println!("Exited async loop…");
 

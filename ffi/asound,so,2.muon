@@ -14,7 +14,7 @@ enum: SndPcmMode
     doc: Non blocking mode
     value: 1
   variant: ASYNC
-    doc: Async notification
+    doc: Async notification (deprecated)
     value: 2
 
 enum: snd_pcm_stream_t
