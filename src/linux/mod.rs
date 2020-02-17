@@ -89,16 +89,16 @@ fn pcm_hw_params(
     }
     // Set buffer size to about 3 times the period (setting latency).
     if limit_buffer {
-        let mut buffer_size = period_size * 3;
+        let mut buffer_size = period_size * 4;
         device.snd_pcm_hw_params_set_buffer_size_near(
             sound_device,
             &hw_params,
             &mut buffer_size,
         ).unwrap();
-        if buffer_size != period_size * 3 {
+        if buffer_size != period_size * 4 {
             eprintln!(
                 "Wavy: Tried to set buffer size: {}, Got: {}!",
-                period_size * 3, buffer_size
+                period_size * 4, buffer_size
             );
         }
     }
@@ -151,10 +151,10 @@ impl Pcm {
         // Register file descriptor with OS's I/O Event Notifier
         let fd = smelling_salts::Device::new(
             fd_list[0].fd,
-            match direction {
-                SndPcmStream::Playback => smelling_salts::Direction::Write,
-                SndPcmStream::Capture => smelling_salts::Direction::Read,
-            },
+            #[allow(unsafe_code)]
+            unsafe {
+                smelling_salts::Watcher::from_raw(fd_list[0].events as u32)
+            }
         );
 
         Ok(Pcm {
@@ -187,9 +187,9 @@ impl Player {
         // Create Playback PCM.
         let pcm = Pcm::new(SndPcmStream::Playback, sr as u32)?;
         // Prepare PCM device
-        player.snd_pcm_prepare(&pcm.sound_device).map_err(|_|
-            AudioError::InternalError("Could not prepare!".to_string())
-        )?;
+        // player.snd_pcm_prepare(&pcm.sound_device).map_err(|_|
+        //     AudioError::InternalError("Could not prepare!".to_string())
+        // )?;
         // Create buffer
         let buffer = Vec::with_capacity(pcm.period_size);
 

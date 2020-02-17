@@ -387,6 +387,10 @@ static mut FN_SND_PCM_AVAIL_UPDATE:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
     ) -> std::os::raw::c_long> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_AVAIL:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_long> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_POLL_DESCRIPTORS_COUNT:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
@@ -433,6 +437,7 @@ impl AlsaDevice {
             FN_SND_PCM_CLOSE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_close\0")?.as_ptr()));
             FN_SND_PCM_START = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_start\0")?.as_ptr()));
             FN_SND_PCM_AVAIL_UPDATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_avail_update\0")?.as_ptr()));
+            FN_SND_PCM_AVAIL = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_avail\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS_COUNT = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors_count\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors\0")?.as_ptr()));
             FN_SND_PCM_STATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_state\0")?.as_ptr()));
@@ -755,6 +760,20 @@ impl AlsaDevice {
     {
         unsafe {
             let __ret = ((FN_SND_PCM_AVAIL_UPDATE).assume_init())(
+                pcm.0,
+            );
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(__ret as _)
+        }
+    }
+    /// Return number of frames ready to be read (capture) / written (playback)
+    /// - `pcm`: PCM handle
+    pub fn snd_pcm_avail(&self,
+        pcm: &SndPcm,
+    ) -> Result<isize, isize>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_AVAIL).assume_init())(
                 pcm.0,
             );
             if __ret < 0 { return Err(__ret as _) };
