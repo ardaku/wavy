@@ -347,12 +347,6 @@ func: void snd_pcm_hw_params_free(snd_pcm_hw_params_t* obj)
   doc: Frees a previously allocated snd_pcm_hw_params_t
   pat:=OLD obj
 
-func: int snd_pcm_prepare(snd_pcm_t* pcm)
-  mod: AlsaPlayer
-  doc: Prepare PCM for use.
-  pat:=VAL pcm
-  pat:=OK >= 0
-
 func: long snd_pcm_writei(snd_pcm_t* pcm, const uint32_t* buffer, unsigned long size)
   mod: AlsaPlayer
   doc: Write interleaved frames to a PCM.
@@ -397,22 +391,6 @@ func: int snd_pcm_start(snd_pcm_t* pcm)
   mod: AlsaDevice
   doc: Start a PCM.
   pat:=VAL pcm
-  pat:=OK >= 0
-
-func: long snd_pcm_avail_update(snd_pcm_t* pcm)
-  mod: AlsaDevice
-  doc: Return number of frames ready to be read (capture) / written (playback)
-  doc:>- `pcm`: PCM handle
-  pat:=VAL pcm
-  pat:=OUT
-  pat:=OK >= 0
-
-func: long snd_pcm_avail(snd_pcm_t* pcm)
-  mod: AlsaDevice
-  doc: Return number of frames ready to be read (capture) / written (playback)
-  doc:>- `pcm`: PCM handle
-  pat:=VAL pcm
-  pat:=OUT
   pat:=OK >= 0
 
 func: int snd_pcm_poll_descriptors_count(snd_pcm_t* pcm)

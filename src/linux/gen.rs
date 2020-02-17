@@ -359,10 +359,6 @@ static mut FN_SND_PCM_HW_PARAMS_FREE:
     std::mem::MaybeUninit<extern fn(
         obj: *mut std::os::raw::c_void,
     ) -> ()> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_PREPARE:
-    std::mem::MaybeUninit<extern fn(
-        pcm: *mut std::os::raw::c_void,
-    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_WRITEI:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
@@ -383,14 +379,6 @@ static mut FN_SND_PCM_START:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
     ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_AVAIL_UPDATE:
-    std::mem::MaybeUninit<extern fn(
-        pcm: *mut std::os::raw::c_void,
-    ) -> std::os::raw::c_long> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_AVAIL:
-    std::mem::MaybeUninit<extern fn(
-        pcm: *mut std::os::raw::c_void,
-    ) -> std::os::raw::c_long> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_POLL_DESCRIPTORS_COUNT:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
@@ -436,8 +424,6 @@ impl AlsaDevice {
             FN_SND_PCM_HW_PARAMS_FREE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_free\0")?.as_ptr()));
             FN_SND_PCM_CLOSE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_close\0")?.as_ptr()));
             FN_SND_PCM_START = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_start\0")?.as_ptr()));
-            FN_SND_PCM_AVAIL_UPDATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_avail_update\0")?.as_ptr()));
-            FN_SND_PCM_AVAIL = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_avail\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS_COUNT = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors_count\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors\0")?.as_ptr()));
             FN_SND_PCM_STATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_state\0")?.as_ptr()));
@@ -752,34 +738,6 @@ impl AlsaDevice {
             Ok(())
         }
     }
-    /// Return number of frames ready to be read (capture) / written (playback)
-    /// - `pcm`: PCM handle
-    pub fn snd_pcm_avail_update(&self,
-        pcm: &SndPcm,
-    ) -> Result<isize, isize>
-    {
-        unsafe {
-            let __ret = ((FN_SND_PCM_AVAIL_UPDATE).assume_init())(
-                pcm.0,
-            );
-            if __ret < 0 { return Err(__ret as _) };
-            Ok(__ret as _)
-        }
-    }
-    /// Return number of frames ready to be read (capture) / written (playback)
-    /// - `pcm`: PCM handle
-    pub fn snd_pcm_avail(&self,
-        pcm: &SndPcm,
-    ) -> Result<isize, isize>
-    {
-        unsafe {
-            let __ret = ((FN_SND_PCM_AVAIL).assume_init())(
-                pcm.0,
-            );
-            if __ret < 0 { return Err(__ret as _) };
-            Ok(__ret as _)
-        }
-    }
     /// Get count of poll descriptors for PCM handle
     pub fn snd_pcm_poll_descriptors_count(&self,
         pcm: &SndPcm,
@@ -843,23 +801,9 @@ impl AlsaPlayer {
             if let Some(ref module) = ALSA_PLAYER_INIT {
                 return Some(module.clone());
             }
-            FN_SND_PCM_PREPARE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_prepare\0")?.as_ptr()));
             FN_SND_PCM_WRITEI = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_writei\0")?.as_ptr()));
             ALSA_PLAYER_INIT = Some(Self(std::marker::PhantomData));
             Some(Self(std::marker::PhantomData))
-        }
-    }
-    /// Prepare PCM for use.
-    pub fn snd_pcm_prepare(&self,
-        pcm: &SndPcm,
-    ) -> Result<(), i32>
-    {
-        unsafe {
-            let __ret = ((FN_SND_PCM_PREPARE).assume_init())(
-                pcm.0,
-            );
-            if __ret < 0 { return Err(__ret as _) };
-            Ok(())
         }
     }
     /// Write interleaved frames to a PCM.
