@@ -417,3 +417,27 @@ func: snd_pcm_state_t snd_pcm_state(snd_pcm_t* pcm)
   doc:> - `pcm`: PCM handle
   pat:=VAL pcm
   pat:=OUT
+
+func: int snd_pcm_link(snd_pcm_t* pcm1, snd_pcm_t* pcm2)
+  mod: AlsaDevice
+  doc: Link two PCMs.
+  doc:> - `pcm1`: First PCM handle
+  doc:> - `pcm2`: Second PCM handle
+  pat:=VAL pcm1
+  pat:=VAL pcm2
+  pat:=OK >= 0
+
+func: int snd_pcm_unlink(snd_pcm_t* pcm)
+  mod: AlsaDevice
+  doc: Remove a PCM from a linked group.
+  doc:> - `pcm`: PCM handle
+  pat:=VAL pcm
+  pat:=OK >= 0
+
+func: char* snd_strerror(int errnum)
+  mod: AlsaDevice
+  doc: Returns the message for an error code.
+  doc:> - `errnum`: The error code number, which must be a system error code or
+  doc:>   an ALSA error code.
+  pat:=VAL errnum
+  pat:=OUT

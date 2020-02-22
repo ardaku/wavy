@@ -186,10 +186,6 @@ impl Player {
         ))?;
         // Create Playback PCM.
         let pcm = Pcm::new(SndPcmStream::Playback, sr as u32)?;
-        // Prepare PCM device
-        // player.snd_pcm_prepare(&pcm.sound_device).map_err(|_|
-        //     AudioError::InternalError("Could not prepare!".to_string())
-        // )?;
         // Create buffer
         let buffer = Vec::with_capacity(pcm.period_size);
 
@@ -207,13 +203,21 @@ impl Player {
         let mut iter = iter.into_iter();
         // If buffer is empty, fill it.
         if self.buffer.is_empty() {
+            let mut gen = false;
             // Write # of frames equal to the period size into the buffer.
             for _ in 0..self.pcm.period_size {
                 let f = match iter.next() {
                     Some(f) => f.borrow().clone(),
-                    None => StereoS16Frame::new(0, 0),
+                    None => {
+                        break;
+                        gen = true;
+                        StereoS16Frame::new(0, 0)
+                    },
                 };
                 self.buffer.push(f);
+            }
+            if gen {
+                // println!("DEBUG: Genereating..");
             }
         }
         // 
@@ -245,7 +249,9 @@ impl Future for &mut Player {
                     return Poll::Pending;
                 },
                 -77 => panic!("Incorrect state (-EBADFD): FIXME"),
-                -32 => panic!("Buffer Overrun (Underflow): FIXME"),
+                -32 => {
+                    panic!("Buffer Overrun (Underflow): FIXME") // FIXME
+                },
                 -86 => panic!("Stream got suspended, must be recovered (-ESTRPIPE): FIXME"),
                 _ => unreachable!(),
             }
@@ -276,11 +282,7 @@ impl Recorder {
         ))?;
         // Create Capture PCM.
         let pcm = Pcm::new(SndPcmStream::Capture, sr as u32)?;
-        // Start the PCM.
-        pcm.device.snd_pcm_start(&pcm.sound_device).map_err(|_| 
-            AudioError::InternalError("Could not start!".to_string())
-        )?;
-        // Create buffers (TODO: Shouldn't be necessary to have 2 buffers)
+        // Create buffer (FIXME: do we need a buffer?)
         let buffer = Vec::with_capacity(pcm.period_size);
         // Return successfully
         Ok(Recorder {
@@ -288,6 +290,23 @@ impl Recorder {
             pcm,
             buffer,
         })
+    }
+
+    pub fn link(&self, player: &Player) {
+        /*// Start at same time as player.
+        self.pcm.device.snd_pcm_link(
+            &self.pcm.sound_device,
+            &player.pcm.sound_device,
+        ).unwrap_or_else(|x| panic!("\"{}\"", self.pcm.device.snd_strerror(x)));*/
+
+        // Start the PCM.
+        self.pcm.device.snd_pcm_start(&self.pcm.sound_device).map_err(|_| 
+            AudioError::InternalError("Could not start!".to_string())
+        ).unwrap();
+
+/*        self.pcm.device.snd_pcm_start(&player.pcm.sound_device).map_err(|_| 
+            AudioError::InternalError("Could not start!".to_string())
+        ).unwrap();*/
     }
 
     pub async fn record_last(&mut self) -> Result<&[StereoS16Frame], AudioError> {

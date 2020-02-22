@@ -9,6 +9,11 @@ impl Recorder {
         Ok(Recorder(crate::ffi::Recorder::new(sr)?))
     }
 
+    /// Start recording, and at same time start playing.
+    pub fn link(&self, player: &crate::Player) {
+        self.0.link(&player.0)
+    }
+
     /// Record audio from the microphone system.  The closures first parameter is the microphone id.
     /// The 2nd and 3rd are left and right sample.
     pub async fn record_last(&mut self) -> Result<&[crate::StereoS16Frame], crate::AudioError> {

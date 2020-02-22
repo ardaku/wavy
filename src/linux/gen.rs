@@ -393,6 +393,19 @@ static mut FN_SND_PCM_STATE:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
     ) -> SndPcmState> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_LINK:
+    std::mem::MaybeUninit<extern fn(
+        pcm1: *mut std::os::raw::c_void,
+        pcm2: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_UNLINK:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_STRERROR:
+    std::mem::MaybeUninit<extern fn(
+        errnum: std::os::raw::c_int,
+    ) -> *mut std::os::raw::c_char> = std::mem::MaybeUninit::uninit();
 
 static mut ALSA_DEVICE_INIT: Option<AlsaDevice> = None;
 
@@ -427,6 +440,9 @@ impl AlsaDevice {
             FN_SND_PCM_POLL_DESCRIPTORS_COUNT = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors_count\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors\0")?.as_ptr()));
             FN_SND_PCM_STATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_state\0")?.as_ptr()));
+            FN_SND_PCM_LINK = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_link\0")?.as_ptr()));
+            FN_SND_PCM_UNLINK = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_unlink\0")?.as_ptr()));
+            FN_SND_STRERROR = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_strerror\0")?.as_ptr()));
             ALSA_DEVICE_INIT = Some(Self(std::marker::PhantomData));
             Some(Self(std::marker::PhantomData))
         }
@@ -783,6 +799,51 @@ impl AlsaDevice {
                 pcm.0,
             );
             __ret as _
+        }
+    }
+    /// Link two PCMs.
+    ///  - `pcm1`: First PCM handle
+    ///  - `pcm2`: Second PCM handle
+    pub fn snd_pcm_link(&self,
+        pcm1: &SndPcm,
+        pcm2: &SndPcm,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_LINK).assume_init())(
+                pcm1.0,
+                pcm2.0,
+            );
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
+        }
+    }
+    /// Remove a PCM from a linked group.
+    ///  - `pcm`: PCM handle
+    pub fn snd_pcm_unlink(&self,
+        pcm: &SndPcm,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_UNLINK).assume_init())(
+                pcm.0,
+            );
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
+        }
+    }
+    /// Returns the message for an error code.
+    ///  - `errnum`: The error code number, which must be a system error code or
+    ///    an ALSA error code.
+    pub fn snd_strerror(&self,
+        errnum: i32,
+    ) -> String
+    {
+        unsafe {
+            let __ret = ((FN_SND_STRERROR).assume_init())(
+                errnum as _,
+            );
+            std::ffi::CString::from_raw(__ret).into_string().unwrap()
         }
     }
 }

@@ -2,7 +2,7 @@ use std::iter::IntoIterator;
 use std::borrow::Borrow;
 
 /// Audio (Speaker) output.  This type represents a speaker system.
-pub struct Player(crate::ffi::Player);
+pub struct Player(pub(crate) crate::ffi::Player);
 
 impl Player {
     /// Connect to the speaker system at a specific sample rate.
