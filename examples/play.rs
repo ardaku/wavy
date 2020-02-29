@@ -31,7 +31,7 @@ impl Iterator for &mut Generator {
 async fn monitor() -> Result<(), AudioError> {
     /// Drain double ended queue frames into last plugged in device.
     async fn play(shared: &mut Shared) {
-        let n_frames = shared.player.play_last(&mut shared.generator).await.unwrap();
+        let n_frames = shared.player.play_last(&mut shared.generator).await;
         println!("played {} frames", n_frames);
     }
 

@@ -320,11 +320,6 @@ static mut FN_SND_PCM_HW_PARAMS:
         pcm: *mut std::os::raw::c_void,
         params: *mut std::os::raw::c_void,
     ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE:
-    std::mem::MaybeUninit<extern fn(
-        params: *const std::os::raw::c_void,
-        val: *mut std::os::raw::c_ulong,
-    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE:
     std::mem::MaybeUninit<extern fn(
         params: *const std::os::raw::c_void,
@@ -351,10 +346,6 @@ static mut FN_SND_PCM_CLOSE:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
     ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_START:
-    std::mem::MaybeUninit<extern fn(
-        pcm: *mut std::os::raw::c_void,
-    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_POLL_DESCRIPTORS_COUNT:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
@@ -369,6 +360,18 @@ static mut FN_SND_PCM_STATE:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
     ) -> SndPcmState> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_DROP:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_PREPARE:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_RESUME:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
 
 static mut ALSA_DEVICE_INIT: Option<AlsaDevice> = None;
 
@@ -395,14 +398,15 @@ impl AlsaDevice {
             FN_SND_PCM_HW_PARAMS_SET_PERIOD_SIZE_NEAR = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_period_size_near\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_SET_BUFFER_SIZE_NEAR = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_set_buffer_size_near\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params\0")?.as_ptr()));
-            FN_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_get_buffer_size\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_get_period_size\0")?.as_ptr()));
             FN_SND_PCM_HW_PARAMS_FREE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_hw_params_free\0")?.as_ptr()));
             FN_SND_PCM_CLOSE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_close\0")?.as_ptr()));
-            FN_SND_PCM_START = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_start\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS_COUNT = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors_count\0")?.as_ptr()));
             FN_SND_PCM_POLL_DESCRIPTORS = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_poll_descriptors\0")?.as_ptr()));
             FN_SND_PCM_STATE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_state\0")?.as_ptr()));
+            FN_SND_PCM_DROP = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_drop\0")?.as_ptr()));
+            FN_SND_PCM_PREPARE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_prepare\0")?.as_ptr()));
+            FN_SND_PCM_RESUME = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_resume\0")?.as_ptr()));
             ALSA_DEVICE_INIT = Some(Self(std::marker::PhantomData));
             Some(Self(std::marker::PhantomData))
         }
@@ -631,24 +635,6 @@ impl AlsaDevice {
             Ok(())
         }
     }
-    /// Extract buffer size from a configuration space.
-    /// - `params`: Configuration space
-    /// - `val`: Returned buffer size in frames
-    pub fn snd_pcm_hw_params_get_buffer_size(&self,
-        params: &SndPcmHwParams,
-    ) -> Result<usize, i32>
-    {
-        unsafe {
-            let mut val = std::mem::MaybeUninit::uninit();
-            let __ret = ((FN_SND_PCM_HW_PARAMS_GET_BUFFER_SIZE).assume_init())(
-                params.0,
-                val.as_mut_ptr(),
-            );
-            let val = val.assume_init();
-            if __ret < 0 { return Err(__ret as _) };
-            Ok(val as _)
-        }
-    }
     /// Extract period size from a configuration space.
     /// - `params`: Configuration space
     /// - `val`: Returned approximate period size in frames
@@ -701,19 +687,6 @@ impl AlsaDevice {
             Ok(())
         }
     }
-    /// Start a PCM.
-    pub fn snd_pcm_start(&self,
-        pcm: &SndPcm,
-    ) -> Result<(), i32>
-    {
-        unsafe {
-            let __ret = ((FN_SND_PCM_START).assume_init())(
-                pcm.0,
-            );
-            if __ret < 0 { return Err(__ret as _) };
-            Ok(())
-        }
-    }
     /// Get count of poll descriptors for PCM handle
     pub fn snd_pcm_poll_descriptors_count(&self,
         pcm: &SndPcm,
@@ -759,6 +732,49 @@ impl AlsaDevice {
                 pcm.0,
             );
             __ret as _
+        }
+    }
+    /// Stop a PCM dropping pending frames.  This function stops the PCM
+    /// immediately. The pending samples on the buffer are ignored
+    ///  - `pcm`: PCM handle
+    pub fn snd_pcm_drop(&self,
+        pcm: &SndPcm,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_DROP).assume_init())(
+                pcm.0,
+            );
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
+        }
+    }
+    /// Prepare PCM for use.
+    ///  - `pcm`: PCM handle
+    pub fn snd_pcm_prepare(&self,
+        pcm: &SndPcm,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_PREPARE).assume_init())(
+                pcm.0,
+            );
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
+        }
+    }
+    /// Resume from suspend, no samples are lost.
+    ///  - `pcm`: PCM handle
+    pub fn snd_pcm_resume(&self,
+        pcm: &SndPcm,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_RESUME).assume_init())(
+                pcm.0,
+            );
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
         }
     }
 }

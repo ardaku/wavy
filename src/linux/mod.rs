@@ -11,7 +11,7 @@ use std::borrow::Borrow;
 #[rustfmt::skip]
 mod gen;
 
-use self::gen::{AlsaPlayer, AlsaRecorder, AlsaDevice, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess, SndPcmMode};
+use self::gen::{AlsaPlayer, AlsaRecorder, AlsaDevice, SndPcmHwParams, SndPcmStream, SndPcm, SndPcmFormat, SndPcmAccess, SndPcmMode, SndPcmState};
 use crate::{AudioError, SampleRate, StereoS16Frame};
 
 fn pcm_hw_params(
@@ -89,20 +89,31 @@ fn pcm_hw_params(
     }
     // Set buffer size to about 3 times the period (setting latency).
     if limit_buffer {
-        let mut buffer_size = period_size * 4;
+        let mut buffer_size = period_size * 3;
         device.snd_pcm_hw_params_set_buffer_size_near(
             sound_device,
             &hw_params,
             &mut buffer_size,
         ).unwrap();
-        if buffer_size != period_size * 4 {
+        if buffer_size != period_size * 3 {
             eprintln!(
                 "Wavy: Tried to set buffer size: {}, Got: {}!",
-                period_size * 4, buffer_size
+                period_size * 3, buffer_size
             );
         }
+    } else {
+        // Apply the hardware parameters that just got set.
+        device.snd_pcm_hw_params(sound_device, &hw_params).map_err(|_|
+            AudioError::InternalError(
+                "Failed to set parameters!".to_string(),
+            )
+        )?;
+        // Get rid of garbage.
+        device.snd_pcm_drop(&sound_device).map_err(|_| 
+            AudioError::InternalError("Could not drop!".to_string())
+        ).unwrap();
     }
-    // Apply the hardware parameters that just got set.
+    // Re-Apply the hardware parameters that just got set.
     device.snd_pcm_hw_params(sound_device, &hw_params).map_err(|_|
         AudioError::InternalError(
             "Failed to set parameters!".to_string(),
@@ -197,32 +208,23 @@ impl Player {
     }
 
     #[allow(unsafe_code)]
-    pub async fn play_last<T>(&mut self, iter: impl IntoIterator<Item=T>) -> Result<usize, AudioError>
+    pub async fn play_last<T>(&mut self, iter: impl IntoIterator<Item=T>) -> usize
         where T: Borrow<crate::StereoS16Frame>
     {
         let mut iter = iter.into_iter();
         // If buffer is empty, fill it.
         if self.buffer.is_empty() {
-            let mut gen = false;
             // Write # of frames equal to the period size into the buffer.
             for _ in 0..self.pcm.period_size {
                 let f = match iter.next() {
                     Some(f) => f.borrow().clone(),
-                    None => {
-                        break;
-                        gen = true;
-                        StereoS16Frame::new(0, 0)
-                    },
+                    None => break,
                 };
                 self.buffer.push(f);
             }
-            if gen {
-                // println!("DEBUG: Genereating..");
-            }
         }
-        // 
-        let nframes = (&mut *self).await;
-        Ok(nframes)
+        // Number of frames.
+        (&mut *self).await
     }
 }
 
@@ -236,10 +238,10 @@ impl Future for &mut Player {
         // Record into temporary buffer.
         let len = match this.player.snd_pcm_writei(
             &this.pcm.sound_device,
-            unsafe { std::mem::transmute(this   .buffer.as_slice()) },
+            unsafe { std::mem::transmute(this.buffer.as_slice()) },
         ) {
         Err(error) => {
-            // println!("{:?}", this.pcm.device.snd_pcm_state(&this.pcm.sound_device));
+            let state = this.pcm.device.snd_pcm_state(&this.pcm.sound_device);
             match error {
                 // Edge-triggered epoll should only go into pending mode if
                 // read/write call results in EAGAIN (according to epoll man
@@ -247,12 +249,31 @@ impl Future for &mut Player {
                 -11 => {
                     this.pcm.fd.register_waker(cx.waker().clone());
                     return Poll::Pending;
-                },
-                -77 => panic!("Incorrect state (-EBADFD): FIXME"),
+                }
                 -32 => {
-                    panic!("Buffer Overrun (Underflow): FIXME") // FIXME
-                },
-                -86 => panic!("Stream got suspended, must be recovered (-ESTRPIPE): FIXME"),
+                    match state {
+                        SndPcmState::Xrun => {
+                            this.pcm.device.snd_pcm_prepare(&this.pcm.sound_device).unwrap();
+                            return Poll::Pending;
+                        }
+                        st => {
+                            eprintln!("Incorrect state = {:?} (XRUN): Report Bug to https://github.com/libcala/wavy/issues/new", st);
+                            unreachable!()
+                        }
+                    }
+                }
+                -77 => {
+                    eprintln!("Incorrect state (-EBADFD): Report Bug to https://github.com/libcala/wavy/issues/new");
+                    unreachable!()
+                }
+                -86 => {
+                    eprintln!("Stream got suspended, trying to recover… (-ESTRPIPE)");
+                    if this.pcm.device.snd_pcm_resume(&this.pcm.sound_device).is_ok() {
+                        // Prepare, so we keep getting samples.
+                        this.pcm.device.snd_pcm_prepare(&this.pcm.sound_device).unwrap();
+                    }
+                    return Poll::Pending;
+                }
                 _ => unreachable!(),
             }
         }
@@ -292,26 +313,9 @@ impl Recorder {
         })
     }
 
-    pub fn link(&self, player: &Player) {
-        /*// Start at same time as player.
-        self.pcm.device.snd_pcm_link(
-            &self.pcm.sound_device,
-            &player.pcm.sound_device,
-        ).unwrap_or_else(|x| panic!("\"{}\"", self.pcm.device.snd_strerror(x)));*/
-
-        // Start the PCM.
-        self.pcm.device.snd_pcm_start(&self.pcm.sound_device).map_err(|_| 
-            AudioError::InternalError("Could not start!".to_string())
-        ).unwrap();
-
-/*        self.pcm.device.snd_pcm_start(&player.pcm.sound_device).map_err(|_| 
-            AudioError::InternalError("Could not start!".to_string())
-        ).unwrap();*/
-    }
-
-    pub async fn record_last(&mut self) -> Result<&[StereoS16Frame], AudioError> {
+    pub async fn record_last(&mut self) -> &[StereoS16Frame] {
         (&mut *self).await;
-        Ok(&self.buffer)
+        &self.buffer
     }
 }
 
@@ -331,7 +335,7 @@ impl Future for &mut Recorder {
         {
             // Len is garbage, this resets it to 0
             this.buffer.clear();
-            // println!("{:?}", this.pcm.device.snd_pcm_state(&this.pcm.sound_device));
+            let state = this.pcm.device.snd_pcm_state(&this.pcm.sound_device);
             match error {
                 // Edge-triggered epoll should only go into pending mode if
                 // read/write call results in EAGAIN (according to epoll man
@@ -340,9 +344,30 @@ impl Future for &mut Recorder {
                     this.pcm.fd.register_waker(cx.waker().clone());
                     return Poll::Pending;
                 },
-                -77 => panic!("Incorrect state (-EBADFD): FIXME"),
-                -32 => panic!("Buffer Overrun (Underflow): FIXME"),
-                -86 => panic!("Stream got suspended, must be recovered (-ESTRPIPE): FIXME"),
+                -77 => {
+                    eprintln!("Incorrect state (-EBADFD): Report Bug to https://github.com/libcala/wavy/issues/new");
+                    unreachable!()
+                }
+                -32 => {
+                    match state {
+                        SndPcmState::Xrun => {
+                            this.pcm.device.snd_pcm_prepare(&this.pcm.sound_device).unwrap();
+                            return Poll::Pending;
+                        }
+                        st => {
+                            eprintln!("Incorrect state = {:?} (XRUN): Report Bug to https://github.com/libcala/wavy/issues/new", st);
+                            unreachable!()
+                        }
+                    }
+                }
+                -86 => {
+                    eprintln!("Stream got suspended, trying to recover… (-ESTRPIPE)");
+                    if this.pcm.device.snd_pcm_resume(&this.pcm.sound_device).is_ok() {
+                        // Prepare, so we keep getting samples.
+                        this.pcm.device.snd_pcm_prepare(&this.pcm.sound_device).unwrap();
+                    }
+                    return Poll::Pending;
+                }
                 _ => unreachable!(),
             }
         }

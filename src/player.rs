@@ -1,7 +1,7 @@
 use std::iter::IntoIterator;
 use std::borrow::Borrow;
 
-/// Audio (Speaker) output.  This type represents a speaker system.
+/// Audio Player (Speaker output). 
 pub struct Player(pub(crate) crate::ffi::Player);
 
 impl Player {
@@ -12,8 +12,9 @@ impl Player {
         Ok(Player(crate::ffi::Player::new(sr)?))
     }
 
-    /// Generate audio samples as they are needed.  In your closure return S16_LE audio samples.
-    pub async fn play_last<T>(&mut self, iter: impl IntoIterator<Item=T>) -> Result<usize, crate::AudioError>
+    /// Play audio samples from an iterator.  Get a future that returns the
+    /// number of audio samples played.
+    pub async fn play_last<T>(&mut self, iter: impl IntoIterator<Item=T>) -> usize
     where
         T: Borrow<crate::StereoS16Frame>,
     {

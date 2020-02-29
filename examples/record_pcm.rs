@@ -19,7 +19,7 @@ async fn monitor() -> Result<(), AudioError> {
     /// Extend buffer by slice of new frames from last plugged in device.
     async fn record(shared: &mut Shared) {
         println!("Recording; running total: @{}", shared.buffer.len());
-        let frames = shared.recorder.record_last().await.unwrap();
+        let frames = shared.recorder.record_last().await;
         shared.buffer.extend(frames);
         println!("Recorded; now: {}", shared.buffer.len());
     }
