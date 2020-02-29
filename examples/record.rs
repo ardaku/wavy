@@ -31,8 +31,7 @@ async fn monitor() -> Result<(), AudioError> {
     }
 
     let running = true;
-    let mut buffer = VecDeque::new();
-    buffer.extend([StereoS16Frame::new(0, 0); 1024 * 2].iter());
+    let buffer = VecDeque::new();
     let recorder = Recorder::new(SampleRate::Normal)?;
     let player = Player::new(SampleRate::Normal)?;
     let mut shared = Shared {
