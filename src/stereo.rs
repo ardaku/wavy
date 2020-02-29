@@ -1,5 +1,6 @@
 /// Frame with Stereo Signed 16-Bit Little Endian format.  Always 32 bits.
-#[repr(packed, C)]
+#[repr(C)]
+#[repr(align(4))]
 #[derive(Copy, Clone, Debug)]
 pub struct StereoS16Frame {
     /// Always stored as Little Endian
@@ -19,17 +20,17 @@ impl StereoS16Frame {
     }
 
     /// Get the left sample in the target platform's native endian.
-    pub fn left(&self) -> i16 {
+    pub fn left(self) -> i16 {
         i16::from_le(self.left)
     }
 
     /// Get the right sample in the target platform's native endian.
-    pub fn right(&self) -> i16 {
+    pub fn right(self) -> i16 {
         i16::from_le(self.right)
     }
 
     /// Get a byte representation of this frame.
-    pub fn bytes(&self) -> [u8; 4] {
+    pub fn bytes(self) -> [u8; 4] {
         let [a, b] = self.left.to_ne_bytes();
         let [c, d] = self.right.to_ne_bytes();
 

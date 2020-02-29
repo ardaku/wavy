@@ -267,7 +267,7 @@ impl Player {
             // Write # of frames equal to the period size into the buffer.
             for _ in 0..self.pcm.period_size {
                 let f = match iter.next() {
-                    Some(f) => f.borrow().clone(),
+                    Some(f) => *f.borrow(),
                     None => break,
                 };
                 self.buffer.push(f);
@@ -286,11 +286,13 @@ impl Future for &mut Player {
         let this = Pin::into_inner(self);
 
         // Record into temporary buffer.
-        let len = match this
-            .player
-            .snd_pcm_writei(&this.pcm.sound_device, unsafe {
-                std::mem::transmute(this.buffer.as_slice())
-            }) {
+        let len = match this.player.snd_pcm_writei(
+            &this.pcm.sound_device,
+            unsafe {
+                &*(this.buffer.as_slice() as *const [StereoS16Frame]
+                    as *const [u32])
+            },
+        ) {
             Err(error) => {
                 let state =
                     this.pcm.device.snd_pcm_state(&this.pcm.sound_device);
@@ -392,7 +394,7 @@ impl Future for &mut Recorder {
         // Record into temporary buffer.
         if let Err(error) =
             this.recorder.snd_pcm_readi(&this.pcm.sound_device, unsafe {
-                std::mem::transmute(&mut this.buffer)
+                &mut *(&mut this.buffer as *mut _ as *mut Vec<u32>)
             })
         {
             // Len is garbage, this resets it to 0
