@@ -1,8 +1,8 @@
 //! This example records audio and plays it back in real time as it's being
 //! recorded.
 
-use wavy::{Player, StereoS16Frame, SampleRate, AudioError};
-use pasts::{ThreadInterrupt, Interrupt};
+use pasts::{Interrupt, ThreadInterrupt};
+use wavy::{AudioError, Player, SampleRate, StereoS16Frame};
 
 /// Shared data between recorder and player.
 struct Shared {
@@ -39,7 +39,11 @@ async fn monitor() -> Result<(), AudioError> {
     let generator = Generator(-1);
     println!("Opening player…");
     let player = Player::new(SampleRate::Normal)?;
-    let mut shared = Shared { running, generator, player };
+    let mut shared = Shared {
+        running,
+        generator,
+        player,
+    };
     println!("Done, entering async loop…");
     pasts::run!(shared while shared.running; play);
     Ok(())

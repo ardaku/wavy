@@ -1,9 +1,9 @@
 //! This example records audio and plays it back in real time as it's being
 //! recorded.
 
+use pasts::{Interrupt, ThreadInterrupt};
 use std::collections::VecDeque;
-use wavy::{Player, Recorder, StereoS16Frame, SampleRate, AudioError};
-use pasts::{ThreadInterrupt, Interrupt};
+use wavy::{AudioError, Player, Recorder, SampleRate, StereoS16Frame};
 
 /// Shared data between recorder and player.
 struct Shared {
@@ -35,7 +35,12 @@ async fn monitor() -> Result<(), AudioError> {
     buffer.extend([StereoS16Frame::new(0, 0); 1024 * 2].iter());
     let recorder = Recorder::new(SampleRate::Normal)?;
     let player = Player::new(SampleRate::Normal)?;
-    let mut shared = Shared { running, buffer, recorder, player };
+    let mut shared = Shared {
+        running,
+        buffer,
+        recorder,
+        player,
+    };
     println!("Entering async loop…");
     pasts::run!(shared while shared.running; record, play);
     Ok(())

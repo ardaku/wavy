@@ -22,7 +22,7 @@
 //!     /// Audio Player
 //!     player: Player,
 //! }
-//! 
+//!
 //! /// Create a new monitor.
 //! async fn monitor() -> Result<(), AudioError> {
 //!     /// Extend buffer by slice of new frames from last plugged in device.
@@ -35,7 +35,7 @@
 //!         let n_frames = shared.player.play_last(shared.buffer.iter()).await;
 //!         shared.buffer.drain(..n_frames.min(shared.buffer.len()));
 //!     }
-//! 
+//!
 //!     let running = true;
 //!     let mut buffer = VecDeque::new();
 //!     buffer.extend([StereoS16Frame::new(0, 0); 1024 * 2].iter());
@@ -45,7 +45,7 @@
 //!     pasts::run!(shared while shared.running; record, play);
 //!     Ok(())
 //! }
-//! 
+//!
 //! /// Start the async executor.
 //! fn main() -> Result<(), AudioError> {
 //!     ThreadInterrupt::block_on(monitor())
@@ -83,7 +83,7 @@ mod apple;
 use apple as ffi;
 
 pub use error::AudioError;
+pub use player::Player;
+pub use recorder::Recorder;
 pub use sample_rate::SampleRate;
 pub use stereo::StereoS16Frame;
-pub use recorder::Recorder;
-pub use player::Player;

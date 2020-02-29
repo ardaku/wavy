@@ -3,9 +3,7 @@ pub struct Recorder(crate::ffi::Recorder);
 
 impl Recorder {
     /// Create a new audio recorder at a specific sample rate.
-    pub fn new(
-        sr: crate::SampleRate,
-    ) -> Result<Recorder, crate::AudioError> {
+    pub fn new(sr: crate::SampleRate) -> Result<Recorder, crate::AudioError> {
         Ok(Recorder(crate::ffi::Recorder::new(sr)?))
     }
 

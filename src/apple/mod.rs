@@ -44,13 +44,14 @@ unsafe extern "C" fn callback<'a>(
     audio_buffer: *mut AudioQueueBuffer,
 ) {
     let slice: &mut [[i16; 2]] = std::slice::from_raw_parts_mut(
-        (*audio_buffer).audio_data as *mut c_void as *mut [i16;2],
-        ((*audio_buffer).audio_data_byte_size / NUM_BYTES_PER_FRAME) as usize
+        (*audio_buffer).audio_data as *mut c_void as *mut [i16; 2],
+        ((*audio_buffer).audio_data_byte_size / NUM_BYTES_PER_FRAME) as usize,
     );
 
     (*(*user_ctx).callback.as_mut().unwrap())(slice);
 
-    let _status = AudioQueueEnqueueBuffer(audio_queue, audio_buffer, 0, std::ptr::null());
+    let _status =
+        AudioQueueEnqueueBuffer(audio_queue, audio_buffer, 0, std::ptr::null());
 }
 
 enum AudioQueue {}
@@ -59,7 +60,7 @@ enum CFString {}
 
 type OSStatus = i32;
 
-type AudioQueueOutputCallback = unsafe extern "C" fn (
+type AudioQueueOutputCallback = unsafe extern "C" fn(
     user_ctx: *mut UserCtx,
     audio_queue: *mut AudioQueue,
     audio_buffer: *mut AudioQueueBuffer,
@@ -70,7 +71,7 @@ type AudioQueueOutputCallback = unsafe extern "C" fn (
 extern "C" {
     static kCFRunLoopCommonModes: *mut CFString;
 
-	fn AudioQueueNewOutput(
+    fn AudioQueueNewOutput(
         format: *const AudioStreamBasicDescription,
         callback_proc: AudioQueueOutputCallback,
         user_data: *mut c_void,
@@ -90,21 +91,23 @@ extern "C" {
     ) -> OSStatus;
 }
 
-
 const NUM_CHANNELS: u32 = 2;
 const NUM_BYTES_PER_SAMPLE: u32 = 2;
 const NUM_BYTES_PER_FRAME: u32 = NUM_CHANNELS * NUM_BYTES_PER_SAMPLE;
 
 fn pcm_hw_params(sr: SampleRate) -> AudioStreamBasicDescription {
     const AUDIO_FORMAT_LINEAR_PCM: [u8; 4] = *b"lpcm";
-   
+
     const AUDIO_FORMAT_FLAG_IS_SIGNED_INT: u32 = 0x4;
     const AUDIO_FORMAT_FLAG_IS_PACKED: u32 = 0x8;
 
     AudioStreamBasicDescription {
         sample_rate: sr as u32 as f64,
-        format_id: unsafe { std::mem::transmute::<[u8;4], u32>(AUDIO_FORMAT_LINEAR_PCM) },
-        format_flags: AUDIO_FORMAT_FLAG_IS_SIGNED_INT | AUDIO_FORMAT_FLAG_IS_PACKED,
+        format_id: unsafe {
+            std::mem::transmute::<[u8; 4], u32>(AUDIO_FORMAT_LINEAR_PCM)
+        },
+        format_flags: AUDIO_FORMAT_FLAG_IS_SIGNED_INT
+            | AUDIO_FORMAT_FLAG_IS_PACKED,
         bytes_per_packet: NUM_CHANNELS * NUM_BYTES_PER_SAMPLE,
         frames_per_packet: 1,
         bytes_per_frame: NUM_BYTES_PER_FRAME,
@@ -125,23 +128,21 @@ impl Speaker {
     pub fn new(sr: SampleRate) -> Result<Speaker, AudioError> {
         let hw_params = [pcm_hw_params(sr)];
         let mut audio_queue = std::mem::MaybeUninit::uninit();
-        let mut user_ctx = UserCtx {
-            callback: None,
+        let mut user_ctx = UserCtx { callback: None };
+
+        let _audio_queue_status = unsafe {
+            AudioQueueNewOutput(
+                hw_params.as_ptr(),
+                callback,
+                &mut user_ctx as *mut _ as *mut c_void,
+                CFRunLoopGetCurrent(),
+                kCFRunLoopCommonModes,
+                0,
+                audio_queue.as_mut_ptr(),
+            )
         };
 
-        let _audio_queue_status = unsafe { AudioQueueNewOutput(
-            hw_params.as_ptr(),
-            callback,
-            &mut user_ctx as *mut _ as *mut c_void,
-            CFRunLoopGetCurrent(),
-            kCFRunLoopCommonModes,
-            0,
-            audio_queue.as_mut_ptr(),
-        ) };
-
-        let audio_queue = unsafe {
-            audio_queue.assume_init()
-        };
+        let audio_queue = unsafe { audio_queue.assume_init() };
 
         /*let sound_device: *mut snd_pcm_t = pcm_open(false, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
@@ -243,7 +244,7 @@ pub struct Microphone {
 
 impl Microphone {
     pub fn new(sr: SampleRate) -> Result<Microphone, AudioError> {
-/*        let sound_device: *mut snd_pcm_t = pcm_open(true, b"default\0")?;
+        /*        let sound_device: *mut snd_pcm_t = pcm_open(true, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 
         // Get the buffer size.

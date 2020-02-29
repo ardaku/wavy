@@ -1,7 +1,7 @@
 use crate::*;
 
 use stdweb;
-use stdweb::{js};
+use stdweb::js;
 
 macro_rules! enclose {
     ( ($( $x:ident ),*) $y:expr ) => {
@@ -119,7 +119,7 @@ pub struct Microphone {
 
 impl Microphone {
     pub fn new(sr: SampleRate) -> Result<Microphone, AudioError> {
-/*        let sound_device: *mut snd_pcm_t = pcm_open(true, b"default\0")?;
+        /*        let sound_device: *mut snd_pcm_t = pcm_open(true, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 
         // Get the buffer size.

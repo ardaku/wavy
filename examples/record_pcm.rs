@@ -1,10 +1,10 @@
 //! This example records audio and plays it back in real time as it's being
 //! recorded.
 
+use pasts::{Interrupt, ThreadInterrupt};
 use std::collections::VecDeque;
 use std::io::Write;
-use wavy::{Recorder, StereoS16Frame, SampleRate, AudioError};
-use pasts::{ThreadInterrupt, Interrupt};
+use wavy::{AudioError, Recorder, SampleRate, StereoS16Frame};
 
 /// Shared data between recorder and player.
 struct Shared {
