@@ -28,7 +28,7 @@ struct Shared {
     /// A boolean to indicate whether or not the program is still running.
     running: bool,
     /// A stereo audio buffer.
-    buffer: VecDeque<StereoS16Frame>,
+    buffer: VecDeque<StereoS16>,
     /// Audio Recorder
     recorder: Recorder,
     /// Audio Player

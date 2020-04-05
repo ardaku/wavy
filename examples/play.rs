@@ -2,7 +2,7 @@
 //! recorded.
 
 use pasts::{Interrupt, ThreadInterrupt};
-use wavy::{AudioError, Player, SampleRate, StereoS16Frame};
+use wavy::{AudioError, Player, SampleRate, StereoS16};
 
 /// Shared data between recorder and player.
 struct Shared {
@@ -18,12 +18,12 @@ struct Shared {
 pub struct Generator(i8);
 
 impl Iterator for &mut Generator {
-    type Item = StereoS16Frame;
+    type Item = StereoS16;
 
-    fn next(&mut self) -> Option<StereoS16Frame> {
+    fn next(&mut self) -> Option<StereoS16> {
         self.0 = self.0.wrapping_add(1);
         let sample = self.0 as i16 * 255;
-        Some(StereoS16Frame::new(sample, sample))
+        Some(StereoS16::new(sample, sample))
     }
 }
 

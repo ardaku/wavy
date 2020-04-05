@@ -9,7 +9,7 @@ impl Recorder {
 
     /// Record audio from connected microphones.  Get a future that returns
     /// a slice of the newly recorded audio frames.
-    pub async fn record_last(&mut self) -> &[crate::StereoS16Frame] {
+    pub async fn record_last(&mut self) -> &[crate::StereoS16] {
         self.0.record_last().await
     }
 }

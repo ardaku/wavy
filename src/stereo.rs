@@ -2,18 +2,18 @@
 #[repr(C)]
 #[repr(align(4))]
 #[derive(Copy, Clone, Debug)]
-pub struct StereoS16Frame {
+pub struct StereoS16 {
     /// Always stored as Little Endian
     left: i16,
     /// Always stored as Little Endian
     right: i16,
 }
 
-impl StereoS16Frame {
-    /// Create a new StereoS16Frame from sample in the target platform's native
+impl StereoS16 {
+    /// Create a new StereoS16 from sample in the target platform's native
     /// endian.
     pub const fn new(left: i16, right: i16) -> Self {
-        StereoS16Frame {
+        StereoS16 {
             left: left.to_le(),
             right: right.to_le(),
         }
@@ -42,6 +42,6 @@ impl StereoS16Frame {
 mod tests {
     #[test]
     fn sizes() {
-        assert_eq!(std::mem::size_of::<StereoS16Frame>(), 4);
+        assert_eq!(std::mem::size_of::<StereoS16>(), 4);
     }
 }

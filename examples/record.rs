@@ -3,14 +3,14 @@
 
 use pasts::{Interrupt, ThreadInterrupt};
 use std::collections::VecDeque;
-use wavy::{AudioError, Player, Recorder, SampleRate, StereoS16Frame};
+use wavy::{AudioError, Player, Recorder, SampleRate, StereoS16};
 
 /// Shared data between recorder and player.
 struct Shared {
     /// A boolean to indicate whether or not the program is still running.
     running: bool,
     /// A stereo audio buffer.
-    buffer: VecDeque<StereoS16Frame>,
+    buffer: VecDeque<StereoS16>,
     /// Audio Recorder
     recorder: Recorder,
     /// Audio Player

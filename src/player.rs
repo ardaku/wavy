@@ -17,7 +17,7 @@ impl Player {
         iter: impl IntoIterator<Item = T>,
     ) -> usize
     where
-        T: Borrow<crate::StereoS16Frame>,
+        T: Borrow<crate::StereoS16>,
     {
         self.0.play_last(iter).await
     }

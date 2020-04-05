@@ -15,7 +15,7 @@ use self::gen::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
-use crate::{AudioError, SampleRate, StereoS16Frame};
+use crate::{AudioError, SampleRate, StereoS16};
 
 fn pcm_hw_params(
     device: &AlsaDevice,
@@ -229,7 +229,7 @@ impl Drop for Pcm {
 pub struct Player {
     player: AlsaPlayer,
     pcm: Pcm,
-    buffer: Vec<StereoS16Frame>,
+    buffer: Vec<StereoS16>,
 }
 
 impl Player {
@@ -259,7 +259,7 @@ impl Player {
         iter: impl IntoIterator<Item = T>,
     ) -> usize
     where
-        T: Borrow<crate::StereoS16Frame>,
+        T: Borrow<StereoS16>,
     {
         let mut iter = iter.into_iter();
         // If buffer is empty, fill it.
@@ -289,7 +289,7 @@ impl Future for &mut Player {
         let len = match this.player.snd_pcm_writei(
             &this.pcm.sound_device,
             unsafe {
-                &*(this.buffer.as_slice() as *const [StereoS16Frame]
+                &*(this.buffer.as_slice() as *const [StereoS16]
                     as *const [u32])
             },
         ) {
@@ -353,7 +353,7 @@ impl Future for &mut Player {
 pub struct Recorder {
     recorder: AlsaRecorder,
     pcm: Pcm,
-    buffer: Vec<StereoS16Frame>,
+    buffer: Vec<StereoS16>,
 }
 
 impl Recorder {
@@ -377,7 +377,7 @@ impl Recorder {
         })
     }
 
-    pub async fn record_last(&mut self) -> &[StereoS16Frame] {
+    pub async fn record_last(&mut self) -> &[StereoS16] {
         (&mut *self).await;
         &self.buffer
     }
