@@ -45,9 +45,9 @@ impl Speaker {
         }
 
         if unsafe { snd_pcm_prepare(sound_device) } < 0 {
-            return Err(AudioError::InternalError(
+            panic!(
                 "Could not prepare!".to_string(),
-            ));
+            );
         }
 
         let buffer_size = buffer_size as u64;
@@ -143,9 +143,9 @@ impl Microphone {
         }
 
         if unsafe { snd_pcm_start(sound_device) } < 0 {
-            return Err(AudioError::InternalError(
+            panic!(
                 "Could not start!".to_string(),
-            ));
+            );
         }*/
 
         let buffer = Vec::new();

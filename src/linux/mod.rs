@@ -15,63 +15,49 @@ use self::gen::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
-use crate::{AudioError, SampleRate, StereoS16};
+use crate::{SampleRate, StereoS16};
 
 fn pcm_hw_params(
     device: &AlsaDevice,
     sr: u32,
     sound_device: &SndPcm,
     limit_buffer: bool,
-) -> Result<SndPcmHwParams, AudioError> {
-    let hw_params = device.snd_pcm_hw_params_malloc().map_err(|_| {
-        AudioError::InternalError(
-            "Cannot allocate hardware parameter structure!".to_string(),
-        )
-    })?;
-
+) -> Option<SndPcmHwParams> {
+    // unwrap: Allocating memory should not fail unless out of memory.
+    let hw_params = device.snd_pcm_hw_params_malloc().unwrap();
+    // unwrap: Getting default settings should never fail.
     device
         .snd_pcm_hw_params_any(sound_device, &hw_params)
-        .map_err(|a| {
-            AudioError::InternalError(format!(
-                "Cannot initialize hardware parameter structure: {}!",
-                a
-            ))
-        })?;
+        .unwrap();
     // Enable resampling.
+    // unwrap: FIXME: Fallback SIMD resampler if this were to fail.
     device
         .snd_pcm_hw_params_set_rate_resample(sound_device, &hw_params, 1)
-        .map_err(|_| {
-            AudioError::InternalError(
-                "Resampling setup failed for playback!".to_string(),
-            )
-        })?;
+        .unwrap();
     // Set access to RW noninterleaved.
+    // unwrap: Kernel should always support interleaved mode.
     device
         .snd_pcm_hw_params_set_access(
             sound_device,
             &hw_params,
             SndPcmAccess::RwInterleaved,
         )
-        .map_err(|_| {
-            AudioError::InternalError("Cannot set access type!".to_string())
-        })?;
-    //
+        .unwrap();
+    // unwrap: FIXME: Fallback SIMD resampler if this were to fail.
     device
         .snd_pcm_hw_params_set_format(
             sound_device,
             &hw_params,
             SndPcmFormat::S16Le,
         )
-        .map_err(|_| {
-            AudioError::InternalError("Cannot set sample format!".to_string())
-        })?;
+        .unwrap();
     // Set channels to stereo (2).
+    // unwrap: FIXME: Fallback SIMD resampler if this were to fail.
     device
         .snd_pcm_hw_params_set_channels(sound_device, &hw_params, 2)
-        .map_err(|_| {
-            AudioError::InternalError("Cannot set channel count!".to_string())
-        })?;
+        .unwrap();
     // Set Sample rate.
+    // unwrap: FIXME: Fallback SIMD resampler if this were to fail.
     let mut actual_rate = sr;
     device
         .snd_pcm_hw_params_set_rate_near(
@@ -80,14 +66,12 @@ fn pcm_hw_params(
             &mut actual_rate,
             None,
         )
-        .map_err(|_| {
-            AudioError::InternalError("Cannot set sample rate!".to_string())
-        })?;
+        .unwrap();
     if actual_rate != sr {
-        return Err(AudioError::InternalError(format!(
+        panic!(
             "Failed to set rate: {}, Got: {} instead!",
             sr, actual_rate
-        )));
+        );
     }
     // Period size must be a power of two
     // Currently only tries 1024
@@ -101,14 +85,15 @@ fn pcm_hw_params(
         )
         .unwrap();
     if period_size != 1024 {
-        return Err(AudioError::InternalError(format!(
+        panic!(
             "Wavy: Tried to set period size: {}, Got: {}!",
             1024, period_size
-        )));
+        );
     }
     // Set buffer size to about 3 times the period (setting latency).
     if limit_buffer {
         let mut buffer_size = period_size * 3;
+        // unwrap: Some buffer size should always be available.
         device
             .snd_pcm_hw_params_set_buffer_size_near(
                 sound_device,
@@ -116,38 +101,25 @@ fn pcm_hw_params(
                 &mut buffer_size,
             )
             .unwrap();
-        if buffer_size != period_size * 3 {
-            eprintln!(
-                "Wavy: Tried to set buffer size: {}, Got: {}!",
-                period_size * 3,
-                buffer_size
-            );
-        }
     } else {
         // Apply the hardware parameters that just got set.
+        // unwrap: Should always be able to apply parameters that succeeded
         device
             .snd_pcm_hw_params(sound_device, &hw_params)
-            .map_err(|_| {
-                AudioError::InternalError(
-                    "Failed to set parameters!".to_string(),
-                )
-            })?;
+            .unwrap();
         // Get rid of garbage.
+        // unwrap: Should always be able free data from the heap.
         device
             .snd_pcm_drop(&sound_device)
-            .map_err(|_| {
-                AudioError::InternalError("Could not drop!".to_string())
-            })
             .unwrap();
     }
     // Re-Apply the hardware parameters that just got set.
+    // unwrap: Should always be able to apply parameters that succeeded
     device
         .snd_pcm_hw_params(sound_device, &hw_params)
-        .map_err(|_| {
-            AudioError::InternalError("Failed to set parameters!".to_string())
-        })?;
+        .unwrap();
 
-    Ok(hw_params)
+    Some(hw_params)
 }
 
 // Player/Recorder Shared Code for ALSA.
@@ -160,20 +132,15 @@ pub struct Pcm {
 
 impl Pcm {
     /// Create a new async PCM.
-    fn new(direction: SndPcmStream, sr: u32) -> Result<Self, AudioError> {
+    fn new(direction: SndPcmStream, sr: u32) -> Option<Self> {
         // Load shared alsa module.
-        let device = AlsaDevice::new().ok_or_else(|| {
-            AudioError::InternalError(
-                "Could not load AlsaDevice module in shared object!"
-                    .to_string(),
-            )
-        })?;
+        let device = AlsaDevice::new()?;
         // FIXME: Currently only the default device is supported.
         let device_name = CString::new("default").unwrap();
         // Create the ALSA PCM.
         let sound_device: SndPcm = device
             .snd_pcm_open(&device_name, direction, SndPcmMode::Nonblock)
-            .map_err(|_| AudioError::NoDevice)?;
+            .ok()?;
         // Configure Hardware Parameters
         let mut hw_params = pcm_hw_params(
             &device,
@@ -183,11 +150,11 @@ impl Pcm {
         )?;
         // Get the period size (in frames).
         let mut d = 0;
+        // unwrap: Should always be able to get the period size.
         let period_size = device
             .snd_pcm_hw_params_get_period_size(&hw_params, Some(&mut d))
-            .map_err(|_| {
-                AudioError::InternalError("Get Period Size".to_string())
-            })?;
+            .unwrap()
+            ;
         // Free Hardware Parameters
         device.snd_pcm_hw_params_free(&mut hw_params);
         // Get file descriptor
@@ -208,7 +175,7 @@ impl Pcm {
             },
         );
 
-        Ok(Pcm {
+        Some(Pcm {
             device,
             sound_device,
             period_size,
@@ -233,20 +200,15 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(sr: SampleRate) -> Result<Player, AudioError> {
+    pub fn new(sr: SampleRate) -> Option<Player> {
         // Load Player ALSA module
-        let player = AlsaPlayer::new().ok_or_else(|| {
-            AudioError::InternalError(
-                "Could not load AlsaPlayer module in shared object!"
-                    .to_string(),
-            )
-        })?;
+        let player = AlsaPlayer::new()?;
         // Create Playback PCM.
         let pcm = Pcm::new(SndPcmStream::Playback, sr as u32)?;
         // Create buffer
         let buffer = Vec::with_capacity(pcm.period_size);
 
-        Ok(Player {
+        Some(Player {
             player,
             pcm,
             buffer,
@@ -357,20 +319,15 @@ pub struct Recorder {
 }
 
 impl Recorder {
-    pub fn new(sr: SampleRate) -> Result<Recorder, AudioError> {
+    pub fn new(sr: SampleRate) -> Option<Recorder> {
         // Load Recorder ALSA module
-        let recorder = AlsaRecorder::new().ok_or_else(|| {
-            AudioError::InternalError(
-                "Could not load AlsaRecorder module in shared object!"
-                    .to_string(),
-            )
-        })?;
+        let recorder = AlsaRecorder::new()?;
         // Create Capture PCM.
         let pcm = Pcm::new(SndPcmStream::Capture, sr as u32)?;
         // Create buffer (FIXME: do we need a buffer?)
         let buffer = Vec::with_capacity(pcm.period_size);
         // Return successfully
-        Ok(Recorder {
+        Some(Recorder {
             recorder,
             pcm,
             buffer,

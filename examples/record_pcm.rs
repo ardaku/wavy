@@ -4,7 +4,7 @@
 use pasts::{Interrupt, ThreadInterrupt};
 use std::collections::VecDeque;
 use std::io::Write;
-use wavy::{AudioError, Recorder, SampleRate, StereoS16};
+use wavy::{Recorder, SampleRate, StereoS16};
 
 /// Shared data between recorder and player.
 struct Shared {
@@ -15,7 +15,7 @@ struct Shared {
 }
 
 /// Create a new monitor.
-async fn monitor() -> Result<(), AudioError> {
+async fn monitor() {
     /// Extend buffer by slice of new frames from last plugged in device.
     async fn record(shared: &mut Shared) {
         println!("Recording; running total: @{}", shared.buffer.len());
@@ -26,7 +26,7 @@ async fn monitor() -> Result<(), AudioError> {
 
     let buffer = VecDeque::new();
     println!("Opening recorder…");
-    let recorder = Recorder::new(SampleRate::Normal)?;
+    let recorder = Recorder::new(SampleRate::Normal).unwrap();
     println!("Opening player…");
     let mut shared = Shared { buffer, recorder };
     println!("Done, entering async loop…");
@@ -42,11 +42,9 @@ async fn monitor() -> Result<(), AudioError> {
     }
     file.flush().unwrap();
     println!("Quitting…");
-
-    Ok(())
 }
 
 /// Start the async executor.
-fn main() -> Result<(), AudioError> {
+fn main() {
     ThreadInterrupt::block_on(monitor())
 }

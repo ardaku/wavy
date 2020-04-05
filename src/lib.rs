@@ -24,7 +24,7 @@
 //! }
 //!
 //! /// Create a new monitor.
-//! async fn monitor() -> Result<(), AudioError> {
+//! async fn monitor() {
 //!     /// Extend buffer by slice of new frames from last plugged in device.
 //!     async fn record(shared: &mut Shared) {
 //!         let frames = shared.recorder.record_last().await;
@@ -38,15 +38,14 @@
 //!
 //!     let running = true;
 //!     let buffer = VecDeque::new();
-//!     let recorder = Recorder::new(SampleRate::Normal)?;
-//!     let player = Player::new(SampleRate::Normal)?;
+//!     let recorder = Recorder::new(SampleRate::Normal).unwrap();
+//!     let player = Player::new(SampleRate::Normal).unwrap();
 //!     let mut shared = Shared { running, buffer, recorder, player };
 //!     pasts::tasks!(shared while shared.running; [record, play]);
-//!     Ok(())
 //! }
 //!
 //! /// Start the async executor.
-//! fn main() -> Result<(), AudioError> {
+//! fn main() {
 //!     ThreadInterrupt::block_on(monitor())
 //! }
 //! ```
@@ -58,13 +57,13 @@
 )]
 #![deny(unsafe_code)]
 
-mod error;
 mod sample_rate;
 // mod system;
 mod stereo;
 // mod resampler;
 mod player;
 mod recorder;
+mod frame;
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
 mod linux;
@@ -81,7 +80,6 @@ mod apple;
 #[cfg(target_os = "macos")]
 use apple as ffi;
 
-pub use error::AudioError;
 pub use player::Player;
 pub use recorder::Recorder;
 pub use sample_rate::SampleRate;

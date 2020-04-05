@@ -2,7 +2,7 @@
 //! recorded.
 
 use pasts::{Interrupt, ThreadInterrupt};
-use wavy::{AudioError, Player, SampleRate, StereoS16};
+use wavy::{Player, SampleRate, StereoS16};
 
 /// Shared data between recorder and player.
 struct Shared {
@@ -28,7 +28,7 @@ impl Iterator for &mut Generator {
 }
 
 /// Create a new monitor.
-async fn monitor() -> Result<(), AudioError> {
+async fn monitor() {
     /// Drain double ended queue frames into last plugged in device.
     async fn play(shared: &mut Shared) {
         let n_frames = shared.player.play_last(&mut shared.generator).await;
@@ -38,7 +38,7 @@ async fn monitor() -> Result<(), AudioError> {
     let running = true;
     let generator = Generator(-1);
     println!("Opening player…");
-    let player = Player::new(SampleRate::Normal)?;
+    let player = Player::new(SampleRate::Normal).unwrap();
     let mut shared = Shared {
         running,
         generator,
@@ -46,10 +46,9 @@ async fn monitor() -> Result<(), AudioError> {
     };
     println!("Done, entering async loop…");
     pasts::tasks!(shared while shared.running; [play]);
-    Ok(())
 }
 
 /// Start the async executor.
-fn main() -> Result<(), AudioError> {
+fn main() {
     ThreadInterrupt::block_on(monitor())
 }

@@ -6,8 +6,8 @@ pub struct Player(pub(crate) crate::ffi::Player);
 
 impl Player {
     /// Connect to the speaker system at a specific sample rate.
-    pub fn new(sr: crate::SampleRate) -> Result<Player, crate::AudioError> {
-        Ok(Player(crate::ffi::Player::new(sr)?))
+    pub fn new(sr: crate::SampleRate) -> Option<Player> {
+        Some(Player(crate::ffi::Player::new(sr)?))
     }
 
     /// Play audio samples from an iterator.  Get a future that returns the

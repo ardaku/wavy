@@ -1,3 +1,5 @@
+use crate::frame::Frame;
+
 /// Frame with Stereo Signed 16-Bit Little Endian format.  Always 32 bits.
 #[repr(C)]
 #[repr(align(4))]
@@ -7,6 +9,15 @@ pub struct StereoS16 {
     left: i16,
     /// Always stored as Little Endian
     right: i16,
+}
+
+impl Frame for StereoS16 {
+    // Hertz
+    const HZ: u32 = 48_000;
+    // Channel count
+    const CH: u8 = 2;
+    // Type for a sample
+    type Sample = i16;
 }
 
 impl StereoS16 {
