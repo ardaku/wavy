@@ -45,7 +45,7 @@ async fn monitor() -> Result<(), AudioError> {
         player,
     };
     println!("Done, entering async loop…");
-    pasts::run!(shared while shared.running; play);
+    pasts::tasks!(shared while shared.running; [play]);
     Ok(())
 }
 

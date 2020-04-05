@@ -22,10 +22,10 @@ keywords = ["audio", "realtime", "cross-platform", "record", "play"]
 categories = ["game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"]
 
 [dev-dependencies]
-pasts = "0.0"
+pasts = { path = "../../RedAldaron/pasts" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = "0.4"
 
 [target.'cfg(all(not(target_arch = "wasm32"), target_os = "linux"))'.dependencies]
-smelling-salts = { path = "../../lordaldaron/smelling-salts" }
+smelling-salts = { path = "../../RedAldaron/smelling-salts" }
