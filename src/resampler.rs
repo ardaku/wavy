@@ -28,7 +28,7 @@ impl Resampler {
         }
     }
 
-    /// Sample at the new `SampleRate`.
+    /// Sample at the new sample rate.
     #[inline(always)]
     pub fn play(&mut self, input: &[i16]) {
         // Add Input Samples

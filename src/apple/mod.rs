@@ -95,14 +95,14 @@ const NUM_CHANNELS: u32 = 2;
 const NUM_BYTES_PER_SAMPLE: u32 = 2;
 const NUM_BYTES_PER_FRAME: u32 = NUM_CHANNELS * NUM_BYTES_PER_SAMPLE;
 
-fn pcm_hw_params(sr: SampleRate) -> AudioStreamBasicDescription {
+fn pcm_hw_params(sr: u32) -> AudioStreamBasicDescription {
     const AUDIO_FORMAT_LINEAR_PCM: [u8; 4] = *b"lpcm";
 
     const AUDIO_FORMAT_FLAG_IS_SIGNED_INT: u32 = 0x4;
     const AUDIO_FORMAT_FLAG_IS_PACKED: u32 = 0x8;
 
     AudioStreamBasicDescription {
-        sample_rate: sr as u32 as f64,
+        sample_rate: sr as f64,
         format_id: unsafe {
             std::mem::transmute::<[u8; 4], u32>(AUDIO_FORMAT_LINEAR_PCM)
         },
@@ -125,7 +125,7 @@ pub struct Speaker {
 }
 
 impl Speaker {
-    pub fn new(sr: SampleRate) -> Result<Speaker, AudioError> {
+    pub fn new(sr: u32) -> Result<Speaker, AudioError> {
         let hw_params = [pcm_hw_params(sr)];
         let mut audio_queue = std::mem::MaybeUninit::uninit();
         let mut user_ctx = UserCtx { callback: None };
@@ -243,7 +243,7 @@ pub struct Microphone {
 }
 
 impl Microphone {
-    pub fn new(sr: SampleRate) -> Result<Microphone, AudioError> {
+    pub fn new(sr: u32) -> Result<Microphone, AudioError> {
         /*        let sound_device: *mut snd_pcm_t = pcm_open(true, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 

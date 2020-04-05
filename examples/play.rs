@@ -2,7 +2,7 @@
 //! recorded.
 
 use pasts::{Interrupt, ThreadInterrupt};
-use wavy::{Player, SampleRate, S16LEx2};
+use wavy::{Player, S16LEx2};
 
 /// Shared data between recorder and player.
 struct Shared {
@@ -38,7 +38,7 @@ async fn monitor() {
     let running = true;
     let generator = Generator(-1);
     println!("Opening player…");
-    let player = Player::new(SampleRate::Normal).unwrap();
+    let player = Player::new(48_000).unwrap();
     let mut shared = Shared {
         running,
         generator,

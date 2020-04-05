@@ -38,8 +38,8 @@
 //!
 //!     let running = true;
 //!     let buffer = VecDeque::new();
-//!     let recorder = Recorder::new(SampleRate::Normal).unwrap();
-//!     let player = Player::new(SampleRate::Normal).unwrap();
+//!     let recorder = Recorder::new(48_000).unwrap();
+//!     let player = Player::new(48_000).unwrap();
 //!     let mut shared = Shared { running, buffer, recorder, player };
 //!     pasts::tasks!(shared while shared.running; [record, play]);
 //! }
@@ -57,7 +57,6 @@
 )]
 #![deny(unsafe_code)]
 
-mod sample_rate;
 // mod system;
 mod stereo;
 // mod resampler;
@@ -82,5 +81,4 @@ use apple as ffi;
 
 pub use player::Player;
 pub use recorder::Recorder;
-pub use sample_rate::SampleRate;
 pub use stereo::S16LEx2;

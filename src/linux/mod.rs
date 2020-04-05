@@ -16,7 +16,7 @@ use self::gen::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
-use crate::{SampleRate, S16LEx2};
+use crate::S16LEx2;
 
 fn pcm_hw_params(
     device: &AlsaDevice,
@@ -201,11 +201,11 @@ pub struct Player<F: Frame> {
 }
 
 impl<F: Frame> Player<F> {
-    pub fn new(sr: SampleRate) -> Option<Self> {
+    pub fn new(sr: u32) -> Option<Self> {
         // Load Player ALSA module
         let player = AlsaPlayer::new()?;
         // Create Playback PCM.
-        let pcm = Pcm::new(SndPcmStream::Playback, sr as u32)?;
+        let pcm = Pcm::new(SndPcmStream::Playback, sr)?;
         // Create buffer
         let buffer = Vec::with_capacity(pcm.period_size);
 
@@ -319,11 +319,11 @@ pub struct Recorder {
 }
 
 impl Recorder {
-    pub fn new(sr: SampleRate) -> Option<Recorder> {
+    pub fn new(sr: u32) -> Option<Recorder> {
         // Load Recorder ALSA module
         let recorder = AlsaRecorder::new()?;
         // Create Capture PCM.
-        let pcm = Pcm::new(SndPcmStream::Capture, sr as u32)?;
+        let pcm = Pcm::new(SndPcmStream::Capture, sr)?;
         // Create buffer (FIXME: do we need a buffer?)
         let buffer = Vec::with_capacity(pcm.period_size);
         // Return successfully

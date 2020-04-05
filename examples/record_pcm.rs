@@ -4,7 +4,7 @@
 use pasts::{Interrupt, ThreadInterrupt};
 use std::collections::VecDeque;
 use std::io::Write;
-use wavy::{Recorder, SampleRate, S16LEx2};
+use wavy::{Recorder, S16LEx2};
 
 /// Shared data between recorder and player.
 struct Shared {
@@ -26,7 +26,7 @@ async fn monitor() {
 
     let buffer = VecDeque::new();
     println!("Opening recorder…");
-    let recorder = Recorder::new(SampleRate::Normal).unwrap();
+    let recorder = Recorder::new(48_000).unwrap();
     println!("Opening player…");
     let mut shared = Shared { buffer, recorder };
     println!("Done, entering async loop…");

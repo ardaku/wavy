@@ -20,7 +20,7 @@ pub struct Speaker {
 }
 
 impl Speaker {
-    pub fn new(sr: SampleRate) -> Result<Speaker, AudioError> {
+    pub fn new(sr: u32) -> Result<Speaker, AudioError> {
         /*let sound_device: *mut snd_pcm_t = pcm_open(false, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 
@@ -118,7 +118,7 @@ pub struct Microphone {
 }
 
 impl Microphone {
-    pub fn new(sr: SampleRate) -> Result<Microphone, AudioError> {
+    pub fn new(sr: u32) -> Result<Microphone, AudioError> {
         /*        let sound_device: *mut snd_pcm_t = pcm_open(true, b"default\0")?;
         let hw_params = pcm_hw_params(sr, sound_device)?;
 

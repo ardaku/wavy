@@ -8,7 +8,7 @@ pub struct Player<F: Frame>(pub(crate) ffi::Player<F>);
 
 impl<F: Frame> Player<F> {
     /// Connect to the speaker system at a specific sample rate.
-    pub fn new(sr: crate::SampleRate) -> Option<Player<F>> {
+    pub fn new(sr: u32) -> Option<Player<F>> {
         Some(Player(ffi::Player::new(sr)?))
     }
 

@@ -50,8 +50,8 @@ async fn monitor() -> Result<(), AudioError> {
 
     let running = true;
     let buffer = VecDeque::new();
-    let recorder = Recorder::new(SampleRate::Normal)?;
-    let player = Player::new(SampleRate::Normal)?;
+    let recorder = Recorder::new(48_000)?;
+    let player = Player::new(48_000)?;
     let mut shared = Shared { running, buffer, recorder, player };
     pasts::tasks!(shared while shared.running; [record, play]);
     Ok(())

@@ -3,7 +3,7 @@
 
 use pasts::{Interrupt, ThreadInterrupt};
 use std::collections::VecDeque;
-use wavy::{Player, Recorder, SampleRate, S16LEx2};
+use wavy::{Player, Recorder, S16LEx2};
 
 /// Shared data between recorder and player.
 struct Shared {
@@ -32,8 +32,8 @@ async fn monitor() {
 
     let running = true;
     let buffer = VecDeque::new();
-    let recorder = Recorder::new(SampleRate::Normal).unwrap();
-    let player = Player::new(SampleRate::Normal).unwrap();
+    let recorder = Recorder::new(48_000).unwrap();
+    let player = Player::new(48_000).unwrap();
     let mut shared = Shared {
         running,
         buffer,
