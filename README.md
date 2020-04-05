@@ -53,7 +53,7 @@ async fn monitor() -> Result<(), AudioError> {
     let recorder = Recorder::new(SampleRate::Normal)?;
     let player = Player::new(SampleRate::Normal)?;
     let mut shared = Shared { running, buffer, recorder, player };
-    pasts::run!(shared while shared.running; record, play);
+    pasts::tasks!(shared while shared.running; [record, play]);
     Ok(())
 }
 
