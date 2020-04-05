@@ -1,7 +1,5 @@
 // Sealed trait for Frames
-pub trait Frame {
-    // Hertz
-    const HZ: u32;
+pub trait Frame: Copy + Clone {
     // Channel count
     const CH: u8;
     // Type for a sample

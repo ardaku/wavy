@@ -6,6 +6,7 @@ use std::iter::IntoIterator;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
+use crate::frame::Frame;
 
 // Update with: `dl_api ffi/asound,so,2.muon src/linux/gen.rs`
 #[rustfmt::skip]
@@ -15,7 +16,7 @@ use self::gen::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
-use crate::{SampleRate, StereoS16};
+use crate::{SampleRate, S16LEx2};
 
 fn pcm_hw_params(
     device: &AlsaDevice,
@@ -193,14 +194,14 @@ impl Drop for Pcm {
     }
 }
 
-pub struct Player {
+pub struct Player<F: Frame> {
     player: AlsaPlayer,
     pcm: Pcm,
-    buffer: Vec<StereoS16>,
+    buffer: Vec<F>,
 }
 
-impl Player {
-    pub fn new(sr: SampleRate) -> Option<Player> {
+impl<F: Frame> Player<F> {
+    pub fn new(sr: SampleRate) -> Option<Self> {
         // Load Player ALSA module
         let player = AlsaPlayer::new()?;
         // Create Playback PCM.
@@ -221,7 +222,7 @@ impl Player {
         iter: impl IntoIterator<Item = T>,
     ) -> usize
     where
-        T: Borrow<StereoS16>,
+        T: Borrow<F>,
     {
         let mut iter = iter.into_iter();
         // If buffer is empty, fill it.
@@ -240,7 +241,7 @@ impl Player {
     }
 }
 
-impl Future for &mut Player {
+impl<F: Frame> Future for &mut Player<F> {
     type Output = usize;
 
     #[allow(unsafe_code)]
@@ -251,8 +252,7 @@ impl Future for &mut Player {
         let len = match this.player.snd_pcm_writei(
             &this.pcm.sound_device,
             unsafe {
-                &*(this.buffer.as_slice() as *const [StereoS16]
-                    as *const [u32])
+                &*(this.buffer.as_slice() as *const [F] as *const [u32])
             },
         ) {
             Err(error) => {
@@ -315,7 +315,7 @@ impl Future for &mut Player {
 pub struct Recorder {
     recorder: AlsaRecorder,
     pcm: Pcm,
-    buffer: Vec<StereoS16>,
+    buffer: Vec<S16LEx2>,
 }
 
 impl Recorder {
@@ -334,7 +334,7 @@ impl Recorder {
         })
     }
 
-    pub async fn record_last(&mut self) -> &[StereoS16] {
+    pub async fn record_last(&mut self) -> &[S16LEx2] {
         (&mut *self).await;
         &self.buffer
     }

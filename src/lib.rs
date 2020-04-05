@@ -16,11 +16,11 @@
 //!     /// A boolean to indicate whether or not the program is still running.
 //!     running: bool,
 //!     /// A stereo audio buffer.
-//!     buffer: VecDeque<StereoS16>,
+//!     buffer: VecDeque<S16LEx2>,
 //!     /// Audio Recorder
 //!     recorder: Recorder,
 //!     /// Audio Player
-//!     player: Player,
+//!     player: Player<S16LEx2>,
 //! }
 //!
 //! /// Create a new monitor.
@@ -83,4 +83,4 @@ use apple as ffi;
 pub use player::Player;
 pub use recorder::Recorder;
 pub use sample_rate::SampleRate;
-pub use stereo::StereoS16;
+pub use stereo::S16LEx2;

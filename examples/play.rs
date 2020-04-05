@@ -2,14 +2,14 @@
 //! recorded.
 
 use pasts::{Interrupt, ThreadInterrupt};
-use wavy::{Player, SampleRate, StereoS16};
+use wavy::{Player, SampleRate, S16LEx2};
 
 /// Shared data between recorder and player.
 struct Shared {
     /// A boolean to indicate whether or not the program is still running.
     running: bool,
     /// Audio Player
-    player: Player,
+    player: Player<S16LEx2>,
     /// Generator
     generator: Generator,
 }
@@ -18,12 +18,12 @@ struct Shared {
 pub struct Generator(i8);
 
 impl Iterator for &mut Generator {
-    type Item = StereoS16;
+    type Item = S16LEx2;
 
-    fn next(&mut self) -> Option<StereoS16> {
+    fn next(&mut self) -> Option<S16LEx2> {
         self.0 = self.0.wrapping_add(1);
         let sample = self.0 as i16 * 255;
-        Some(StereoS16::new(sample, sample))
+        Some(S16LEx2::new(sample, sample))
     }
 }
 
