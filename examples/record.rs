@@ -2,7 +2,6 @@
 //! recorded.
 
 use pasts::{Interrupt, ThreadInterrupt};
-use std::collections::VecDeque;
 use wavy::{Player, Recorder, S16LEx2};
 
 /// Shared data between recorder and player.
@@ -10,9 +9,9 @@ struct Shared {
     /// A boolean to indicate whether or not the program is still running.
     running: bool,
     /// A stereo audio buffer.
-    buffer: VecDeque<S16LEx2>,
+    buffer: Vec<S16LEx2>,
     /// Audio Recorder
-    recorder: Recorder,
+    recorder: Recorder<S16LEx2>,
     /// Audio Player
     player: Player<S16LEx2>,
 }
@@ -21,17 +20,16 @@ struct Shared {
 async fn monitor() {
     /// Extend buffer by slice of new frames from last plugged in device.
     async fn record(shared: &mut Shared) {
-        let frames = shared.recorder.record_last().await;
-        shared.buffer.extend(frames);
+        shared.recorder.record_last(&mut shared.buffer).await;
     }
     /// Drain double ended queue frames into last plugged in device.
     async fn play(shared: &mut Shared) {
-        let n_frames = shared.player.play_last(shared.buffer.iter()).await;
+        let n_frames = shared.player.play_last(shared.buffer.as_slice()).await;
         shared.buffer.drain(..n_frames.min(shared.buffer.len()));
     }
 
     let running = true;
-    let buffer = VecDeque::new();
+    let buffer = Vec::new();
     let recorder = Recorder::new(48_000).unwrap();
     let player = Player::new(48_000).unwrap();
     let mut shared = Shared {

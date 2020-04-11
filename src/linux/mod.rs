@@ -1,12 +1,11 @@
-use std::borrow::Borrow;
+use crate::frame::Frame;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::future::Future;
-use std::iter::IntoIterator;
+use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
-use crate::frame::Frame;
 
 // Update with: `dl_api ffi/asound,so,2.muon src/linux/gen.rs`
 #[rustfmt::skip]
@@ -16,7 +15,6 @@ use self::gen::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
-use crate::S16LEx2;
 
 fn pcm_hw_params(
     device: &AlsaDevice,
@@ -69,10 +67,7 @@ fn pcm_hw_params(
         )
         .unwrap();
     if actual_rate != sr {
-        panic!(
-            "Failed to set rate: {}, Got: {} instead!",
-            sr, actual_rate
-        );
+        panic!("Failed to set rate: {}, Got: {} instead!", sr, actual_rate);
     }
     // Period size must be a power of two
     // Currently only tries 1024
@@ -93,7 +88,7 @@ fn pcm_hw_params(
     }
     // Set buffer size to about 3 times the period (setting latency).
     if limit_buffer {
-        let mut buffer_size = period_size * 3;
+        let mut buffer_size = 1024 * 3;
         // unwrap: Some buffer size should always be available.
         device
             .snd_pcm_hw_params_set_buffer_size_near(
@@ -105,20 +100,14 @@ fn pcm_hw_params(
     } else {
         // Apply the hardware parameters that just got set.
         // unwrap: Should always be able to apply parameters that succeeded
-        device
-            .snd_pcm_hw_params(sound_device, &hw_params)
-            .unwrap();
+        device.snd_pcm_hw_params(sound_device, &hw_params).unwrap();
         // Get rid of garbage.
         // unwrap: Should always be able free data from the heap.
-        device
-            .snd_pcm_drop(&sound_device)
-            .unwrap();
+        device.snd_pcm_drop(&sound_device).unwrap();
     }
     // Re-Apply the hardware parameters that just got set.
     // unwrap: Should always be able to apply parameters that succeeded
-    device
-        .snd_pcm_hw_params(sound_device, &hw_params)
-        .unwrap();
+    device.snd_pcm_hw_params(sound_device, &hw_params).unwrap();
 
     Some(hw_params)
 }
@@ -128,7 +117,6 @@ pub struct Pcm {
     device: AlsaDevice,
     sound_device: SndPcm,
     fd: smelling_salts::Device,
-    period_size: usize,
 }
 
 impl Pcm {
@@ -149,13 +137,6 @@ impl Pcm {
             &sound_device,
             direction == SndPcmStream::Playback,
         )?;
-        // Get the period size (in frames).
-        let mut d = 0;
-        // unwrap: Should always be able to get the period size.
-        let period_size = device
-            .snd_pcm_hw_params_get_period_size(&hw_params, Some(&mut d))
-            .unwrap()
-            ;
         // Free Hardware Parameters
         device.snd_pcm_hw_params_free(&mut hw_params);
         // Get file descriptor
@@ -179,7 +160,6 @@ impl Pcm {
         Some(Pcm {
             device,
             sound_device,
-            period_size,
             fd,
         })
     }
@@ -194,54 +174,9 @@ impl Drop for Pcm {
     }
 }
 
-pub struct Player<F: Frame> {
-    player: AlsaPlayer,
-    pcm: Pcm,
-    buffer: Vec<F>,
-}
+pub struct PlayerFuture<'a, 'b, F: Frame>(&'a [F], &'b Pcm, &'b AlsaPlayer);
 
-impl<F: Frame> Player<F> {
-    pub fn new(sr: u32) -> Option<Self> {
-        // Load Player ALSA module
-        let player = AlsaPlayer::new()?;
-        // Create Playback PCM.
-        let pcm = Pcm::new(SndPcmStream::Playback, sr)?;
-        // Create buffer
-        let buffer = Vec::with_capacity(pcm.period_size);
-
-        Some(Player {
-            player,
-            pcm,
-            buffer,
-        })
-    }
-
-    #[allow(unsafe_code)]
-    pub async fn play_last<T>(
-        &mut self,
-        iter: impl IntoIterator<Item = T>,
-    ) -> usize
-    where
-        T: Borrow<F>,
-    {
-        let mut iter = iter.into_iter();
-        // If buffer is empty, fill it.
-        if self.buffer.is_empty() {
-            // Write # of frames equal to the period size into the buffer.
-            for _ in 0..self.pcm.period_size {
-                let f = match iter.next() {
-                    Some(f) => *f.borrow(),
-                    None => break,
-                };
-                self.buffer.push(f);
-            }
-        }
-        // Number of frames.
-        (&mut *self).await
-    }
-}
-
-impl<F: Frame> Future for &mut Player<F> {
+impl<F: Frame> Future for PlayerFuture<'_, '_, F> {
     type Output = usize;
 
     #[allow(unsafe_code)]
@@ -249,28 +184,29 @@ impl<F: Frame> Future for &mut Player<F> {
         let this = Pin::into_inner(self);
 
         // Record into temporary buffer.
-        let len = match this.player.snd_pcm_writei(
-            &this.pcm.sound_device,
-            unsafe {
-                &*(this.buffer.as_slice() as *const [F] as *const [u32])
-            },
-        ) {
+        let len = match this.2.snd_pcm_writei(&this.1.sound_device, this.0) {
             Err(error) => {
-                let state =
-                    this.pcm.device.snd_pcm_state(&this.pcm.sound_device);
+                let state = this.1.device.snd_pcm_state(&this.1.sound_device);
                 match error {
                     // Edge-triggered epoll should only go into pending mode if
                     // read/write call results in EAGAIN (according to epoll man
                     // page)
                     -11 => {
-                        this.pcm.fd.register_waker(cx.waker().clone());
+                        this.1.fd.register_waker(cx.waker().clone());
                         return Poll::Pending;
                     }
                     -32 => match state {
                         SndPcmState::Xrun => {
-                            this.pcm
+                            // Player samples are not generated fast enough
+                            this.1
                                 .device
-                                .snd_pcm_prepare(&this.pcm.sound_device)
+                                .snd_pcm_prepare(&this.1.sound_device)
+                                .unwrap();
+                            this.2
+                                .snd_pcm_writei(
+                                    &this.1.sound_device,
+                                    &[F::default(); 1024 * 3],
+                                )
                                 .unwrap();
                             return Poll::Pending;
                         }
@@ -286,15 +222,21 @@ impl<F: Frame> Future for &mut Player<F> {
                     -86 => {
                         eprintln!("Stream got suspended, trying to recover… (-ESTRPIPE)");
                         if this
-                            .pcm
+                            .1
                             .device
-                            .snd_pcm_resume(&this.pcm.sound_device)
+                            .snd_pcm_resume(&this.1.sound_device)
                             .is_ok()
                         {
                             // Prepare, so we keep getting samples.
-                            this.pcm
+                            this.1
                                 .device
-                                .snd_pcm_prepare(&this.pcm.sound_device)
+                                .snd_pcm_prepare(&this.1.sound_device)
+                                .unwrap();
+                            this.2
+                                .snd_pcm_writei(
+                                    &this.1.sound_device,
+                                    &[F::default(); 1024 * 3],
+                                )
                                 .unwrap();
                         }
                         return Poll::Pending;
@@ -304,65 +246,59 @@ impl<F: Frame> Future for &mut Player<F> {
             }
             Ok(len) => len as usize,
         };
-        assert_eq!(len, this.buffer.len());
-        // Clear the output buffer (Keeps capacity of 1 period the same)
-        this.buffer.clear();
         // Return ready, successfully read some data into the buffer.
         Poll::Ready(len)
     }
 }
 
-pub struct Recorder {
-    recorder: AlsaRecorder,
+pub struct Player<F: Frame> {
+    player: AlsaPlayer,
     pcm: Pcm,
-    buffer: Vec<S16LEx2>,
+    _phantom: PhantomData<F>,
 }
 
-impl Recorder {
-    pub fn new(sr: u32) -> Option<Recorder> {
-        // Load Recorder ALSA module
-        let recorder = AlsaRecorder::new()?;
-        // Create Capture PCM.
-        let pcm = Pcm::new(SndPcmStream::Capture, sr)?;
-        // Create buffer (FIXME: do we need a buffer?)
-        let buffer = Vec::with_capacity(pcm.period_size);
-        // Return successfully
-        Some(Recorder {
-            recorder,
+impl<F: Frame> Player<F> {
+    pub fn new(sr: u32) -> Option<Self> {
+        // Load Player ALSA module
+        let player = AlsaPlayer::new()?;
+        // Create Playback PCM.
+        let pcm = Pcm::new(SndPcmStream::Playback, sr)?;
+        let _phantom = PhantomData;
+
+        Some(Player {
+            player,
             pcm,
-            buffer,
+            _phantom,
         })
     }
 
-    pub async fn record_last(&mut self) -> &[S16LEx2] {
-        (&mut *self).await;
-        &self.buffer
+    #[allow(unsafe_code)]
+    pub async fn play_last(&mut self, audio: &[F]) -> usize {
+        PlayerFuture(audio, &self.pcm, &self.player).await
     }
 }
 
-impl Future for &mut Recorder {
+struct RecorderFuture<'a, 'b, F: Frame>(
+    &'a mut Vec<F>,
+    &'b Pcm,
+    &'b AlsaRecorder,
+);
+
+impl<F: Frame> Future for RecorderFuture<'_, '_, F> {
     type Output = ();
 
     #[allow(unsafe_code)]
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let this = Pin::into_inner(self);
-        // Clear the output buffer (Keeps capacity of 1 period the same)
-        this.buffer.clear();
         // Record into temporary buffer.
-        if let Err(error) =
-            this.recorder.snd_pcm_readi(&this.pcm.sound_device, unsafe {
-                &mut *(&mut this.buffer as *mut _ as *mut Vec<u32>)
-            })
-        {
-            // Len is garbage, this resets it to 0
-            this.buffer.clear();
-            let state = this.pcm.device.snd_pcm_state(&this.pcm.sound_device);
+        if let Err(error) = this.2.snd_pcm_readi(&this.1.sound_device, this.0) {
+            let state = this.1.device.snd_pcm_state(&this.1.sound_device);
             match error {
                 // Edge-triggered epoll should only go into pending mode if
                 // read/write call results in EAGAIN (according to epoll man
                 // page)
                 -11 => {
-                    this.pcm.fd.register_waker(cx.waker().clone());
+                    this.1.fd.register_waker(cx.waker().clone());
                     return Poll::Pending;
                 }
                 -77 => {
@@ -371,9 +307,10 @@ impl Future for &mut Recorder {
                 }
                 -32 => match state {
                     SndPcmState::Xrun => {
-                        this.pcm
+                        eprintln!("Recorder XRUN: Latency cause?");
+                        this.1
                             .device
-                            .snd_pcm_prepare(&this.pcm.sound_device)
+                            .snd_pcm_prepare(&this.1.sound_device)
                             .unwrap();
                         return Poll::Pending;
                     }
@@ -387,15 +324,15 @@ impl Future for &mut Recorder {
                         "Stream got suspended, trying to recover… (-ESTRPIPE)"
                     );
                     if this
-                        .pcm
+                        .1
                         .device
-                        .snd_pcm_resume(&this.pcm.sound_device)
+                        .snd_pcm_resume(&this.1.sound_device)
                         .is_ok()
                     {
                         // Prepare, so we keep getting samples.
-                        this.pcm
+                        this.1
                             .device
-                            .snd_pcm_prepare(&this.pcm.sound_device)
+                            .snd_pcm_prepare(&this.1.sound_device)
                             .unwrap();
                     }
                     return Poll::Pending;
@@ -405,5 +342,31 @@ impl Future for &mut Recorder {
         }
         // Return ready, successfully read some data into the buffer.
         Poll::Ready(())
+    }
+}
+
+pub struct Recorder<F: Frame> {
+    recorder: AlsaRecorder,
+    pcm: Pcm,
+    _phantom: PhantomData<F>,
+}
+
+impl<F: Frame> Recorder<F> {
+    pub fn new(sr: u32) -> Option<Self> {
+        // Load Recorder ALSA module
+        let recorder = AlsaRecorder::new()?;
+        // Create Capture PCM.
+        let pcm = Pcm::new(SndPcmStream::Capture, sr)?;
+        let _phantom = PhantomData;
+        // Return successfully
+        Some(Recorder {
+            recorder,
+            pcm,
+            _phantom,
+        })
+    }
+
+    pub async fn record_last(&mut self, audio: &mut Vec<F>) {
+        RecorderFuture(audio, &self.pcm, &self.recorder).await
     }
 }

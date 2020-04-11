@@ -635,29 +635,6 @@ impl AlsaDevice {
             Ok(())
         }
     }
-    /// Extract period size from a configuration space.
-    /// - `params`: Configuration space
-    /// - `val`: Returned approximate period size in frames
-    /// - `dir`: Sub unit direction
-    pub fn snd_pcm_hw_params_get_period_size(&self,
-        params: &SndPcmHwParams,
-        dir: Option<&mut i32>,
-    ) -> Result<usize, i32>
-    {
-        unsafe {
-            let mut frames = std::mem::MaybeUninit::uninit();
-            let mut __dir: _ = if let Some(_temp) = dir.iter().next() { Some(**_temp as _) } else { None };
-            let __ret = ((FN_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE).assume_init())(
-                params.0,
-                frames.as_mut_ptr(),
-                if let Some(ref mut _temp) = __dir { _temp } else { std::ptr::null_mut() },
-            );
-            let frames = frames.assume_init();
-            if let Some(_temp) = dir { *_temp = __dir.unwrap() as _; }
-            if __ret < 0 { return Err(__ret as _) };
-            Ok(frames as _)
-        }
-    }
     /// Frees a previously allocated snd_pcm_hw_params_t
     pub fn snd_pcm_hw_params_free(&self,
         obj: &mut SndPcmHwParams,
@@ -809,15 +786,15 @@ impl AlsaPlayer {
     /// 
     /// If the non-blocking behaviour is selected, then routine doesn't wait at
     /// all.
-    pub fn snd_pcm_writei(&self,
+    pub fn snd_pcm_writei<F: super::Frame>(&self,
         pcm: &SndPcm,
-        buffer: &[u32],
+        buffer: &[F],
     ) -> Result<isize, isize>
     {
         unsafe {
             let __ret = ((FN_SND_PCM_WRITEI).assume_init())(
                 pcm.0,
-                buffer.as_ptr(),
+                buffer.as_ptr() as _,
                 buffer.len() as _,
             );
             if __ret < 0 { return Err(__ret as _) };
@@ -855,19 +832,20 @@ impl AlsaRecorder {
     /// 
     /// If the non-blocking behaviour is selected, then routine doesn't wait at
     /// all.
-    pub fn snd_pcm_readi(&self,
+    pub fn snd_pcm_readi<F: super::Frame>(&self,
         pcm: &SndPcm,
-        buffer: &mut Vec<u32>,
+        buffer: &mut Vec<F>,
     ) -> Result<(), isize>
     {
+        let len = buffer.len();
         unsafe {
             let __ret = ((FN_SND_PCM_READI).assume_init())(
                 pcm.0,
-                buffer.as_mut_ptr(),
-                buffer.capacity() as _,
+                buffer[len..].as_mut_ptr() as _,
+                (buffer.capacity() - len) as _,
             );
-            buffer.set_len(__ret as _);
             if __ret < 0 { return Err(__ret as _) };
+            buffer.set_len(len + __ret as usize);
             Ok(())
         }
     }

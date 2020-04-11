@@ -2,7 +2,7 @@ use crate::frame::Frame;
 
 /// Frame with Stereo Signed 16-Bit Little Endian format.  Always 32 bits.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct S16LEx2([u8; 4]);
 
 impl Frame for S16LEx2 {
