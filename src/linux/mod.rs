@@ -320,8 +320,6 @@ impl<F: Frame> Recorder<F> {
     }
 
     pub(crate) fn record_last(&mut self, audio: &mut Vec<F>) {
-        let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
-
         // Record into temporary buffer.
         if let Err(error) =
             self.recorder.snd_pcm_readi(&self.pcm.sound_device, audio)

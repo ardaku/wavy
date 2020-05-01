@@ -37,8 +37,7 @@ async fn monitor() {
         }
     }
 
-    let mut shared = Shared { buffer: Vec::new() };
-    let mut shared = RefCell::new(shared);
+    let shared = RefCell::new(Shared { buffer: Vec::new() });
     let mut record = record(&shared);
     let mut play = play(&shared);
     println!("Entering async loop…");
