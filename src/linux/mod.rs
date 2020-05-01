@@ -1,9 +1,7 @@
 use crate::frame::Frame;
 use std::convert::TryInto;
 use std::ffi::CString;
-use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
@@ -147,8 +145,9 @@ impl Pcm {
         device
             .snd_pcm_poll_descriptors(&sound_device, &mut fd_list)
             .unwrap();
-        assert_eq!(fd_count, 1); // TODO: More?
-                                 // Register file descriptor with OS's I/O Event Notifier
+        // FIXME: More?
+        assert_eq!(fd_count, 1);
+        // Register file descriptor with OS's I/O Event Notifier
         let fd = smelling_salts::Device::new(
             fd_list[0].fd,
             #[allow(unsafe_code)]
@@ -174,41 +173,78 @@ impl Drop for Pcm {
     }
 }
 
-pub struct PlayerFuture<'a, 'b, F: Frame>(&'a [F], &'b Pcm, &'b AlsaPlayer);
+pub(crate) struct Player<F: Frame> {
+    player: AlsaPlayer,
+    pcm: Pcm,
+    is_ready: bool,
+    _phantom: PhantomData<F>,
+}
 
-impl<F: Frame> Future for PlayerFuture<'_, '_, F> {
-    type Output = usize;
+impl<F: Frame> Player<F> {
+    pub(crate) fn new(sr: u32) -> Option<Self> {
+        // Load Player ALSA module
+        let player = AlsaPlayer::new()?;
+        // Create Playback PCM.
+        let pcm = Pcm::new(SndPcmStream::Playback, sr)?;
+        let is_ready = true;
+        let _phantom = PhantomData;
 
-    #[allow(unsafe_code)]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let this = Pin::into_inner(self);
+        Some(Player {
+            player,
+            pcm,
+            is_ready,
+            _phantom,
+        })
+    }
+
+    pub(crate) fn poll(&mut self, cx: &mut Context) -> Poll<()> {
+        if self.is_ready {
+            // Default to ready
+            Poll::Ready(())
+        } else {
+            // Next time this task wakes up, assume ready.
+            self.is_ready = true;
+            // Register waker, and then return not ready.
+            println!("Registering PLAYER");
+            self.pcm.fd.register_waker(cx.waker().clone());
+            Poll::Pending
+        }
+    }
+
+    pub(crate) fn play_last(&mut self, audio: &[F]) -> usize {
+        let silence = [F::default(); 1024];
+        let audio = if audio.is_empty() {
+            &silence
+        } else {
+            audio
+        };
 
         // Record into temporary buffer.
-        let len = match this.2.snd_pcm_writei(&this.1.sound_device, this.0) {
+        match self.player.snd_pcm_writei(&self.pcm.sound_device, audio) {
             Err(error) => {
-                let state = this.1.device.snd_pcm_state(&this.1.sound_device);
+                let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
                 match error {
                     // Edge-triggered epoll should only go into pending mode if
                     // read/write call results in EAGAIN (according to epoll man
                     // page)
                     -11 => {
-                        this.1.fd.register_waker(cx.waker().clone());
-                        return Poll::Pending;
+                        self.is_ready = false;
+                        0
                     }
                     -32 => match state {
                         SndPcmState::Xrun => {
                             // Player samples are not generated fast enough
-                            this.1
+                            self.pcm
                                 .device
-                                .snd_pcm_prepare(&this.1.sound_device)
+                                .snd_pcm_prepare(&self.pcm.sound_device)
                                 .unwrap();
-                            this.2
+                            self.player
                                 .snd_pcm_writei(
-                                    &this.1.sound_device,
-                                    &[F::default(); 1024 * 3],
+                                    &self.pcm.sound_device,
+                                    &silence,
                                 )
                                 .unwrap();
-                            return Poll::Pending;
+                            0
                         }
                         st => {
                             eprintln!("Incorrect state = {:?} (XRUN): Report Bug to https://github.com/libcala/wavy/issues/new", st);
@@ -221,85 +257,86 @@ impl<F: Frame> Future for PlayerFuture<'_, '_, F> {
                     }
                     -86 => {
                         eprintln!("Stream got suspended, trying to recover… (-ESTRPIPE)");
-                        if this
-                            .1
+                        if self
+                            .pcm
                             .device
-                            .snd_pcm_resume(&this.1.sound_device)
+                            .snd_pcm_resume(&self.pcm.sound_device)
                             .is_ok()
                         {
                             // Prepare, so we keep getting samples.
-                            this.1
+                            self.pcm
                                 .device
-                                .snd_pcm_prepare(&this.1.sound_device)
+                                .snd_pcm_prepare(&self.pcm.sound_device)
                                 .unwrap();
-                            this.2
+                            self.player
                                 .snd_pcm_writei(
-                                    &this.1.sound_device,
-                                    &[F::default(); 1024 * 3],
+                                    &self.pcm.sound_device,
+                                    &silence,
                                 )
                                 .unwrap();
                         }
-                        return Poll::Pending;
+                        0
                     }
                     _ => unreachable!(),
                 }
             }
             Ok(len) => len as usize,
-        };
-        // Return ready, successfully read some data into the buffer.
-        Poll::Ready(len)
+        }
     }
 }
 
-pub struct Player<F: Frame> {
-    player: AlsaPlayer,
+pub(crate) struct Recorder<F: Frame> {
+    recorder: AlsaRecorder,
     pcm: Pcm,
+    is_ready: bool,
     _phantom: PhantomData<F>,
 }
 
-impl<F: Frame> Player<F> {
-    pub fn new(sr: u32) -> Option<Self> {
-        // Load Player ALSA module
-        let player = AlsaPlayer::new()?;
-        // Create Playback PCM.
-        let pcm = Pcm::new(SndPcmStream::Playback, sr)?;
+impl<F: Frame> Recorder<F> {
+    pub(crate) fn new(sr: u32) -> Option<Self> {
+        // Load Recorder ALSA module
+        let recorder = AlsaRecorder::new()?;
+        // Create Capture PCM.
+        let pcm = Pcm::new(SndPcmStream::Capture, sr)?;
+        // pcm.device.snd_pcm_start(&pcm.sound_device).unwrap();
+        let is_ready = true;
         let _phantom = PhantomData;
-
-        Some(Player {
-            player,
+        // Return successfully
+        Some(Recorder {
+            recorder,
             pcm,
+            is_ready,
             _phantom,
         })
     }
 
-    #[allow(unsafe_code)]
-    pub async fn play_last(&mut self, audio: &[F]) -> usize {
-        PlayerFuture(audio, &self.pcm, &self.player).await
+    pub(crate) fn poll(&mut self, cx: &mut Context) -> Poll<()> {
+        if self.is_ready {
+            // Default to ready
+            Poll::Ready(())
+        } else {
+            // Next time this task wakes up, assume ready.
+            self.is_ready = true;
+            // Register waker, and then return not ready.
+            println!("Registering RECORDER");
+            self.pcm.fd.register_waker(cx.waker().clone());
+            Poll::Pending
+        }
     }
-}
 
-struct RecorderFuture<'a, 'b, F: Frame>(
-    &'a mut Vec<F>,
-    &'b Pcm,
-    &'b AlsaRecorder,
-);
+    pub(crate) fn record_last(&mut self, audio: &mut Vec<F>) {
+            let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
+        println!("STATE {:?} {} {} {}", state, self.is_ready, audio.capacity(), audio.len());
 
-impl<F: Frame> Future for RecorderFuture<'_, '_, F> {
-    type Output = ();
-
-    #[allow(unsafe_code)]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let this = Pin::into_inner(self);
         // Record into temporary buffer.
-        if let Err(error) = this.2.snd_pcm_readi(&this.1.sound_device, this.0) {
-            let state = this.1.device.snd_pcm_state(&this.1.sound_device);
+        if let Err(error) = self.recorder.snd_pcm_readi(&self.pcm.sound_device, audio) {
+            let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
             match error {
                 // Edge-triggered epoll should only go into pending mode if
                 // read/write call results in EAGAIN (according to epoll man
                 // page)
                 -11 => {
-                    this.1.fd.register_waker(cx.waker().clone());
-                    return Poll::Pending;
+                    self.is_ready = false;
                 }
                 -77 => {
                     eprintln!("Incorrect state (-EBADFD): Report Bug to https://github.com/libcala/wavy/issues/new");
@@ -308,11 +345,10 @@ impl<F: Frame> Future for RecorderFuture<'_, '_, F> {
                 -32 => match state {
                     SndPcmState::Xrun => {
                         eprintln!("Recorder XRUN: Latency cause?");
-                        this.1
+                        self.pcm
                             .device
-                            .snd_pcm_prepare(&this.1.sound_device)
+                            .snd_pcm_prepare(&self.pcm.sound_device)
                             .unwrap();
-                        return Poll::Pending;
                     }
                     st => {
                         eprintln!("Incorrect state = {:?} (XRUN): Report Bug to https://github.com/libcala/wavy/issues/new", st);
@@ -323,50 +359,20 @@ impl<F: Frame> Future for RecorderFuture<'_, '_, F> {
                     eprintln!(
                         "Stream got suspended, trying to recover… (-ESTRPIPE)"
                     );
-                    if this
-                        .1
+                    if self.pcm
                         .device
-                        .snd_pcm_resume(&this.1.sound_device)
+                        .snd_pcm_resume(&self.pcm.sound_device)
                         .is_ok()
                     {
                         // Prepare, so we keep getting samples.
-                        this.1
+                        self.pcm
                             .device
-                            .snd_pcm_prepare(&this.1.sound_device)
+                            .snd_pcm_prepare(&self.pcm.sound_device)
                             .unwrap();
                     }
-                    return Poll::Pending;
                 }
                 _ => unreachable!(),
             }
         }
-        // Return ready, successfully read some data into the buffer.
-        Poll::Ready(())
-    }
-}
-
-pub struct Recorder<F: Frame> {
-    recorder: AlsaRecorder,
-    pcm: Pcm,
-    _phantom: PhantomData<F>,
-}
-
-impl<F: Frame> Recorder<F> {
-    pub fn new(sr: u32) -> Option<Self> {
-        // Load Recorder ALSA module
-        let recorder = AlsaRecorder::new()?;
-        // Create Capture PCM.
-        let pcm = Pcm::new(SndPcmStream::Capture, sr)?;
-        let _phantom = PhantomData;
-        // Return successfully
-        Some(Recorder {
-            recorder,
-            pcm,
-            _phantom,
-        })
-    }
-
-    pub async fn record_last(&mut self, audio: &mut Vec<F>) {
-        RecorderFuture(audio, &self.pcm, &self.recorder).await
     }
 }

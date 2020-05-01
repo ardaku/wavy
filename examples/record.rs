@@ -1,45 +1,53 @@
 //! This example records audio and plays it back in real time as it's being
 //! recorded.
 
-use pasts::{Interrupt, ThreadInterrupt};
+use pasts::ThreadInterrupt;
+use pasts::prelude::*;
 use wavy::{Player, Recorder, S16LEx2};
+
+use std::cell::RefCell;
 
 /// Shared data between recorder and player.
 struct Shared {
-    /// A boolean to indicate whether or not the program is still running.
-    running: bool,
     /// A stereo audio buffer.
     buffer: Vec<S16LEx2>,
-    /// Audio Recorder
-    recorder: Recorder<S16LEx2>,
-    /// Audio Player
-    player: Player<S16LEx2>,
 }
 
 /// Create a new monitor.
 async fn monitor() {
     /// Extend buffer by slice of new frames from last plugged in device.
-    async fn record(shared: &mut Shared) {
-        shared.recorder.record_last(&mut shared.buffer).await;
+    async fn record(shared: &RefCell<Shared>) {
+        let mut recorder = Recorder::<S16LEx2>::new(48_000).unwrap();
+
+        loop {
+            println!("Record Waiting...");
+            (&mut recorder).await;
+            let shared: &mut Shared = &mut *shared.borrow_mut();
+            println!("Initial Len: {}", shared.buffer.len());
+            recorder.record_last(&mut shared.buffer);
+            println!("Final len: {}", shared.buffer.len());
+        }
     }
     /// Drain double ended queue frames into last plugged in device.
-    async fn play(shared: &mut Shared) {
-        let n_frames = shared.player.play_last(shared.buffer.as_slice()).await;
-        shared.buffer.drain(..n_frames.min(shared.buffer.len()));
+    async fn play(shared: &RefCell<Shared>) {
+        let mut player = Player::<S16LEx2>::new(48_000).unwrap();
+    
+        loop {
+            // println!("Player Waiting...");
+            (&mut player).await;
+            let shared: &mut Shared = &mut *shared.borrow_mut();
+            let n_frames = player.play_last(shared.buffer.as_slice());
+            shared.buffer.drain(..n_frames.min(shared.buffer.len()));
+        }
     }
 
-    let running = true;
-    let buffer = Vec::new();
-    let recorder = Recorder::new(48_000).unwrap();
-    let player = Player::new(48_000).unwrap();
-    let mut shared = Shared {
-        running,
-        buffer,
-        recorder,
-        player,
-    };
+    let mut shared = Shared { buffer: Vec::new() };
+    let mut shared = RefCell::new(shared);
+    let mut record = record(&shared);
+    let mut play = play(&shared);
     println!("Entering async loop…");
-    pasts::tasks!(shared while shared.running; [record, play]);
+    [record.dyn_fut(), play.dyn_fut()].select().await;
+    unreachable!()
 }
 
 /// Start the async executor.

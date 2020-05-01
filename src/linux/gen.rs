@@ -372,6 +372,10 @@ static mut FN_SND_PCM_RESUME:
     std::mem::MaybeUninit<extern fn(
         pcm: *mut std::os::raw::c_void,
     ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_START:
+    std::mem::MaybeUninit<extern fn(
+        pcm: *mut std::os::raw::c_void,
+    ) -> std::os::raw::c_int> = std::mem::MaybeUninit::uninit();
 
 static mut ALSA_DEVICE_INIT: Option<AlsaDevice> = None;
 
@@ -407,6 +411,7 @@ impl AlsaDevice {
             FN_SND_PCM_DROP = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_drop\0")?.as_ptr()));
             FN_SND_PCM_PREPARE = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_prepare\0")?.as_ptr()));
             FN_SND_PCM_RESUME = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_resume\0")?.as_ptr()));
+            FN_SND_PCM_START = std::mem::MaybeUninit::new(std::mem::transmute(sym(dll, b"snd_pcm_start\0")?.as_ptr()));
             ALSA_DEVICE_INIT = Some(Self(std::marker::PhantomData));
             Some(Self(std::marker::PhantomData))
         }
@@ -748,6 +753,20 @@ impl AlsaDevice {
     {
         unsafe {
             let __ret = ((FN_SND_PCM_RESUME).assume_init())(
+                pcm.0,
+            );
+            if __ret < 0 { return Err(__ret as _) };
+            Ok(())
+        }
+    }
+    /// Start a PCM.
+    ///  - `pcm`: PCM handle
+    pub fn snd_pcm_start(&self,
+        pcm: &SndPcm,
+    ) -> Result<(), i32>
+    {
+        unsafe {
+            let __ret = ((FN_SND_PCM_START).assume_init())(
                 pcm.0,
             );
             if __ret < 0 { return Err(__ret as _) };

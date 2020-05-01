@@ -6,46 +6,49 @@ use wavy::{Player, S16LEx2};
 
 /// Shared data between recorder and player.
 struct Shared {
-    /// A boolean to indicate whether or not the program is still running.
-    running: bool,
     /// Audio Player
     player: Player<S16LEx2>,
     /// Generator
-    generator: Generator,
+    gen: Generator,
 }
 
 #[derive(Debug)]
-pub struct Generator(i8);
+struct Generator {
+    counter: i8,
+    buf: Vec<S16LEx2>,
+}
 
-impl Iterator for &mut Generator {
-    type Item = S16LEx2;
-
-    fn next(&mut self) -> Option<S16LEx2> {
-        self.0 = self.0.wrapping_add(1);
-        let sample = self.0 as i16 * 255;
-        Some(S16LEx2::new(sample, sample))
+impl Generator {
+    fn generate(&mut self) {
+        for _ in 0..(1024 - self.buf.len()) {
+            self.counter = self.counter.wrapping_add(1);
+            let sample = self.counter as i16 * 255;
+            self.buf.push(S16LEx2::new(sample, sample));
+        }
     }
 }
 
 /// Create a new monitor.
 async fn monitor() {
-    /// Drain double ended queue frames into last plugged in device.
     async fn play(shared: &mut Shared) {
-        let n_frames = shared.player.play_last(&mut shared.generator).await;
+        shared.gen.generate();
+        (&mut shared.player).await;
+        let n_frames = shared.player.play_last(&mut shared.gen.buf);
+        shared.gen.buf.drain(..n_frames.min(shared.gen.buf.len()));
         println!("played {} frames", n_frames);
     }
 
-    let running = true;
-    let generator = Generator(-1);
+    let gen = Generator { counter: -1, buf: Vec::with_capacity(1024) };
     println!("Opening player…");
     let player = Player::new(48_000).unwrap();
     let mut shared = Shared {
-        running,
-        generator,
+        gen,
         player,
     };
     println!("Done, entering async loop…");
-    pasts::tasks!(shared while shared.running; [play]);
+    loop {
+        play(&mut shared).await;
+    }
 }
 
 /// Start the async executor.
