@@ -6,7 +6,7 @@ use std::task::Context;
 use std::task::Poll;
 
 // Update with: `dl_api ffi/asound,so,2.muon src/linux/gen.rs`
-#[rustfmt::skip]
+#[path = "alsa/gen.rs"]
 mod gen;
 
 use self::gen::{
