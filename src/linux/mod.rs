@@ -205,7 +205,6 @@ impl<F: Frame> Player<F> {
             // Next time this task wakes up, assume ready.
             self.is_ready = true;
             // Register waker, and then return not ready.
-            println!("Registering PLAYER");
             self.pcm.fd.register_waker(cx.waker().clone());
             Poll::Pending
         }
@@ -318,7 +317,6 @@ impl<F: Frame> Recorder<F> {
             // Next time this task wakes up, assume ready.
             self.is_ready = true;
             // Register waker, and then return not ready.
-            println!("Registering RECORDER");
             self.pcm.fd.register_waker(cx.waker().clone());
             Poll::Pending
         }
@@ -326,7 +324,6 @@ impl<F: Frame> Recorder<F> {
 
     pub(crate) fn record_last(&mut self, audio: &mut Vec<F>) {
             let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
-        println!("STATE {:?} {} {} {}", state, self.is_ready, audio.capacity(), audio.len());
 
         // Record into temporary buffer.
         if let Err(error) = self.recorder.snd_pcm_readi(&self.pcm.sound_device, audio) {

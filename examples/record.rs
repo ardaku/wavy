@@ -20,12 +20,9 @@ async fn monitor() {
         let mut recorder = Recorder::<S16LEx2>::new(48_000).unwrap();
 
         loop {
-            println!("Record Waiting...");
             (&mut recorder).await;
             let shared: &mut Shared = &mut *shared.borrow_mut();
-            println!("Initial Len: {}", shared.buffer.len());
             recorder.record_last(&mut shared.buffer);
-            println!("Final len: {}", shared.buffer.len());
         }
     }
     /// Drain double ended queue frames into last plugged in device.
@@ -33,7 +30,6 @@ async fn monitor() {
         let mut player = Player::<S16LEx2>::new(48_000).unwrap();
     
         loop {
-            // println!("Player Waiting...");
             (&mut player).await;
             let shared: &mut Shared = &mut *shared.borrow_mut();
             let n_frames = player.play_last(shared.buffer.as_slice());
