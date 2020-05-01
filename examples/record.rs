@@ -1,8 +1,8 @@
 //! This example records audio and plays it back in real time as it's being
 //! recorded.
 
-use pasts::ThreadInterrupt;
 use pasts::prelude::*;
+use pasts::ThreadInterrupt;
 use wavy::{Player, Recorder, S16LEx2};
 
 use std::cell::RefCell;
@@ -28,7 +28,7 @@ async fn monitor() {
     /// Drain double ended queue frames into last plugged in device.
     async fn play(shared: &RefCell<Shared>) {
         let mut player = Player::<S16LEx2>::new(48_000).unwrap();
-    
+
         loop {
             (&mut player).await;
             let shared: &mut Shared = &mut *shared.borrow_mut();

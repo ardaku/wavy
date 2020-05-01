@@ -212,16 +212,13 @@ impl<F: Frame> Player<F> {
 
     pub(crate) fn play_last(&mut self, audio: &[F]) -> usize {
         let silence = [F::default(); 1024];
-        let audio = if audio.is_empty() {
-            &silence
-        } else {
-            audio
-        };
+        let audio = if audio.is_empty() { &silence } else { audio };
 
         // Record into temporary buffer.
         match self.player.snd_pcm_writei(&self.pcm.sound_device, audio) {
             Err(error) => {
-                let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
+                let state =
+                    self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
                 match error {
                     // Edge-triggered epoll should only go into pending mode if
                     // read/write call results in EAGAIN (according to epoll man
@@ -323,10 +320,12 @@ impl<F: Frame> Recorder<F> {
     }
 
     pub(crate) fn record_last(&mut self, audio: &mut Vec<F>) {
-            let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
+        let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
 
         // Record into temporary buffer.
-        if let Err(error) = self.recorder.snd_pcm_readi(&self.pcm.sound_device, audio) {
+        if let Err(error) =
+            self.recorder.snd_pcm_readi(&self.pcm.sound_device, audio)
+        {
             let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
             match error {
                 // Edge-triggered epoll should only go into pending mode if
@@ -356,7 +355,8 @@ impl<F: Frame> Recorder<F> {
                     eprintln!(
                         "Stream got suspended, trying to recover… (-ESTRPIPE)"
                     );
-                    if self.pcm
+                    if self
+                        .pcm
                         .device
                         .snd_pcm_resume(&self.pcm.sound_device)
                         .is_ok()

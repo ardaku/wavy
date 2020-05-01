@@ -38,13 +38,13 @@ async fn monitor() {
         println!("played {} frames", n_frames);
     }
 
-    let gen = Generator { counter: -1, buf: Vec::with_capacity(1024) };
+    let gen = Generator {
+        counter: -1,
+        buf: Vec::with_capacity(1024),
+    };
     println!("Opening player…");
     let player = Player::new(48_000).unwrap();
-    let mut shared = Shared {
-        gen,
-        player,
-    };
+    let mut shared = Shared { gen, player };
     println!("Done, entering async loop…");
     loop {
         play(&mut shared).await;
