@@ -20,7 +20,7 @@ async fn monitor() {
         let mut recorder = Recorder::<S16LEx2>::new(48_000).unwrap();
 
         loop {
-            (&mut recorder).await;
+            recorder.dyn_fut().await;
             let shared: &mut Shared = &mut *shared.borrow_mut();
             recorder.record_last(&mut shared.buffer);
         }
@@ -30,7 +30,7 @@ async fn monitor() {
         let mut player = Player::<S16LEx2>::new(48_000).unwrap();
 
         loop {
-            (&mut player).await;
+            player.dyn_fut().await;
             let shared: &mut Shared = &mut *shared.borrow_mut();
             let n_frames = player.play_last(shared.buffer.as_slice());
             shared.buffer.drain(..n_frames.min(shared.buffer.len()));

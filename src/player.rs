@@ -21,10 +21,10 @@ impl<F: Frame> Player<F> {
     }
 }
 
-impl<F: Frame> Future for &mut Player<F> {
+impl<F: Frame + Unpin> Future for Player<F> {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.0.poll(cx)
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.get_mut().0.poll(cx)
     }
 }

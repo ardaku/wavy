@@ -26,10 +26,10 @@ impl<F: Frame> Recorder<F> {
     }
 }
 
-impl<F: Frame> Future for &mut Recorder<F> {
+impl<F: Frame + Unpin> Future for Recorder<F> {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.0.poll(cx)
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.get_mut().0.poll(cx)
     }
 }
