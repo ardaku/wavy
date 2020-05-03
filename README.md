@@ -50,7 +50,7 @@ wavy = "0.2"
 This example records audio and plays it back in real time as it's being
 recorded.  (Make sure to wear headphones to avoid feedback).
 
-```rust
+```rust,no_run
 use pasts::prelude::*;
 use pasts::ThreadInterrupt;
 use wavy::{Player, Recorder, S16LEx2};
