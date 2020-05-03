@@ -1,37 +1,33 @@
 //! This example records audio and plays it back in real time as it's being
 //! recorded.
 
+use pasts::prelude::*;
 use pasts::{Interrupt, ThreadInterrupt};
-use std::collections::VecDeque;
 use std::io::Write;
 use wavy::{Recorder, S16LEx2};
 
 /// Shared data between recorder and player.
 struct Shared {
     /// A stereo audio buffer.
-    buffer: VecDeque<S16LEx2>,
+    buffer: Vec<S16LEx2>,
     /// Audio Recorder
-    recorder: Recorder,
+    recorder: Recorder<S16LEx2>,
 }
 
 /// Create a new monitor.
 async fn monitor() {
-    /// Extend buffer by slice of new frames from last plugged in device.
-    async fn record(shared: &mut Shared) {
-        println!("Recording; running total: @{}", shared.buffer.len());
-        let frames = shared.recorder.record_last().await;
-        shared.buffer.extend(frames);
-        println!("Recorded; now: {}", shared.buffer.len());
-    }
-
-    let buffer = VecDeque::new();
+    let buffer = vec![];
     println!("Opening recorder…");
     let recorder = Recorder::new(48_000).unwrap();
     println!("Opening player…");
     let mut shared = Shared { buffer, recorder };
     println!("Done, entering async loop…");
-    pasts::tasks!(shared while shared.buffer.len() <= 48_000 * 10; [record]);
-
+    while shared.buffer.len() <= 48_000 * 10 {
+        println!("Recording; running total: @{}", shared.buffer.len());
+        shared.recorder.fut().await;
+        shared.recorder.record_last(&mut shared.buffer);
+        println!("Recorded; now: {}", shared.buffer.len());
+    }
     println!("Exited async loop…");
 
     let mut file = std::fs::File::create("recorded.pcm").unwrap();
