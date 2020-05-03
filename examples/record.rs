@@ -1,5 +1,5 @@
 //! This example records audio and plays it back in real time as it's being
-//! recorded.
+//! recorded.  Examples are in the public domain.
 
 use pasts::prelude::*;
 use pasts::ThreadInterrupt;

@@ -1,4 +1,0 @@
-- Player And Recorder should have their own Futures that call pcm_write and
-  pcm_read instead of a shared Future that returns # of available frames.
-  When the read or write fails, it should return Pending.
-- Properly handle underruns and overruns (Weird click sound in monitor)

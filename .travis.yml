@@ -2,29 +2,19 @@ language: rust
 sudo: false
 
 cache: cargo
-cache:
-    directories:
-      - $HOME/.cargo
-      - $HOME/target
-
-rust:
-  - beta
-  - nightly
 
 matrix:
-    allow_failures:
-      - rust: nightly
     fast_finish: true
     include:
       - os: linux
-        rust: stable
+        rust: nightly
         compiler: gcc
 
       - os: windows
-        rust: stable
+        rust: nightly
 
       - os: osx
-        rust: stable
+        rust: nightly
 
 script:
   - cargo update

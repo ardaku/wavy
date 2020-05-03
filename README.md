@@ -1,110 +1,141 @@
 # Wavy
 
-[![docs.rs](https://docs.rs/wavy/badge.svg)](https://docs.rs/wavy)
-[![build status](https://api.travis-ci.com/libcala/wavy.svg?branch=master)](https://travis-ci.com/libcala/wavy)
+#### Asynchronous cross-platform real-time audio recording &amp; playback.
+
+[![Build Status](https://api.travis-ci.org/libcala/wavy.svg?branch=master)](https://travis-ci.org/libcala/wavy)
+[![Docs](https://docs.rs/wavy/badge.svg)](https://docs.rs/wavy)
 [![crates.io](https://img.shields.io/crates/v/wavy.svg)](https://crates.io/crates/wavy)
-[![Zulip Chat](https://img.shields.io/badge/zulip-join_chat-darkgreen.svg)](https://cala.zulipchat.com/join/wkdkw53xb5htnchg8kqz0du0/)
 
-[About](https://libcala.github.io/wavy) |
-[Source](https://github.com/libcala/wavy) |
-[Changelog](https://libcala.github.io/wavy/changelog)
+The sound waves are _so_ wavy!  Wavy supports microphone audio recording and
+speaker audio playback using S16LEx2 audio format for these platforms:
 
-# About
-Asynchronous cross-platform real-time audio recording &amp; playback.
+### Platforms
+- Linux (Using ALSA)
 
-The sound waves are _so_ wavy!
+### Planned Platforms
+- Windows
+- MacOS and iOS
+- BSD
+- Fuchsia
+- Redox
+- WASM
+- Android (might already work)
+- Nintendo Switch (and other game consoles)
 
-# Getting Started
+### Planned Capabilities
+- Audio channel mixing.
+- Audio Resampling.
+- Surround sound 5.1 support.
+- Sound from specific direction (Radians) and volume for video games.
+
+## Table of Contents
+- [Getting Started](#getting-started)
+   - [Example](#example)
+   - [API](#api)
+   - [Features](#features)
+- [Upgrade](#upgrade)
+- [License](#license)
+   - [Contribution](#contribution)
+
+## Getting Started
+Add the following to your `Cargo.toml`.
+
+```toml
+[dependencies]
+pasts = "0.1"
+wavy = "0.2"
+```
+
+### Example
 This example records audio and plays it back in real time as it's being
 recorded.  (Make sure to wear headphones to avoid feedback).
 
 ```rust
-use wavy::*;
-use std::collections::VecDeque;
-use pasts::{ThreadInterrupt, Interrupt};
+use pasts::prelude::*;
+use pasts::ThreadInterrupt;
+use wavy::{Player, Recorder, S16LEx2};
+
+use std::cell::RefCell;
 
 /// Shared data between recorder and player.
 struct Shared {
-    /// A boolean to indicate whether or not the program is still running.
-    running: bool,
     /// A stereo audio buffer.
-    buffer: VecDeque<S16LEx2>,
-    /// Audio Recorder
-    recorder: Recorder,
-    /// Audio Player
-    player: Player,
+    buffer: Vec<S16LEx2>,
 }
 
 /// Create a new monitor.
-async fn monitor() -> Result<(), AudioError> {
+async fn monitor() {
     /// Extend buffer by slice of new frames from last plugged in device.
-    async fn record(shared: &mut Shared) {
-        let frames = shared.recorder.record_last().await;
-        shared.buffer.extend(frames);
+    async fn record(shared: &RefCell<Shared>) {
+        let mut recorder = Recorder::<S16LEx2>::new(48_000).unwrap();
+        loop {
+            recorder.fut().await;
+            let shared: &mut Shared = &mut *shared.borrow_mut();
+            recorder.record_last(&mut shared.buffer);
+        }
     }
     /// Drain double ended queue frames into last plugged in device.
-    async fn play(shared: &mut Shared) {
-        let n_frames = shared.player.play_last(shared.buffer.iter()).await;
-        shared.buffer.drain(..n_frames.min(shared.buffer.len()));
+    async fn play(shared: &RefCell<Shared>) {
+        let mut player = Player::<S16LEx2>::new(48_000).unwrap();
+        loop {
+            player.fut().await;
+            let shared: &mut Shared = &mut *shared.borrow_mut();
+            let n_frames = player.play_last(shared.buffer.as_slice());
+            shared.buffer.drain(..n_frames.min(shared.buffer.len()));
+        }
     }
 
-    let running = true;
-    let buffer = VecDeque::new();
-    let recorder = Recorder::new(48_000)?;
-    let player = Player::new(48_000)?;
-    let mut shared = Shared { running, buffer, recorder, player };
-    pasts::tasks!(shared while shared.running; [record, play]);
-    Ok(())
+    let shared = RefCell::new(Shared { buffer: Vec::new() });
+    let mut record = record(&shared);
+    let mut play = play(&shared);
+    println!("Entering async loop…");
+    [record.fut(), play.fut()].select().await;
+    unreachable!()
 }
 
 /// Start the async executor.
-fn main() -> Result<(), AudioError> {
+fn main() {
     ThreadInterrupt::block_on(monitor())
 }
 ```
 
-## Features
-- Linux (ALSA) support.
-- Microphone audio recording.
-- Speaker audio playback.
+### API
+API documentation can be found on [docs.rs](https://docs.rs/wavy).
 
-## TODO
-- Audio channel mixing.
-- Windows support.
-- MacOS and iOS support.
-- WASM support.
-- Test on Android.
-- Nintendo Switch support (And other game consoles).
-- Sound from specific direction (Radians) and volume for video games.
-- Surround sound 5.1 support.
-- Audio Resampling.
+### Features
+There are no optional features.
 
-# Contributing
-Contributors are always welcome!  Whether it is a bug report, bug fix, feature
-request, feature implementation or whatever.  Don't be shy about getting
-involved.  I always make time to fix bugs, so usually a patched version of the
-library will be out soon after a report.  Features take me longer, though.  I'll
-also always listen to any design critiques you have.  If you have any questions
-you can email me at jeronlau@plopgrizzly.com.  Otherwise, here's a link to the
-[issues on GitHub](https://github.com/libcala/wavy/issues).
+## Upgrade
+You can use the
+[changelog](https://github.com/libcala/wavy/blob/master/CHANGELOG.md)
+to facilitate upgrading this crate as a dependency.
 
-And, as always, make sure to always follow the
-[code of conduct](https://github.com/libcala/wavy/blob/master/CODEOFCONDUCT.md).
-Happy coding!
-
-# License
-This repository is licensed under either of the following:
-
-- MIT License (MIT) - See accompanying file
-  [LICENSE_MIT.txt](https://github.com/libcala/wavy/blob/master/LICENSE_MIT.txt)
-  or copy at https://opensource.org/licenses/MIT
-- Boost Software License (BSL-1.0) - See accompanying file
-  [LICENSE_BSL.txt](https://github.com/libcala/wavy/blob/master/LICENSE_BSL.txt)
-  or copy at https://www.boost.org/LICENSE_1_0.txt
+## License
+Licensed under either of
+ - Apache License, Version 2.0,
+   ([LICENSE-APACHE](https://github.com/libcala/wavy/blob/master/LICENSE-APACHE) or
+   [https://www.apache.org/licenses/LICENSE-2.0](https://www.apache.org/licenses/LICENSE-2.0))
+ - Zlib License,
+   ([LICENSE-ZLIB](https://github.com/libcala/wavy/blob/master/LICENSE-ZLIB) or
+   [https://opensource.org/licenses/Zlib](https://opensource.org/licenses/Zlib))
 
 at your option.
 
-## Contribution Licensing
+### Contribution
 Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you shall be dual licensed as above without any
-additional terms or conditions.
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
+
+Contributors are always welcome (thank you for being interested!), whether it
+be a bug report, bug fix, feature request, feature implementation or whatever.
+Don't be shy about getting involved.  I always make time to fix bugs, so usually
+a patched version of the library will be out a few days after a report.
+Features requests will not complete as fast.  If you have any questions, design
+critques, or want me to find you something to work on based on your skill level,
+you can email me at [jeronlau@plopgrizzly.com](mailto:jeronlau@plopgrizzly.com).
+Otherwise,
+[here's a link to the issues on GitHub](https://github.com/libcala/wavy/issues).
+Before contributing, check out the
+[contribution guidelines](https://github.com/libcala/wavy/blob/master/CONTRIBUTING.md),
+and, as always, make sure to follow the
+[code of conduct](https://github.com/libcala/wavy/blob/master/CODE_OF_CONDUCT.md).

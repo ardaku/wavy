@@ -1,5 +1,5 @@
 //! This example records audio and plays it back in real time as it's being
-//! recorded.
+//! recorded.  Examples are in the public domain.
 
 use pasts::{Interrupt, ThreadInterrupt};
 use wavy::{Player, S16LEx2};

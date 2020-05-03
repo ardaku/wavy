@@ -1,31 +1,47 @@
 # Wavy
 #
-# Copyright © 2019-2020 Jeron Aldaron Lau.
-# Dual-licensed under either the MIT License or the Boost Software License,
-# Version 1.0.  (See accompanying file LICENSE_BSL.txt or copy at
-# https://www.boost.org/LICENSE_1_0.txt and accompanying file LICENSE_MIT.txt or
-# copy at https://opensource.org/licenses/MIT)
+# Copyright (c) 2019-2020 Jeron Aldaron Lau
+# 
+# Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
+# https://apache.org/licenses/LICENSE-2.0>, or the Zlib License, <LICENSE-ZLIB
+# or http://opensource.org/licenses/Zlib>, at your option. This file may not be
+# copied, modified, or distributed except according to those terms.
 
 [package]
 name = "wavy"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Jeron Aldaron Lau <jeronlau@plopgrizzly.com>"]
+license = "Apache-2.0 OR Zlib"
+
+description = "Asynchronous cross-platform real-time audio recording & playback."
+repository = "https://github.com/libcala/wavy"
+documentation = "https://docs.rs/wavy"
+homepage = "https://github.com/libcala/wavy/blob/master/CHANGELOG.md"
+include = ["Cargo.toml", "README.md", "LICENSE-ZLIB", "LICENSE-APACHE", "src/*"]
+categories = ["game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"]
+keywords = ["audio", "realtime", "cross-platform", "record", "play"]
+readme = "README.md"
 edition = "2018"
 
-license = "MIT / BSL-1.0"
-description = "Asynchronous cross-platform real-time audio recording & playback."
-documentation = "https://docs.rs/wavy"
-homepage = "https://libcala.github.io/wavy"
-repository = "https://github.com/libcala/wavy"
-readme = "README.md"
-keywords = ["audio", "realtime", "cross-platform", "record", "play"]
-categories = ["game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"]
-
-[dev-dependencies]
-pasts = "0.1"
+[badges]
+travis-ci = { repository = "libcala/wavy" }
+is-it-maintained-issue-resolution = { repository = "libcala/wavy" }
+is-it-maintained-open-issues = { repository = "libcala/wavy" }
+maintenance = { status = "actively-developed" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = "0.4"
 
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
 smelling_salts = "0.1"
+
+[dev-dependencies]
+pasts = "0.1"
+
+[package.metadata.docs.rs]
+all-features = true
+default-target = "x86_64-unknown-linux-gnu"
+
+[features]
+default = []
+docs-rs = []
