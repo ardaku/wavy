@@ -120,7 +120,7 @@ fn pcm_hw_params(
 }
 
 // Player/Recorder Shared Code for ALSA.
-pub struct Pcm {
+pub(super) struct Pcm {
     device: AlsaDevice,
     sound_device: SndPcm,
     fd: smelling_salts::Device,
@@ -206,7 +206,7 @@ impl<F: Frame> Player<F> {
         })
     }
 
-    pub(crate) fn poll(&mut self, cx: &mut Context) -> Poll<()> {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         if self.is_ready {
             // Default to ready
             Poll::Ready(())
@@ -315,7 +315,7 @@ impl<F: Frame> Recorder<F> {
         })
     }
 
-    pub(crate) fn poll(&mut self, cx: &mut Context) -> Poll<()> {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         if self.is_ready {
             // Default to ready
             Poll::Ready(())

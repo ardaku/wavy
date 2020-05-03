@@ -10,6 +10,7 @@
 #![allow(clippy::unused_unit)]
 #![allow(clippy::let_unit_value)]
 #![allow(unsafe_code)]
+#![allow(trivial_numeric_casts, trivial_casts)]
 
 const LM_ID_NEWLM: std::os::raw::c_long = -1;
 const RTLD_NOW: std::os::raw::c_int = 0x00002;
@@ -69,7 +70,7 @@ const DL_API_SHARED_OBJECT_NAME: &[u8] = b"libasound.so.2\0";
 #[repr(C)]
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum SndPcmMode {
+pub(super) enum SndPcmMode {
     /// Blocking mode
     Block = 0,
     /// Non blocking mode
@@ -83,7 +84,7 @@ pub enum SndPcmMode {
 #[repr(C)]
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum SndPcmStream {
+pub(super) enum SndPcmStream {
     /// Playback stream
     Playback = 0,
     /// Capture stream
@@ -95,7 +96,7 @@ pub enum SndPcmStream {
 #[repr(C)]
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum SndPcmAccess {
+pub(super) enum SndPcmAccess {
     /// mmap access with simple interleaved channels
     MmapInterleaved = 0,
     /// mmap access with simple non interleaved channels
@@ -113,7 +114,7 @@ pub enum SndPcmAccess {
 #[repr(C)]
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum SndPcmFormat {
+pub(super) enum SndPcmFormat {
     /// Unknown
     Unknown = -1,
     /// Signed 8 bit
@@ -231,7 +232,7 @@ pub enum SndPcmFormat {
 #[repr(C)]
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum SndPcmState {
+pub(super) enum SndPcmState {
     /// Open
     Open = 0,
     /// Setup installed
@@ -253,7 +254,7 @@ pub enum SndPcmState {
 }
 
 /// PCM handle
-pub struct SndPcm(*mut std::os::raw::c_void);
+pub(super) struct SndPcm(*mut std::os::raw::c_void);
 
 /// PCM hardware configuration space container
 ///
@@ -268,14 +269,14 @@ pub struct SndPcm(*mut std::os::raw::c_void);
 /// impossible configurations as possible. Attempting to set a parameter
 /// outside of its acceptable range will result in the function failing and
 /// an error code being returned.
-pub struct SndPcmHwParams(*mut std::os::raw::c_void);
+pub(super) struct SndPcmHwParams(*mut std::os::raw::c_void);
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct PollFd {
-    pub fd: std::os::raw::c_int,
-    pub events: std::os::raw::c_short,
-    pub revents: std::os::raw::c_short,
+pub(super) struct PollFd {
+    pub(super) fd: std::os::raw::c_int,
+    pub(super) events: std::os::raw::c_short,
+    pub(super) revents: std::os::raw::c_short,
 }
 
 static mut FN_SND_PCM_OPEN: std::mem::MaybeUninit<
@@ -406,11 +407,11 @@ static mut ALSA_DEVICE_INIT: Option<AlsaDevice> = None;
 
 /// A module contains functions.
 #[derive(Clone)]
-pub struct AlsaDevice(std::marker::PhantomData<*mut u8>);
+pub(super) struct AlsaDevice(std::marker::PhantomData<*mut u8>);
 
 impl AlsaDevice {
     /// Get a handle to this module.  Loads module functions on first call.
-    pub fn new() -> Option<Self> {
+    pub(super) fn new() -> Option<Self> {
         unsafe {
             let dll = check_thread()?;
             if let Some(ref module) = ALSA_DEVICE_INIT {
@@ -502,7 +503,7 @@ impl AlsaDevice {
     /// - `stream`: Wanted stream
     /// - `mode`: Open mode
     /// Return 0 on success otherwise a negative error code
-    pub fn snd_pcm_open(
+    pub(super) fn snd_pcm_open(
         &self,
         name: &std::ffi::CStr,
         stream: SndPcmStream,
@@ -524,7 +525,7 @@ impl AlsaDevice {
         }
     }
     /// Allocate an invalid snd_pcm_hw_params_t using standard malloc
-    pub fn snd_pcm_hw_params_malloc(&self) -> Result<SndPcmHwParams, i32> {
+    pub(super) fn snd_pcm_hw_params_malloc(&self) -> Result<SndPcmHwParams, i32> {
         unsafe {
             let mut ptr = std::mem::MaybeUninit::uninit();
             let __ret =
@@ -537,7 +538,7 @@ impl AlsaDevice {
         }
     }
     /// Fill params with a full configuration space for a PCM.
-    pub fn snd_pcm_hw_params_any(
+    pub(super) fn snd_pcm_hw_params_any(
         &self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -555,7 +556,7 @@ impl AlsaDevice {
     /// - `pcm`: PCM handle
     /// - `params`: Configuration space
     /// - `val`: 0 = disable, 1 = enable (default) rate resampling
-    pub fn snd_pcm_hw_params_set_rate_resample(
+    pub(super) fn snd_pcm_hw_params_set_rate_resample(
         &self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -576,7 +577,7 @@ impl AlsaDevice {
     /// - `pcm`: PCM handle
     /// - `params`: Configuration space
     /// - `access`: access type
-    pub fn snd_pcm_hw_params_set_access(
+    pub(super) fn snd_pcm_hw_params_set_access(
         &self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -595,7 +596,7 @@ impl AlsaDevice {
         }
     }
     /// Restrict a configuration space to contain only one format.
-    pub fn snd_pcm_hw_params_set_format(
+    pub(super) fn snd_pcm_hw_params_set_format(
         &self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -614,7 +615,7 @@ impl AlsaDevice {
         }
     }
     /// Restrict a configuration space to contain only one channels count.
-    pub fn snd_pcm_hw_params_set_channels(
+    pub(super) fn snd_pcm_hw_params_set_channels(
         &self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -635,7 +636,7 @@ impl AlsaDevice {
     ///  - `params`: Configuration space
     ///  - `val`: approximate target rate / returned approximate set rate
     ///  - `dir`: Sub unit direction
-    pub fn snd_pcm_hw_params_set_rate_near(
+    pub(super) fn snd_pcm_hw_params_set_rate_near(
         &self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -675,7 +676,7 @@ impl AlsaDevice {
     ///  - `val`: approximate target period size in frames / returned chosen
     ///    approximate target period size
     ///  - `dir`: Sub unit direction
-    pub fn snd_pcm_hw_params_set_period_size_near(
+    pub(super) fn snd_pcm_hw_params_set_period_size_near(
         &self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -715,7 +716,7 @@ impl AlsaDevice {
     ///  - `params`: Configuration space
     ///  - `val`: Approximate target buffer size in frames / returned chosen
     ///    approximate target buffer size in frames
-    pub fn snd_pcm_hw_params_set_buffer_size_near(
+    pub(super) fn snd_pcm_hw_params_set_buffer_size_near(
         &self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -738,7 +739,7 @@ impl AlsaDevice {
     /// and snd_pcm_prepare it.
     /// - `pcm`: PCM handle
     /// - `params`: Configuration space definition container
-    pub fn snd_pcm_hw_params(
+    pub(super) fn snd_pcm_hw_params(
         &self,
         pcm: &SndPcm,
         params: &SndPcmHwParams,
@@ -752,7 +753,7 @@ impl AlsaDevice {
         }
     }
     /// Frees a previously allocated snd_pcm_hw_params_t
-    pub fn snd_pcm_hw_params_free(&self, obj: &mut SndPcmHwParams) -> () {
+    pub(super) fn snd_pcm_hw_params_free(&self, obj: &mut SndPcmHwParams) -> () {
         unsafe {
             if obj.0.is_null() {
                 panic!("Object free'd twice!")
@@ -763,7 +764,7 @@ impl AlsaDevice {
         }
     }
     /// close PCM handle
-    pub fn snd_pcm_close(&self, pcm: &mut SndPcm) -> Result<(), i32> {
+    pub(super) fn snd_pcm_close(&self, pcm: &mut SndPcm) -> Result<(), i32> {
         unsafe {
             if pcm.0.is_null() {
                 panic!("Object free'd twice!")
@@ -777,7 +778,7 @@ impl AlsaDevice {
         }
     }
     /// Get count of poll descriptors for PCM handle
-    pub fn snd_pcm_poll_descriptors_count(
+    pub(super) fn snd_pcm_poll_descriptors_count(
         &self,
         pcm: &SndPcm,
     ) -> Result<i32, i32> {
@@ -795,7 +796,7 @@ impl AlsaDevice {
     ///  - `pfds`: Array of poll descriptors
     ///  - `space`: space in the poll descriptor array
     ///  -Returns count of filled descriptors
-    pub fn snd_pcm_poll_descriptors(
+    pub(super) fn snd_pcm_poll_descriptors(
         &self,
         pcm: &SndPcm,
         pfds: &mut Vec<PollFd>,
@@ -815,7 +816,7 @@ impl AlsaDevice {
     }
     /// Return PCM state.
     ///  - `pcm`: PCM handle
-    pub fn snd_pcm_state(&self, pcm: &SndPcm) -> SndPcmState {
+    pub(super) fn snd_pcm_state(&self, pcm: &SndPcm) -> SndPcmState {
         unsafe {
             let __ret = ((FN_SND_PCM_STATE).assume_init())(pcm.0);
             __ret as _
@@ -824,7 +825,7 @@ impl AlsaDevice {
     /// Stop a PCM dropping pending frames.  This function stops the PCM
     /// immediately. The pending samples on the buffer are ignored
     ///  - `pcm`: PCM handle
-    pub fn snd_pcm_drop(&self, pcm: &SndPcm) -> Result<(), i32> {
+    pub(super) fn snd_pcm_drop(&self, pcm: &SndPcm) -> Result<(), i32> {
         unsafe {
             let __ret = ((FN_SND_PCM_DROP).assume_init())(pcm.0);
             if __ret < 0 {
@@ -835,7 +836,7 @@ impl AlsaDevice {
     }
     /// Prepare PCM for use.
     ///  - `pcm`: PCM handle
-    pub fn snd_pcm_prepare(&self, pcm: &SndPcm) -> Result<(), i32> {
+    pub(super) fn snd_pcm_prepare(&self, pcm: &SndPcm) -> Result<(), i32> {
         unsafe {
             let __ret = ((FN_SND_PCM_PREPARE).assume_init())(pcm.0);
             if __ret < 0 {
@@ -846,7 +847,7 @@ impl AlsaDevice {
     }
     /// Resume from suspend, no samples are lost.
     ///  - `pcm`: PCM handle
-    pub fn snd_pcm_resume(&self, pcm: &SndPcm) -> Result<(), i32> {
+    pub(super) fn snd_pcm_resume(&self, pcm: &SndPcm) -> Result<(), i32> {
         unsafe {
             let __ret = ((FN_SND_PCM_RESUME).assume_init())(pcm.0);
             if __ret < 0 {
@@ -861,11 +862,11 @@ static mut ALSA_PLAYER_INIT: Option<AlsaPlayer> = None;
 
 /// A module contains functions.
 #[derive(Clone)]
-pub struct AlsaPlayer(std::marker::PhantomData<*mut u8>);
+pub(super) struct AlsaPlayer(std::marker::PhantomData<*mut u8>);
 
 impl AlsaPlayer {
     /// Get a handle to this module.  Loads module functions on first call.
-    pub fn new() -> Option<Self> {
+    pub(super) fn new() -> Option<Self> {
         unsafe {
             let dll = check_thread()?;
             if let Some(ref module) = ALSA_PLAYER_INIT {
@@ -889,7 +890,7 @@ impl AlsaPlayer {
     ///
     /// If the non-blocking behaviour is selected, then routine doesn't wait at
     /// all.
-    pub fn snd_pcm_writei<F: super::Frame>(
+    pub(super) fn snd_pcm_writei<F: super::Frame>(
         &self,
         pcm: &SndPcm,
         buffer: &[F],
@@ -912,11 +913,11 @@ static mut ALSA_RECORDER_INIT: Option<AlsaRecorder> = None;
 
 /// A module contains functions.
 #[derive(Clone)]
-pub struct AlsaRecorder(std::marker::PhantomData<*mut u8>);
+pub(super) struct AlsaRecorder(std::marker::PhantomData<*mut u8>);
 
 impl AlsaRecorder {
     /// Get a handle to this module.  Loads module functions on first call.
-    pub fn new() -> Option<Self> {
+    pub(super) fn new() -> Option<Self> {
         unsafe {
             let dll = check_thread()?;
             if let Some(ref module) = ALSA_RECORDER_INIT {
@@ -939,7 +940,7 @@ impl AlsaRecorder {
     ///
     /// If the non-blocking behaviour is selected, then routine doesn't wait at
     /// all.
-    pub fn snd_pcm_readi<F: super::Frame>(
+    pub(super) fn snd_pcm_readi<F: super::Frame>(
         &self,
         pcm: &SndPcm,
         buffer: &mut Vec<F>,

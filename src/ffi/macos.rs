@@ -24,7 +24,7 @@ impl<F: Frame> Player<F> {
         None
     }
 
-    pub(crate) fn poll(&mut self, cx: &mut Context) -> Poll<()> {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         let _ = cx;
     
         Poll::Pending
@@ -49,7 +49,7 @@ impl<F: Frame> Recorder<F> {
         None
     }
 
-    pub(crate) fn poll(&mut self, cx: &mut Context) -> Poll<()> {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         let _ = cx;
     
         Poll::Pending

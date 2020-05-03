@@ -15,6 +15,7 @@ use crate::ffi;
 use crate::frame::Frame;
 
 /// Audio Player (Speaker output).
+#[allow(missing_debug_implementations)]
 pub struct Player<F: Frame>(ffi::Player<F>);
 
 impl<F: Frame> Player<F> {
@@ -33,7 +34,7 @@ impl<F: Frame> Player<F> {
 impl<F: Frame + Unpin> Future for Player<F> {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().0.poll(cx)
     }
 }
