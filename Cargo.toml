@@ -27,5 +27,5 @@ pasts = "0.1"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = "0.4"
 
-[target.'cfg(all(not(target_arch = "wasm32"), target_os = "linux"))'.dependencies]
+[target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
 smelling_salts = "0.1"
