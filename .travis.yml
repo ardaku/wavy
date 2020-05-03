@@ -20,9 +20,8 @@ matrix:
         rust: stable
         compiler: gcc
 
-      # TODO: add Windows support
-      # - os: windows
-      #   rust: stable
+      - os: windows
+        rust: stable
 
       - os: osx
         rust: stable
@@ -30,14 +29,3 @@ matrix:
 script:
   - cargo update
   - cargo test --all --all-features
-
-notifications:
-  email: false
-  webhooks:
-    urls:
-      - https://cala.zulipchat.com/api/v1/external/travis?api_key=dCMe2lR9z6lOfH1ucaZagWphH6p4TumS&stream=travis-ci&topic=wavy&ignore_pull_requests=false
-    on_success: change
-    on_failure: always
-    on_start:   change
-    on_cancel:  always
-    on_error:   always
