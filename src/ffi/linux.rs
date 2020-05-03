@@ -205,7 +205,7 @@ impl<F: Frame> Player<F> {
             // Next time this task wakes up, assume ready.
             self.is_ready = true;
             // Register waker, and then return not ready.
-            self.pcm.fd.register_waker(cx.waker().clone());
+            self.pcm.fd.register_waker(cx.waker());
             Poll::Pending
         }
     }
@@ -314,7 +314,7 @@ impl<F: Frame> Recorder<F> {
             // Next time this task wakes up, assume ready.
             self.is_ready = true;
             // Register waker, and then return not ready.
-            self.pcm.fd.register_waker(cx.waker().clone());
+            self.pcm.fd.register_waker(cx.waker());
             Poll::Pending
         }
     }
