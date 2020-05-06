@@ -1,7 +1,8 @@
 //! This example records audio and plays it back in real time as it's being
 //! recorded.  Examples are in the public domain.
 
-use pasts::{Interrupt, ThreadInterrupt};
+use pasts::prelude::*;
+use pasts::ThreadInterrupt;
 use wavy::{Player, S16LEx2};
 
 /// Shared data between recorder and player.
@@ -32,7 +33,7 @@ impl Generator {
 async fn monitor() {
     async fn play(shared: &mut Shared) {
         shared.gen.generate();
-        (&mut shared.player).await;
+        shared.player.fut().await;
         let n_frames = shared.player.play_last(&mut shared.gen.buf);
         shared.gen.buf.drain(..n_frames.min(shared.gen.buf.len()));
         println!("played {} frames", n_frames);
