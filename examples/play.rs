@@ -1,8 +1,7 @@
 //! This example records audio and plays it back in real time as it's being
 //! recorded.  Examples are in the public domain.
 
-use pasts::prelude::*;
-use pasts::ThreadInterrupt;
+use pasts::{CvarExec, prelude::*};
 use wavy::{Player, S16LEx2};
 
 /// Shared data between recorder and player.
@@ -54,5 +53,7 @@ async fn monitor() {
 
 /// Start the async executor.
 fn main() {
-    ThreadInterrupt::block_on(monitor())
+    static EXECUTOR: CvarExec = CvarExec::new();
+
+    EXECUTOR.block_on(monitor())
 }
