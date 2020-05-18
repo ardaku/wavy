@@ -4,9 +4,9 @@ All notable changes to `wavy` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
 
-## [0.2.2] - Unreleased
+## [0.2.2] - 2020-05-17
 ### Changed
-- Updated examples / documentation to pasts 0.3
+- Updated examples / documentation to pasts 0.4
 
 ## [0.2.1] - 2020-05-05
 ### Changed
