@@ -19,6 +19,14 @@ impl Frame for S16LEx2 {
     const CH: u8 = 2;
     // Type for a sample
     type Sample = i16;
+    
+    fn into_f64x2(self) -> (f64, f64) {
+        (self.left() as f64 / i16::MAX as f64, self.right() as f64 / i16::MAX as f64)
+    }
+    
+    fn from_f64x2(left: f64, right: f64) -> Self {
+        Self::new((left * i16::MAX as f64) as i16, (right * i16::MAX as f64) as i16)
+    }
 }
 
 impl S16LEx2 {
