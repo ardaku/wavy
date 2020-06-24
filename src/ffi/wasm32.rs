@@ -152,7 +152,7 @@ impl<F: Frame> Player<F> {
         }
 
         if audio.as_ptr() == silence.as_ptr() {
-            0
+            audio.len()
         } else {
             1024
         }
