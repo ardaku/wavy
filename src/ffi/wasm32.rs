@@ -9,7 +9,7 @@
 
 #![allow(unsafe_code)]
 
-use cala_core::os::web::{JsVar, JsFn};
+use cala_core::os::web::{JsVar, JsFn, JsPromise};
 use crate::frame::Frame;
 use std::marker::PhantomData;
 use std::task::Context;
@@ -34,11 +34,11 @@ pub(crate) struct Player<F: Frame> {
     // Temporary buffer for audio to copy over to JavaScript all at once.
     tmp_audio_r: [f64; 1024],
     // JavaScript Promise
-    promise: JsVar,
+    promise: JsPromise<JsVar>,
     // JavaScript Function for resetting promise
-    set_resolve: JsVar,
-    // JavaScript Function to make a new audio player Promise
-    new_promise: JsFn,
+    reset_promise: JsFn,
+    // 
+    ready: bool,
     _phantom: PhantomData<F>,
 }
 
@@ -48,7 +48,8 @@ impl<F: Frame> Player<F> {
         let _ = sr;
 
         let audio_ctx = unsafe {
-            JsFn::new("return new (window.AudioContext || window.webkitAudioContext)();").call(None, None).unwrap()
+            JsFn::new("return new (window.AudioContext\
+                ||window.webkitAudioContext)();").call(None, None).unwrap()
         };
         let sample_rate: u32 = unsafe {
             JsFn::new("return param_a.sampleRate;").call(Some(&audio_ctx), None).unwrap().into_i32().try_into().unwrap()
@@ -67,7 +68,7 @@ impl<F: Frame> Player<F> {
         // param_a: AudioContext, param_b: [AudioBuffer; 2]
         let audio_callback = unsafe { JsFn::new("\
             function play(next, buffer_idx, resolve) {\
-                resolve();
+                resolve(1024);
                 var size = 1024.0 / param_a.sampleRate;\
                 next += size * 2.0;\
                 var a_source = param_a.createBufferSource();\
@@ -79,9 +80,8 @@ impl<F: Frame> Player<F> {
             return play;\
         ").call(Some(&audio_ctx), Some(&buffers)).unwrap() };
         // param_a: AudioContext, param_b: Function (callback)
-        let set_resolve = unsafe { JsFn::new("\
-            var promise_res = function(value) { };\
-            function resolve() { promise_res(1024); }\
+        let reset_promise = unsafe { JsFn::new("\
+            var resolve = function() { };\
             var output_buffer = param_a.createBuffer(2, 1024, param_a.sampleRate);\
             for (var channel = 0; channel < output_buffer.numberOfChannels; channel++) {\
                 var nowBuffering = output_buffer.getChannelData(channel);\
@@ -93,47 +93,53 @@ impl<F: Frame> Player<F> {
             var next_a = param_a.currentTime;\
             var next_b = next_a + size;\
             var a_source = param_a.createBufferSource();\
-            a_source.onended = param_b(next_a, 0, resolve);\
+            a_source.onended = param_b(next_a, 0, function(a) { resolve(a); });\
             a_source.buffer = output_buffer;\
             a_source.connect(param_a.destination);\
             a_source.start(next_a);\
             var b_source = param_a.createBufferSource();\
-            b_source.onended = param_b(next_b, 1, resolve);\
+            b_source.onended = param_b(next_b, 1, function(a) { resolve(a); });\
             b_source.buffer = output_buffer;\
             b_source.connect(param_a.destination);\
             b_source.start(next_b);\
-            return function(presolve) {
-                promise_res = presolve;
-            }\
-        ").call(Some(&audio_ctx), Some(&audio_callback)).unwrap() };
-        let new_promise = unsafe { JsFn::new("\
-            return new Promise(function(res, rej) {\
-                param_a(res);\
-            });\
-        ") };
-        let promise = unsafe { new_promise.call(Some(&set_resolve), None).unwrap() };
+            return function(a, b) {\
+                return new Promise(function(res, rej) { resolve = res; });\
+            };\
+        ").call(Some(&audio_ctx), Some(&audio_callback)).unwrap().into_fn() };
+        let promise = unsafe { reset_promise.call(None, None).unwrap().into_promise() };
 
-        Some(Self { promise,new_promise,set_resolve, tmp_audio_l,tmp_audio_r,audio_ctx, sample_rate, buffers,is_buffer_b,fn_left,fn_right,_phantom })
+        Some(Self { promise,reset_promise, tmp_audio_l,tmp_audio_r,audio_ctx, sample_rate, buffers,is_buffer_b,fn_left,fn_right,ready:false,_phantom })
     }
 
     pub(crate) fn poll(&mut self, _cx: &mut Context<'_>) -> Poll<()> {
         if let Poll::Ready(_result) = self.promise.poll() {
-            self.promise = unsafe { self.new_promise.call(Some(&self.set_resolve), None).unwrap() };
+            debug_assert_eq!(unsafe { _result.into_i32() }, 1024);
+            self.promise = unsafe { self.reset_promise.call(None, None).unwrap().into_promise() };
+            self.ready = true;
             Poll::Ready(())
         } else {
-            unsafe { self.promise.set_waker() };
             Poll::Pending
         }
     }
 
     pub(crate) fn play_last(&mut self, audio: &[F]) -> usize {
-        let buffer = JsVar::from_i32(if self.is_buffer_b {
-            1
-        } else {
-            0
-        });
+        // 
+        if self.ready == false {
+            return 0;
+        }
+        self.ready = false;
+
+        // 
+        let silence = [F::default(); 1024];
+        let audio = if audio.len() < 1024 { &silence } else { audio };
+
+        // 
+        let buffer = JsVar::from_i32(if self.is_buffer_b { 1 } else { 0 });
         self.is_buffer_b = !self.is_buffer_b;
         for (i, sample) in audio.iter().enumerate() {
+            if i == 1024 {
+                break;
+            }
             let (l, r) = sample.into_f64x2();
             self.tmp_audio_l[i] = l;
             self.tmp_audio_r[i] = r;
@@ -145,11 +151,29 @@ impl<F: Frame> Player<F> {
             buffer_r.write_doubles(&self.tmp_audio_r);
         }
 
-        1024 // 1024 frames are always written.
+        if audio.as_ptr() == silence.as_ptr() {
+            0
+        } else {
+            1024
+        }
     }
 }
 
 pub(crate) struct Recorder<F: Frame> {
+    // JavaScript AudioContext
+    audio_ctx: JsVar,
+    // Sample rate of the speakers
+    sample_rate: u32,
+    // JavaScript Promise
+    promise: JsPromise<JsVar>,
+    // JavaScript Function for resetting promise
+    reset_promise: JsFn,
+    // The ready value from the promise resolving.
+    ready: bool,
+    // JavaScript output: audio array
+    array: JsVar,
+    // Input buffer
+    buffer: Vec<f64>,
     _phantom: PhantomData<F>,
 }
 
@@ -157,17 +181,62 @@ impl<F: Frame> Recorder<F> {
     pub(crate) fn new(sr: u32) -> Option<Self> {
         let _phantom = PhantomData::<F>;
         let _ = sr;
+        
+        let audio_ctx = unsafe {
+            JsFn::new("return new (window.AudioContext\
+                ||window.webkitAudioContext)();").call(None, None).unwrap()
+        };
+        let sample_rate: u32 = unsafe {
+            JsFn::new("return param_a.sampleRate;").call(Some(&audio_ctx), None).unwrap().into_i32().try_into().unwrap()
+        };
+        let array = unsafe { JsFn::new("return Array(1024);").call(None, None).unwrap() };
+        let reset_promise = unsafe { JsFn::new("\
+            var resolve;\
+            if (navigator.mediaDevices) {\
+                navigator.mediaDevices.getUserMedia ({audio: true})\
+                .then(function(stream) {\
+                    let options= {mediaStreamTrack:stream.getAudioTracks()[0]};\
+                    let source = new MediaStreamTrackAudioSourceNode(param_a,\
+                        options);\
+                    var scriptNode = param_a.createScriptProcessor(1024, 1, 0);\
+                    scriptNode.onaudioprocess = function(ev) {\
+                        var inputData = ev.inputBuffer.getChannelData(0);\
+                        for (var sample = 0; sample < 1024; sample++) {\
+                            param_b[sample] = inputData[sample];\
+                        }\
+                        resolve(1024);\
+                    };\
+                    source.connect(scriptNode);\
+                });\
+            } else {\
+                return null;\
+            }\
+            return function(a, b) {\
+                return new Promise(function(res, rej) { resolve = res; });\
+            };\
+        ").call(Some(&audio_ctx), Some(&array))?.into_fn() };
+        let promise = unsafe { reset_promise.call(None, None).unwrap().into_promise() };
 
-        None
+        Some(Self{array, ready: false, buffer: Vec::new(), _phantom, audio_ctx, promise, sample_rate, reset_promise})
     }
 
-    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
-        let _ = cx;
-    
-        Poll::Pending
+    pub(crate) fn poll(&mut self, _cx: &mut Context<'_>) -> Poll<()> {
+        if let Poll::Ready(_result) = self.promise.poll() {
+            unsafe { self.array.read_doubles(&mut self.buffer); }
+            self.ready = true;
+            self.promise = unsafe { self.reset_promise.call(None, None).unwrap().into_promise() };
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
     }
 
     pub(crate) fn record_last(&mut self, audio: &mut Vec<F>) {
-        let _ = audio;
+        if self.ready {
+            for i in self.buffer.iter().cloned() {
+                audio.push(F::from_f64x2(i, i));
+            }
+        }
+        self.ready = false;
     }
 }
