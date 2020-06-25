@@ -9,8 +9,12 @@
 
 // Sealed trait for Frames
 pub trait Frame: Copy + Clone + Default {
-    // Channel count
+    /// Channel count
     const CH: u8;
-    // Type for a sample
+    /// Type for a sample
     type Sample;
+    /// Conversion
+    fn into_f64x2(self) -> (f64, f64);
+    /// Conversion
+    fn from_f64x2(left: f64, right: f64) -> Self;
 }

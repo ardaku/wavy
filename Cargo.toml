@@ -29,8 +29,10 @@ is-it-maintained-issue-resolution = { repository = "libcala/wavy" }
 is-it-maintained-open-issues = { repository = "libcala/wavy" }
 maintenance = { status = "actively-developed" }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-stdweb = "0.4"
+# Use cala_core to support all of: wasm-pack, cargo-cala-web and cargo-web
+[target.'cfg(target_arch = "wasm32")'.dependencies.cala_core]
+version = "0.1"
+optional = true
 
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
 smelling_salts = "0.1"
@@ -45,3 +47,6 @@ default-target = "x86_64-unknown-linux-gnu"
 [features]
 default = []
 docs-rs = []
+cala = ["cala_core/cala"]
+stdweb = ["cala_core/stdweb"]
+wasm-bindgen = ["cala_core/wasm-bindgen"]

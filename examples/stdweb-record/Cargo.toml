@@ -1,0 +1,22 @@
+[package]
+name = "wavy-play"
+version = "0.1.0"
+authors = ["Jeron Aldaron Lau <jeronlau@plopgrizzly.com>"]
+edition = "2018"
+description = "Wavy - Play Example"
+repository = "https://github.com/libcala/wavy"
+license = "CC0"
+
+[dependencies.wavy]
+path = "../../"
+features = ["stdweb"]
+
+[dependencies.cala_core]
+version = "0.1"
+
+[dependencies.pasts]
+version = "0.4"
+
+[dependencies.devout]
+version = "0.1"
+features = ["stdweb"]
