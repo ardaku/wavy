@@ -66,18 +66,18 @@ struct Shared {
 async fn monitor() {
     /// Extend buffer by slice of new frames from last plugged in device.
     async fn record(shared: &RefCell<Shared>) {
-        let mut recorder = Recorder::<S16LEx2>::new(48_000).unwrap();
+        let mut recorder = Recorder::<S16LEx2>::new().unwrap();
         loop {
-            recorder.fut().await;
+            let _sample_rate = recorder.fut().await;
             let shared: &mut Shared = &mut *shared.borrow_mut();
             recorder.record_last(&mut shared.buffer);
         }
     }
     /// Drain double ended queue frames into last plugged in device.
     async fn play(shared: &RefCell<Shared>) {
-        let mut player = Player::<S16LEx2>::new(48_000).unwrap();
+        let mut player = Player::<S16LEx2>::new().unwrap();
         loop {
-            player.fut().await;
+            let _sample_rate = player.fut().await;
             let shared: &mut Shared = &mut *shared.borrow_mut();
             let n_frames = player.play_last(shared.buffer.as_slice());
             shared.buffer.drain(..n_frames.min(shared.buffer.len()));

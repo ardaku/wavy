@@ -25,20 +25,27 @@ use self::gen::{
 
 fn pcm_hw_params(
     device: &AlsaDevice,
-    sr: u32,
     sound_device: &SndPcm,
     limit_buffer: bool,
-) -> Option<SndPcmHwParams> {
+) -> Option<(SndPcmHwParams, f64)> {
     // unwrap: Allocating memory should not fail unless out of memory.
     let hw_params = device.snd_pcm_hw_params_malloc().unwrap();
     // unwrap: Getting default settings should never fail.
     device
         .snd_pcm_hw_params_any(sound_device, &hw_params)
         .unwrap();
-    // Enable resampling.
-    // unwrap: FIXME: Fallback SIMD resampler if this were to fail.
+    // Tell it not to resample
+    device.snd_pcm_hw_params_set_rate_resample(sound_device, &hw_params, 0).unwrap();
+    // Find something near 48_000 (this will prefer 48_000, but fallback to
+    // 44_100, if that's what's supported.
+    let mut actual_rate = 48_000;
     device
-        .snd_pcm_hw_params_set_rate_resample(sound_device, &hw_params, 1)
+        .snd_pcm_hw_params_set_rate_near(
+            sound_device,
+            &hw_params,
+            &mut actual_rate,
+            None,
+        )
         .unwrap();
     // Set access to RW noninterleaved.
     // unwrap: Kernel should always support interleaved mode.
@@ -62,20 +69,6 @@ fn pcm_hw_params(
     device
         .snd_pcm_hw_params_set_channels(sound_device, &hw_params, 2)
         .unwrap();
-    // Set Sample rate.
-    // unwrap: FIXME: Fallback SIMD resampler if this were to fail.
-    let mut actual_rate = sr;
-    device
-        .snd_pcm_hw_params_set_rate_near(
-            sound_device,
-            &hw_params,
-            &mut actual_rate,
-            None,
-        )
-        .unwrap();
-    if actual_rate != sr {
-        panic!("Failed to set rate: {}, Got: {} instead!", sr, actual_rate);
-    }
     // Period size must be a power of two
     // Currently only tries 1024
     let mut period_size = 1024;
@@ -115,8 +108,14 @@ fn pcm_hw_params(
     // Re-Apply the hardware parameters that just got set.
     // unwrap: Should always be able to apply parameters that succeeded
     device.snd_pcm_hw_params(sound_device, &hw_params).unwrap();
+    // Query hardware sample rate
+    let (num, den) = device
+        .snd_pcm_hw_params_get_rate_numden(&hw_params)
+        .unwrap();
+        dbg!((num, den));
+    let sample_rate = num as f64 / den as f64;
 
-    Some(hw_params)
+    Some((hw_params, sample_rate))
 }
 
 // Player/Recorder Shared Code for ALSA.
@@ -128,7 +127,7 @@ pub(super) struct Pcm {
 
 impl Pcm {
     /// Create a new async PCM.
-    fn new(direction: SndPcmStream, sr: u32) -> Option<Self> {
+    fn new(direction: SndPcmStream) -> Option<(Self, f64)> {
         // Load shared alsa module.
         let device = AlsaDevice::new()?;
         // FIXME: Currently only the default device is supported.
@@ -138,9 +137,8 @@ impl Pcm {
             .snd_pcm_open(&device_name, direction, SndPcmMode::Nonblock)
             .ok()?;
         // Configure Hardware Parameters
-        let mut hw_params = pcm_hw_params(
+        let (mut hw_params, sample_rate) = pcm_hw_params(
             &device,
-            sr,
             &sound_device,
             direction == SndPcmStream::Playback,
         )?;
@@ -165,11 +163,11 @@ impl Pcm {
             },
         );
 
-        Some(Pcm {
+        Some((Pcm {
             device,
             sound_device,
             fd,
-        })
+        }, sample_rate))
     }
 }
 
@@ -186,15 +184,16 @@ pub(crate) struct Player<F: Frame> {
     player: AlsaPlayer,
     pcm: Pcm,
     is_ready: bool,
+    sample_rate: f64,
     _phantom: PhantomData<F>,
 }
 
 impl<F: Frame> Player<F> {
-    pub(crate) fn new(sr: u32) -> Option<Self> {
+    pub(crate) fn new() -> Option<Self> {
         // Load Player ALSA module
         let player = AlsaPlayer::new()?;
         // Create Playback PCM.
-        let pcm = Pcm::new(SndPcmStream::Playback, sr)?;
+        let (pcm, sample_rate) = Pcm::new(SndPcmStream::Playback)?;
         let is_ready = true;
         let _phantom = PhantomData;
 
@@ -202,14 +201,15 @@ impl<F: Frame> Player<F> {
             player,
             pcm,
             is_ready,
+            sample_rate,
             _phantom,
         })
     }
 
-    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<f64> {
         if self.is_ready {
             // Default to ready
-            Poll::Ready(())
+            Poll::Ready(self.sample_rate)
         } else {
             // Next time this task wakes up, assume ready.
             self.is_ready = true;
@@ -293,16 +293,17 @@ impl<F: Frame> Player<F> {
 pub(crate) struct Recorder<F: Frame> {
     recorder: AlsaRecorder,
     pcm: Pcm,
+    sample_rate: f64,
     is_ready: bool,
     _phantom: PhantomData<F>,
 }
 
 impl<F: Frame> Recorder<F> {
-    pub(crate) fn new(sr: u32) -> Option<Self> {
+    pub(crate) fn new() -> Option<Self> {
         // Load Recorder ALSA module
         let recorder = AlsaRecorder::new()?;
         // Create Capture PCM.
-        let pcm = Pcm::new(SndPcmStream::Capture, sr)?;
+        let (pcm, sample_rate) = Pcm::new(SndPcmStream::Capture)?;
         // pcm.device.snd_pcm_start(&pcm.sound_device).unwrap();
         let is_ready = true;
         let _phantom = PhantomData;
@@ -310,15 +311,16 @@ impl<F: Frame> Recorder<F> {
         Some(Recorder {
             recorder,
             pcm,
+            sample_rate,
             is_ready,
             _phantom,
         })
     }
 
-    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<f64> {
         if self.is_ready {
             // Default to ready
-            Poll::Ready(())
+            Poll::Ready(self.sample_rate)
         } else {
             // Next time this task wakes up, assume ready.
             self.is_ready = true;

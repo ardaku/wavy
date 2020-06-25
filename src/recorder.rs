@@ -14,14 +14,15 @@ use std::task::{Context, Poll};
 use crate::ffi;
 use crate::frame::Frame;
 
-/// Audio Recorder (Microphone input).
+/// Audio Recorder (Microphone input).  When polled as a future, returns the
+/// sample rate of the device.
 #[allow(missing_debug_implementations)]
 pub struct Recorder<F: Frame>(ffi::Recorder<F>);
 
 impl<F: Frame> Recorder<F> {
-    /// Create a new audio recorder at a specific sample rate.
-    pub fn new(sr: u32) -> Option<Self> {
-        Some(Recorder(ffi::Recorder::new(sr)?))
+    /// Create a new audio recorder.
+    pub fn new() -> Option<Self> {
+        Some(Recorder(ffi::Recorder::new()?))
     }
 
     /// Record audio from connected microphones.  Get a future that writes the
@@ -37,7 +38,7 @@ impl<F: Frame> Recorder<F> {
 }
 
 impl<F: Frame + Unpin> Future for Recorder<F> {
-    type Output = ();
+    type Output = f64;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().0.poll(cx)

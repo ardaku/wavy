@@ -3,15 +3,10 @@
 
 #![forbid(unsafe_code)]
 
-#[macro_use]
-extern crate devout;
-
 use pasts::prelude::*;
 use wavy::{Player, Recorder, S16LEx2};
 
 use std::cell::RefCell;
-
-const LOGGER: &str = "Monitor";
 
 /// Shared data between recorder and player.
 struct Shared {
@@ -23,7 +18,7 @@ struct Shared {
 async fn monitor() {
     /// Extend buffer by slice of new frames from last plugged in device.
     async fn record(shared: &RefCell<Shared>) {
-        let mut recorder = Recorder::<S16LEx2>::new(48_000).unwrap();
+        let mut recorder = Recorder::<S16LEx2>::new().unwrap();
         loop {
             recorder.fut().await;
             let shared: &mut Shared = &mut *shared.borrow_mut();
@@ -32,7 +27,7 @@ async fn monitor() {
     }
     /// Drain double ended queue frames into last plugged in device.
     async fn play(shared: &RefCell<Shared>) {
-        let mut player = Player::<S16LEx2>::new(48_000).unwrap();
+        let mut player = Player::<S16LEx2>::new().unwrap();
         loop {
             player.fut().await;
             let shared: &mut Shared = &mut *shared.borrow_mut();

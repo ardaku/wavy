@@ -17,7 +17,7 @@ struct Shared {
 async fn monitor() {
     let buffer = vec![];
     println!("Opening recorder…");
-    let recorder = Recorder::new(48_000).unwrap();
+    let recorder = Recorder::new().unwrap();
     println!("Opening player…");
     let mut shared = Shared { buffer, recorder };
     println!("Done, entering async loop…");

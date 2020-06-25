@@ -17,10 +17,8 @@ use std::task::Poll;
 use std::convert::TryInto;
 
 pub(crate) struct Player<F: Frame> {
-    // JavaScript AudioContext
-    audio_ctx: JsVar,
     // Sample rate of the speakers
-    sample_rate: u32,
+    sample_rate: f64,
     // JavaScript audio double buffer
     buffers: JsVar,
     // If buffer_b is the one to write to next.
@@ -43,16 +41,14 @@ pub(crate) struct Player<F: Frame> {
 }
 
 impl<F: Frame> Player<F> {
-    pub(crate) fn new(sr: u32) -> Option<Self> {
+    pub(crate) fn new() -> Option<Self> {
         let _phantom = PhantomData::<F>;
-        let _ = sr;
-
         let audio_ctx = unsafe {
             JsFn::new("return new (window.AudioContext\
                 ||window.webkitAudioContext)();").call(None, None).unwrap()
         };
-        let sample_rate: u32 = unsafe {
-            JsFn::new("return param_a.sampleRate;").call(Some(&audio_ctx), None).unwrap().into_i32().try_into().unwrap()
+        let sample_rate: f64 = unsafe {
+            JsFn::new("return param_a.sampleRate;").call(Some(&audio_ctx), None).unwrap().into_f64().try_into().unwrap()
         };
         let buffers_constructor = unsafe {
             JsFn::new("return [param_a.createBuffer(2, 1024, param_a.sampleRate), param_a.createBuffer(2, 1024, param_a.sampleRate)];")
@@ -108,15 +104,15 @@ impl<F: Frame> Player<F> {
         ").call(Some(&audio_ctx), Some(&audio_callback)).unwrap().into_fn() };
         let promise = unsafe { reset_promise.call(None, None).unwrap().into_promise() };
 
-        Some(Self { promise,reset_promise, tmp_audio_l,tmp_audio_r,audio_ctx, sample_rate, buffers,is_buffer_b,fn_left,fn_right,ready:false,_phantom })
+        Some(Self { promise,reset_promise, tmp_audio_l,tmp_audio_r, sample_rate, buffers,is_buffer_b,fn_left,fn_right,ready:false,_phantom })
     }
 
-    pub(crate) fn poll(&mut self, _cx: &mut Context<'_>) -> Poll<()> {
+    pub(crate) fn poll(&mut self, _cx: &mut Context<'_>) -> Poll<f64> {
         if let Poll::Ready(_result) = self.promise.poll() {
             debug_assert_eq!(unsafe { _result.into_i32() }, 1024);
             self.promise = unsafe { self.reset_promise.call(None, None).unwrap().into_promise() };
             self.ready = true;
-            Poll::Ready(())
+            Poll::Ready(self.sample_rate)
         } else {
             Poll::Pending
         }
@@ -160,10 +156,8 @@ impl<F: Frame> Player<F> {
 }
 
 pub(crate) struct Recorder<F: Frame> {
-    // JavaScript AudioContext
-    audio_ctx: JsVar,
     // Sample rate of the speakers
-    sample_rate: u32,
+    sample_rate: f64,
     // JavaScript Promise
     promise: JsPromise<JsVar>,
     // JavaScript Function for resetting promise
@@ -178,16 +172,14 @@ pub(crate) struct Recorder<F: Frame> {
 }
 
 impl<F: Frame> Recorder<F> {
-    pub(crate) fn new(sr: u32) -> Option<Self> {
+    pub(crate) fn new() -> Option<Self> {
         let _phantom = PhantomData::<F>;
-        let _ = sr;
-        
         let audio_ctx = unsafe {
             JsFn::new("return new (window.AudioContext\
                 ||window.webkitAudioContext)();").call(None, None).unwrap()
         };
-        let sample_rate: u32 = unsafe {
-            JsFn::new("return param_a.sampleRate;").call(Some(&audio_ctx), None).unwrap().into_i32().try_into().unwrap()
+        let sample_rate: f64 = unsafe {
+            JsFn::new("return param_a.sampleRate;").call(Some(&audio_ctx), None).unwrap().into_f64().try_into().unwrap()
         };
         let array = unsafe { JsFn::new("return Array(1024);").call(None, None).unwrap() };
         let reset_promise = unsafe { JsFn::new("\
@@ -217,15 +209,15 @@ impl<F: Frame> Recorder<F> {
         ").call(Some(&audio_ctx), Some(&array))?.into_fn() };
         let promise = unsafe { reset_promise.call(None, None).unwrap().into_promise() };
 
-        Some(Self{array, ready: false, buffer: Vec::new(), _phantom, audio_ctx, promise, sample_rate, reset_promise})
+        Some(Self{array, ready: false, buffer: Vec::new(), _phantom, promise, sample_rate, reset_promise})
     }
 
-    pub(crate) fn poll(&mut self, _cx: &mut Context<'_>) -> Poll<()> {
+    pub(crate) fn poll(&mut self, _cx: &mut Context<'_>) -> Poll<f64> {
         if let Poll::Ready(_result) = self.promise.poll() {
             unsafe { self.array.read_doubles(&mut self.buffer); }
             self.ready = true;
             self.promise = unsafe { self.reset_promise.call(None, None).unwrap().into_promise() };
-            Poll::Ready(())
+            Poll::Ready(self.sample_rate)
         } else {
             Poll::Pending
         }

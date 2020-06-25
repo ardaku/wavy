@@ -332,6 +332,13 @@ static mut FN_SND_PCM_HW_PARAMS_SET_RATE_NEAR: std::mem::MaybeUninit<
         dir: *mut std::os::raw::c_int,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
+static mut FN_SND_PCM_HW_PARAMS_GET_RATE_NUMDEN: std::mem::MaybeUninit<
+    extern "C" fn(
+        params: *const std::os::raw::c_void,
+        rate_num: *mut std::os::raw::c_uint,
+        rate_den: *mut std::os::raw::c_uint,
+    ) -> std::os::raw::c_int,
+> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_PERIOD_SIZE_NEAR: std::mem::MaybeUninit<
     extern "C" fn(
         pcm: *mut std::os::raw::c_void,
@@ -444,6 +451,10 @@ impl AlsaDevice {
             FN_SND_PCM_HW_PARAMS_SET_CHANNELS =
                 std::mem::MaybeUninit::new(std::mem::transmute(
                     sym(dll, b"snd_pcm_hw_params_set_channels\0")?.as_ptr(),
+                ));
+            FN_SND_PCM_HW_PARAMS_GET_RATE_NUMDEN =
+                std::mem::MaybeUninit::new(std::mem::transmute(
+                    sym(dll, b"snd_pcm_hw_params_get_rate_numden\0")?.as_ptr(),
                 ));
             FN_SND_PCM_HW_PARAMS_SET_RATE_NEAR =
                 std::mem::MaybeUninit::new(std::mem::transmute(
@@ -668,6 +679,25 @@ impl AlsaDevice {
                 return Err(__ret as _);
             };
             Ok(())
+        }
+    }
+    ///
+    pub(super) fn snd_pcm_hw_params_get_rate_numden(
+        &self,
+        params: &SndPcmHwParams,
+    ) -> Result<(u32, u32), i32> {
+        let mut rate_num = std::mem::MaybeUninit::uninit();
+        let mut rate_den = std::mem::MaybeUninit::uninit();
+        unsafe {
+            let __ret = ((FN_SND_PCM_HW_PARAMS_GET_RATE_NUMDEN).assume_init())(
+                params.0,
+                rate_num.as_mut_ptr(),
+                rate_den.as_mut_ptr(),
+            );
+            if __ret < 0 {
+                return Err(__ret as _);
+            };
+            Ok((rate_num.assume_init(), rate_den.assume_init()))
         }
     }
     /// Restrict a configuration space to have period size nearest to a target.

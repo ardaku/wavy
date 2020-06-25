@@ -14,14 +14,15 @@ use std::task::{Context, Poll};
 use crate::ffi;
 use crate::frame::Frame;
 
-/// Audio Player (Speaker output).
+/// Audio Player (Speaker output).  When polled as a future, returns the sample
+/// rate of the device.
 #[allow(missing_debug_implementations)]
 pub struct Player<F: Frame>(ffi::Player<F>);
 
 impl<F: Frame> Player<F> {
-    /// Connect to the speaker system at a specific sample rate.
-    pub fn new(sr: u32) -> Option<Player<F>> {
-        Some(Player(ffi::Player::new(sr)?))
+    /// Connect to the speaker system.
+    pub fn new() -> Option<Player<F>> {
+        Some(Player(ffi::Player::new()?))
     }
 
     /// Play from a slice of audio samples.  Returns a future that returns the
@@ -32,7 +33,7 @@ impl<F: Frame> Player<F> {
 }
 
 impl<F: Frame + Unpin> Future for Player<F> {
-    type Output = ();
+    type Output = f64;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().0.poll(cx)
