@@ -12,11 +12,11 @@ path = "../../"
 features = ["stdweb"]
 
 [dependencies.cala_core]
-path = "../../../cala_core"
+version = "0.1"
 
 [dependencies.pasts]
 version = "0.4"
 
 [dependencies.devout]
-path = "../../../devout"
+version = "0.1"
 features = ["stdweb"]

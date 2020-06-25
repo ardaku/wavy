@@ -14,8 +14,11 @@ checksum = "2e8c087f005730276d1096a652e92a8bacee2e2472bcc9715a74d2bec38b5820"
 
 [[package]]
 name = "cala_core"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d933e1b9260f4004415b14831025c4b2b09c5e628c5ad7105b15380ea4f239d"
 dependencies = [
+ "pasts",
  "stdweb",
 ]
 
@@ -28,6 +31,8 @@ checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 [[package]]
 name = "devout"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eace8a8bee591dee6e86354fa039b00d4b957acedfa2d895e10bf348e24b0354"
 dependencies = [
  "cala_core",
 ]

@@ -42,7 +42,7 @@ async fn monitor() {
         shared.player.fut().await;
         let n_frames = shared.player.play_last(&mut shared.gen.buf);
         shared.gen.buf.drain(..n_frames.min(shared.gen.buf.len()));
-        out!(PLAYER, "played {} frames", n_frames);
+        // out!(PLAYER, "played {} frames", n_frames);
     }
 
     let gen = Generator {
