@@ -4,6 +4,14 @@ All notable changes to `wavy` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
 
+## [0.3.0] - 2020-06-25
+### Added
+- Support for running on a Web Page with WASM
+
+### Changed
+- No longer pass in sample rate in `Player::new()` and `Recorder::new()`, it is
+  now returned by `.await`ing `Player` or `Record` as an `f64`.
+
 ## [0.2.2] - 2020-05-17
 ### Changed
 - Updated examples / documentation to pasts 0.4
