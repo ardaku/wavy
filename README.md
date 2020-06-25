@@ -11,6 +11,7 @@ speaker audio playback using S16LEx2 audio format for these platforms:
 
 ### Platforms
 - Linux (Using ALSA)
+- Web Browser (Compile to Web Assembly)
 
 ### Planned Platforms
 - Windows
@@ -18,7 +19,6 @@ speaker audio playback using S16LEx2 audio format for these platforms:
 - BSD
 - Fuchsia
 - Redox
-- WASM
 - Android (might already work)
 - Nintendo Switch (and other game consoles)
 
