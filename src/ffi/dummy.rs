@@ -26,13 +26,13 @@ impl<F: Frame> Player<F> {
 
     pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         let _ = cx;
-    
+
         Poll::Pending
     }
 
     pub(crate) fn play_last(&mut self, audio: &[F]) -> usize {
         let _ = audio;
-    
+
         0 // 0 frames were written.
     }
 }
@@ -51,7 +51,7 @@ impl<F: Frame> Recorder<F> {
 
     pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         let _ = cx;
-    
+
         Poll::Pending
     }
 

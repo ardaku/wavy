@@ -32,10 +32,10 @@
     variant_size_differences
 )]
 
-mod stereo;
 mod frame;
-mod player;
 mod recorder;
+mod speakers;
+mod stereo;
 
 #[cfg_attr(target_arch = "wasm32", path = "ffi/wasm32.rs")]
 #[cfg_attr(
@@ -58,10 +58,10 @@ mod recorder;
     cfg_attr(target_os = "fuchsia", path = "ffi/fuchsia.rs"),
     cfg_attr(target_os = "redox", path = "ffi/redox.rs"),
     cfg_attr(target_os = "none", path = "ffi/none.rs"),
-    cfg_attr(target_os = "dummy", path = "ffi/dummy.rs"),
+    cfg_attr(target_os = "dummy", path = "ffi/dummy.rs")
 )]
 mod ffi;
 
-pub use player::Player;
 pub use recorder::Recorder;
+pub use speakers::Speakers;
 pub use stereo::S16LEx2;

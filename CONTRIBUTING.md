@@ -14,3 +14,14 @@ don't want to be doing work that might be rejected.
 ## git workflow
 
 Please file PR's against the `master` branch (it's the default, so super easy!).
+
+## Adding Support For Other Operating Systems
+Async:
+ - Prefer to use a port of `smelling_salts` to the target operating system, if
+   possible
+
+Sound format:
+ - standard sound hardware uses i16(LE), so default to converting to Ch16
+ - web uses f64s for sound, so convert to Ch64
+ - other targets may have a specific format that makes more sense (guaranteed
+   support)

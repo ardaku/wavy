@@ -7,27 +7,31 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+use self::gen::{
+    AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
+    SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
+};
 use crate::frame::Frame;
-use std::convert::TryInto;
-use std::ffi::CString;
-use std::marker::PhantomData;
-use std::task::Context;
-use std::task::Poll;
+use fon::{chan::Ch16, sample::Sample, stereo::Stereo16, Audio};
+use std::{
+    any::TypeId,
+    convert::TryInto,
+    ffi::CString,
+    future::Future,
+    marker::PhantomData,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 // Update with: `dl_api ffi/asound,so,2.muon src/linux/gen.rs`
 #[path = "alsa/gen.rs"]
 mod gen;
 
-use self::gen::{
-    AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
-    SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
-};
-
 fn pcm_hw_params(
     device: &AlsaDevice,
     sound_device: &SndPcm,
     limit_buffer: bool,
-) -> Option<(SndPcmHwParams, f64)> {
+) -> Option<(SndPcmHwParams, u32)> {
     // unwrap: Allocating memory should not fail unless out of memory.
     let hw_params = device.snd_pcm_hw_params_malloc().unwrap();
     // unwrap: Getting default settings should never fail.
@@ -35,7 +39,9 @@ fn pcm_hw_params(
         .snd_pcm_hw_params_any(sound_device, &hw_params)
         .unwrap();
     // Tell it not to resample
-    device.snd_pcm_hw_params_set_rate_resample(sound_device, &hw_params, 0).unwrap();
+    device
+        .snd_pcm_hw_params_set_rate_resample(sound_device, &hw_params, 0)
+        .unwrap();
     // Find something near 48_000 (this will prefer 48_000, but fallback to
     // 44_100, if that's what's supported.
     let mut actual_rate = 48_000;
@@ -56,14 +62,14 @@ fn pcm_hw_params(
             SndPcmAccess::RwInterleaved,
         )
         .unwrap();
-    // unwrap: FIXME: Fallback SIMD resampler if this were to fail.
+    // unwrap: S16LE should be supported by all popular speakers / microphones.
     device
         .snd_pcm_hw_params_set_format(
             sound_device,
             &hw_params,
             SndPcmFormat::S16Le,
         )
-        .unwrap();
+        .expect("PCM does not support S16LE");
     // Set channels to stereo (2).
     // unwrap: FIXME: Fallback SIMD resampler if this were to fail.
     device
@@ -108,14 +114,8 @@ fn pcm_hw_params(
     // Re-Apply the hardware parameters that just got set.
     // unwrap: Should always be able to apply parameters that succeeded
     device.snd_pcm_hw_params(sound_device, &hw_params).unwrap();
-    // Query hardware sample rate
-    let (num, den) = device
-        .snd_pcm_hw_params_get_rate_numden(&hw_params)
-        .unwrap();
-        dbg!((num, den));
-    let sample_rate = num as f64 / den as f64;
 
-    Some((hw_params, sample_rate))
+    Some((hw_params, actual_rate))
 }
 
 // Player/Recorder Shared Code for ALSA.
@@ -127,7 +127,7 @@ pub(super) struct Pcm {
 
 impl Pcm {
     /// Create a new async PCM.
-    fn new(direction: SndPcmStream) -> Option<(Self, f64)> {
+    fn new(direction: SndPcmStream) -> Option<(Self, u32)> {
         // Load shared alsa module.
         let device = AlsaDevice::new()?;
         // FIXME: Currently only the default device is supported.
@@ -163,11 +163,14 @@ impl Pcm {
             },
         );
 
-        Some((Pcm {
-            device,
-            sound_device,
-            fd,
-        }, sample_rate))
+        Some((
+            Pcm {
+                device,
+                sound_device,
+                fd,
+            },
+            sample_rate,
+        ))
     }
 }
 
@@ -180,51 +183,97 @@ impl Drop for Pcm {
     }
 }
 
-pub(crate) struct Player<F: Frame> {
+pub(crate) struct Speakers<S: Sample>
+where
+    Ch16: From<S::Chan>,
+{
     player: AlsaPlayer,
     pcm: Pcm,
     is_ready: bool,
-    sample_rate: f64,
-    _phantom: PhantomData<F>,
+    _phantom: PhantomData<S>,
 }
 
-impl<F: Frame> Player<F> {
-    pub(crate) fn new() -> Option<Self> {
-        // Load Player ALSA module
-        let player = AlsaPlayer::new()?;
-        // Create Playback PCM.
-        let (pcm, sample_rate) = Pcm::new(SndPcmStream::Playback)?;
-        let is_ready = true;
-        let _phantom = PhantomData;
+impl<S: Sample + Unpin> Future for &mut Speakers<S>
+where
+    Ch16: From<S::Chan>,
+{
+    type Output = ();
 
-        Some(Player {
-            player,
-            pcm,
-            is_ready,
-            sample_rate,
-            _phantom,
-        })
-    }
-
-    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<f64> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.is_ready {
             // Default to ready
-            Poll::Ready(self.sample_rate)
+            Poll::Ready(())
         } else {
+            let this = self.get_mut();
             // Next time this task wakes up, assume ready.
-            self.is_ready = true;
+            this.is_ready = true;
             // Register waker, and then return not ready.
-            self.pcm.fd.register_waker(cx.waker());
+            this.pcm.fd.register_waker(cx.waker());
             Poll::Pending
         }
     }
+}
 
-    pub(crate) fn play_last(&mut self, audio: &[F]) -> usize {
-        let silence = [F::default(); 1024];
-        let audio = if audio.is_empty() { &silence } else { audio };
+impl<S: Sample> Speakers<S>
+where
+    Ch16: From<S::Chan>,
+{
+    pub(crate) fn connect() -> (Self, u32) {
+        // Load Player ALSA module
+        // unwrap(): FIXME - Should connect to dummy backend instead if fail.
+        let player = AlsaPlayer::new().unwrap();
+        // Create Playback PCM.
+        // unwrap(): FIXME - Should connect to dummy backend instead if fail.
+        let (pcm, sample_rate) = Pcm::new(SndPcmStream::Playback).unwrap();
+        let is_ready = true;
+        let _phantom = PhantomData;
+
+        (
+            Self {
+                player,
+                pcm,
+                is_ready,
+                _phantom,
+            },
+            sample_rate,
+        )
+    }
+
+    #[allow(unsafe_code)]
+    pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize {
+        const SILENCE: [[u8; 4]; 1024] = [[0; 4]; 1024];
 
         // Record into temporary buffer.
-        match self.player.snd_pcm_writei(&self.pcm.sound_device, audio) {
+        let ret = if audio.is_empty() {
+            // Play 1024 samples of silence
+            unsafe {
+                self.player.snd_pcm_writei(
+                    &self.pcm.sound_device,
+                    SILENCE.as_ptr().cast(),
+                    SILENCE.len(),
+                )
+            }
+        } else if TypeId::of::<Stereo16>() == TypeId::of::<S>() {
+            // Play unconverted slice of audio.
+            unsafe {
+                self.player.snd_pcm_writei(
+                    &self.pcm.sound_device,
+                    audio.as_u8_slice().as_ptr().cast(),
+                    audio.len(),
+                )
+            }
+        } else {
+            // Play converted slice of audio.
+            Audio::<Stereo16>::with_audio(audio.sample_rate(), audio);
+            unsafe {
+                self.player.snd_pcm_writei(
+                    &self.pcm.sound_device,
+                    audio.as_u8_slice().as_ptr().cast(),
+                    audio.len(),
+                )
+            }
+        };
+        match ret {
             Err(error) => {
                 let state =
                     self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
@@ -243,12 +292,15 @@ impl<F: Frame> Player<F> {
                                 .device
                                 .snd_pcm_prepare(&self.pcm.sound_device)
                                 .unwrap();
-                            self.player
-                                .snd_pcm_writei(
-                                    &self.pcm.sound_device,
-                                    &silence,
-                                )
-                                .unwrap();
+                            unsafe {
+                                self.player
+                                    .snd_pcm_writei(
+                                        &self.pcm.sound_device,
+                                        SILENCE.as_ptr().cast(),
+                                        SILENCE.len(),
+                                    )
+                                    .unwrap();
+                            }
                             0
                         }
                         st => {
@@ -273,12 +325,15 @@ impl<F: Frame> Player<F> {
                                 .device
                                 .snd_pcm_prepare(&self.pcm.sound_device)
                                 .unwrap();
-                            self.player
-                                .snd_pcm_writei(
-                                    &self.pcm.sound_device,
-                                    &silence,
-                                )
-                                .unwrap();
+                            unsafe {
+                                self.player
+                                    .snd_pcm_writei(
+                                        &self.pcm.sound_device,
+                                        SILENCE.as_ptr().cast(),
+                                        SILENCE.len(),
+                                    )
+                                    .unwrap();
+                            }
                         }
                         0
                     }
@@ -293,7 +348,7 @@ impl<F: Frame> Player<F> {
 pub(crate) struct Recorder<F: Frame> {
     recorder: AlsaRecorder,
     pcm: Pcm,
-    sample_rate: f64,
+    sample_rate: u32,
     is_ready: bool,
     _phantom: PhantomData<F>,
 }
@@ -317,7 +372,7 @@ impl<F: Frame> Recorder<F> {
         })
     }
 
-    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<f64> {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<u32> {
         if self.is_ready {
             // Default to ready
             Poll::Ready(self.sample_rate)

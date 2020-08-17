@@ -1,7 +1,7 @@
 //! This example records audio and plays it back in real time as it's being
 //! recorded.  Examples are in the public domain.
 
-use pasts::{CvarExec, prelude::*};
+use pasts::{prelude::*, CvarExec};
 use std::io::Write;
 use wavy::{Recorder, S16LEx2};
 

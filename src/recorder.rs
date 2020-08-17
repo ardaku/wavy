@@ -38,7 +38,7 @@ impl<F: Frame> Recorder<F> {
 }
 
 impl<F: Frame + Unpin> Future for Recorder<F> {
-    type Output = f64;
+    type Output = u32;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().0.poll(cx)

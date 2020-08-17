@@ -12,6 +12,8 @@
 #![allow(unsafe_code)]
 #![allow(trivial_numeric_casts, trivial_casts)]
 
+use std::os::raw::c_void;
+
 const LM_ID_NEWLM: std::os::raw::c_long = -1;
 const RTLD_NOW: std::os::raw::c_int = 0x00002;
 
@@ -20,32 +22,32 @@ extern "C" {
         lmid: std::os::raw::c_long,
         filename: *const std::os::raw::c_char,
         flags: std::os::raw::c_int,
-    ) -> *mut std::ffi::c_void;
+    ) -> *mut c_void;
     fn dlsym(
-        handle: *mut std::ffi::c_void,
+        handle: *mut c_void,
         symbol: *const std::os::raw::c_char,
-    ) -> *mut std::ffi::c_void;
+    ) -> *mut c_void;
 }
 
-unsafe fn new(name: &[u8]) -> Option<std::ptr::NonNull<std::ffi::c_void>> {
+unsafe fn new(name: &[u8]) -> Option<std::ptr::NonNull<c_void>> {
     std::ptr::NonNull::new(dlmopen(LM_ID_NEWLM, name.as_ptr().cast(), RTLD_NOW))
 }
 
 unsafe fn sym(
-    dll: std::ptr::NonNull<std::ffi::c_void>,
+    dll: std::ptr::NonNull<c_void>,
     name: &[u8],
-) -> Option<std::ptr::NonNull<std::ffi::c_void>> {
+) -> Option<std::ptr::NonNull<c_void>> {
     std::ptr::NonNull::new(dlsym(dll.as_ptr(), name.as_ptr().cast()))
 }
 
 static mut THREAD_ID: std::mem::MaybeUninit<std::thread::ThreadId> =
     std::mem::MaybeUninit::uninit();
-static mut DLL: std::mem::MaybeUninit<std::ptr::NonNull<std::ffi::c_void>> =
+static mut DLL: std::mem::MaybeUninit<std::ptr::NonNull<c_void>> =
     std::mem::MaybeUninit::uninit();
 static mut START_FFI: std::sync::Once = std::sync::Once::new();
 static mut SUCCESS: bool = false;
 
-unsafe fn check_thread() -> Option<std::ptr::NonNull<std::ffi::c_void>> {
+unsafe fn check_thread() -> Option<std::ptr::NonNull<c_void>> {
     START_FFI.call_once(|| {
         THREAD_ID = std::mem::MaybeUninit::new(std::thread::current().id());
         if let Some(dll) = new(DL_API_SHARED_OBJECT_NAME) {
@@ -254,7 +256,7 @@ pub(super) enum SndPcmState {
 }
 
 /// PCM handle
-pub(super) struct SndPcm(*mut std::os::raw::c_void);
+pub(super) struct SndPcm(*mut c_void);
 
 /// PCM hardware configuration space container
 ///
@@ -269,7 +271,7 @@ pub(super) struct SndPcm(*mut std::os::raw::c_void);
 /// impossible configurations as possible. Attempting to set a parameter
 /// outside of its acceptable range will result in the function failing and
 /// an error code being returned.
-pub(super) struct SndPcmHwParams(*mut std::os::raw::c_void);
+pub(super) struct SndPcmHwParams(*mut c_void);
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -281,133 +283,120 @@ pub(super) struct PollFd {
 
 static mut FN_SND_PCM_OPEN: std::mem::MaybeUninit<
     extern "C" fn(
-        pcmp: *mut *mut std::os::raw::c_void,
+        pcmp: *mut *mut c_void,
         name: *const std::os::raw::c_char,
         stream: SndPcmStream,
         mode: SndPcmMode,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_MALLOC: std::mem::MaybeUninit<
-    extern "C" fn(ptr: *mut *mut std::os::raw::c_void) -> std::os::raw::c_int,
+    extern "C" fn(ptr: *mut *mut c_void) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_ANY: std::mem::MaybeUninit<
-    extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
-        params: *mut std::os::raw::c_void,
-    ) -> std::os::raw::c_int,
+    extern "C" fn(pcm: *mut c_void, params: *mut c_void) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
-        params: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
+        params: *mut c_void,
         val: std::os::raw::c_uint,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_ACCESS: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
-        params: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
+        params: *mut c_void,
         access: SndPcmAccess,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_FORMAT: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
-        params: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
+        params: *mut c_void,
         format: SndPcmFormat,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_CHANNELS: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
-        params: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
+        params: *mut c_void,
         val: std::os::raw::c_uint,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_RATE_NEAR: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
-        params: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
+        params: *mut c_void,
         val: *mut std::os::raw::c_uint,
         dir: *mut std::os::raw::c_int,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_HW_PARAMS_GET_RATE_NUMDEN: std::mem::MaybeUninit<
-    extern "C" fn(
-        params: *const std::os::raw::c_void,
-        rate_num: *mut std::os::raw::c_uint,
-        rate_den: *mut std::os::raw::c_uint,
-    ) -> std::os::raw::c_int,
-> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_PERIOD_SIZE_NEAR: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
-        params: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
+        params: *mut c_void,
         val: *mut std::os::raw::c_uint,
         dir: *mut std::os::raw::c_int,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_BUFFER_SIZE_NEAR: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
-        params: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
+        params: *mut c_void,
         val: *mut std::os::raw::c_uint,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS: std::mem::MaybeUninit<
-    extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
-        params: *mut std::os::raw::c_void,
-    ) -> std::os::raw::c_int,
+    extern "C" fn(pcm: *mut c_void, params: *mut c_void) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE: std::mem::MaybeUninit<
     extern "C" fn(
-        params: *const std::os::raw::c_void,
+        params: *const c_void,
         frames: *mut std::os::raw::c_ulong,
         dir: *mut std::os::raw::c_int,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_FREE: std::mem::MaybeUninit<
-    extern "C" fn(obj: *mut std::os::raw::c_void) -> (),
+    extern "C" fn(obj: *mut c_void) -> (),
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_WRITEI: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
         buffer: *const u32,
         size: std::os::raw::c_ulong,
     ) -> std::os::raw::c_long,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_READI: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
         buffer: *mut u32,
         size: std::os::raw::c_ulong,
     ) -> std::os::raw::c_long,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_CLOSE: std::mem::MaybeUninit<
-    extern "C" fn(pcm: *mut std::os::raw::c_void) -> std::os::raw::c_int,
+    extern "C" fn(pcm: *mut c_void) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_POLL_DESCRIPTORS_COUNT: std::mem::MaybeUninit<
-    extern "C" fn(pcm: *mut std::os::raw::c_void) -> std::os::raw::c_int,
+    extern "C" fn(pcm: *mut c_void) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_POLL_DESCRIPTORS: std::mem::MaybeUninit<
     extern "C" fn(
-        pcm: *mut std::os::raw::c_void,
+        pcm: *mut c_void,
         pfds: *mut PollFd,
         space: std::os::raw::c_uint,
     ) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_STATE: std::mem::MaybeUninit<
-    extern "C" fn(pcm: *mut std::os::raw::c_void) -> SndPcmState,
+    extern "C" fn(pcm: *mut c_void) -> SndPcmState,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_DROP: std::mem::MaybeUninit<
-    extern "C" fn(pcm: *mut std::os::raw::c_void) -> std::os::raw::c_int,
+    extern "C" fn(pcm: *mut c_void) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_PREPARE: std::mem::MaybeUninit<
-    extern "C" fn(pcm: *mut std::os::raw::c_void) -> std::os::raw::c_int,
+    extern "C" fn(pcm: *mut c_void) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_RESUME: std::mem::MaybeUninit<
-    extern "C" fn(pcm: *mut std::os::raw::c_void) -> std::os::raw::c_int,
+    extern "C" fn(pcm: *mut c_void) -> std::os::raw::c_int,
 > = std::mem::MaybeUninit::uninit();
 
 static mut ALSA_DEVICE_INIT: Option<AlsaDevice> = None;
@@ -451,10 +440,6 @@ impl AlsaDevice {
             FN_SND_PCM_HW_PARAMS_SET_CHANNELS =
                 std::mem::MaybeUninit::new(std::mem::transmute(
                     sym(dll, b"snd_pcm_hw_params_set_channels\0")?.as_ptr(),
-                ));
-            FN_SND_PCM_HW_PARAMS_GET_RATE_NUMDEN =
-                std::mem::MaybeUninit::new(std::mem::transmute(
-                    sym(dll, b"snd_pcm_hw_params_get_rate_numden\0")?.as_ptr(),
                 ));
             FN_SND_PCM_HW_PARAMS_SET_RATE_NEAR =
                 std::mem::MaybeUninit::new(std::mem::transmute(
@@ -536,7 +521,9 @@ impl AlsaDevice {
         }
     }
     /// Allocate an invalid snd_pcm_hw_params_t using standard malloc
-    pub(super) fn snd_pcm_hw_params_malloc(&self) -> Result<SndPcmHwParams, i32> {
+    pub(super) fn snd_pcm_hw_params_malloc(
+        &self,
+    ) -> Result<SndPcmHwParams, i32> {
         unsafe {
             let mut ptr = std::mem::MaybeUninit::uninit();
             let __ret =
@@ -681,25 +668,6 @@ impl AlsaDevice {
             Ok(())
         }
     }
-    ///
-    pub(super) fn snd_pcm_hw_params_get_rate_numden(
-        &self,
-        params: &SndPcmHwParams,
-    ) -> Result<(u32, u32), i32> {
-        let mut rate_num = std::mem::MaybeUninit::uninit();
-        let mut rate_den = std::mem::MaybeUninit::uninit();
-        unsafe {
-            let __ret = ((FN_SND_PCM_HW_PARAMS_GET_RATE_NUMDEN).assume_init())(
-                params.0,
-                rate_num.as_mut_ptr(),
-                rate_den.as_mut_ptr(),
-            );
-            if __ret < 0 {
-                return Err(__ret as _);
-            };
-            Ok((rate_num.assume_init(), rate_den.assume_init()))
-        }
-    }
     /// Restrict a configuration space to have period size nearest to a target.
     ///  - `pcm`: PCM handle
     ///  - `params`: Configuration space
@@ -783,7 +751,10 @@ impl AlsaDevice {
         }
     }
     /// Frees a previously allocated snd_pcm_hw_params_t
-    pub(super) fn snd_pcm_hw_params_free(&self, obj: &mut SndPcmHwParams) -> () {
+    pub(super) fn snd_pcm_hw_params_free(
+        &self,
+        obj: &mut SndPcmHwParams,
+    ) -> () {
         unsafe {
             if obj.0.is_null() {
                 panic!("Object free'd twice!")
@@ -920,20 +891,20 @@ impl AlsaPlayer {
     ///
     /// If the non-blocking behaviour is selected, then routine doesn't wait at
     /// all.
-    pub(super) fn snd_pcm_writei<F: super::Frame>(
+    pub(super) unsafe fn snd_pcm_writei(
         &self,
         pcm: &SndPcm,
-        buffer: &[F],
+        frames: *const c_void,
+        f_size: usize,
     ) -> Result<isize, isize> {
-        unsafe {
-            let __ret = ((FN_SND_PCM_WRITEI).assume_init())(
-                pcm.0,
-                buffer.as_ptr() as _,
-                buffer.len() as _,
-            );
-            if __ret < 0 {
-                return Err(__ret as _);
-            };
+        let __ret = ((FN_SND_PCM_WRITEI).assume_init())(
+            pcm.0,
+            frames as _,
+            f_size as _,
+        );
+        if __ret < 0 {
+            Err(__ret as _)
+        } else {
             Ok(__ret as _)
         }
     }
