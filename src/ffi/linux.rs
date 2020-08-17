@@ -12,9 +12,8 @@ use self::gen::{
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
 use crate::frame::Frame;
-use fon::{chan::Ch16, sample::Sample, stereo::Stereo16, Audio};
+use fon::{chan::Ch16, sample::Sample, stereo::Stereo16, mono::Mono16, surround::{SurroundHD16, Surround16}, Audio, Config};
 use std::{
-    any::TypeId,
     convert::TryInto,
     ffi::CString,
     future::Future,
@@ -22,6 +21,8 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+
+const CHANNEL_COUNT: &[u32] = &[8, 6, 4, 2, 1];
 
 // Update with: `dl_api ffi/asound,so,2.muon src/linux/gen.rs`
 #[path = "alsa/gen.rs"]
@@ -31,7 +32,8 @@ fn pcm_hw_params(
     device: &AlsaDevice,
     sound_device: &SndPcm,
     limit_buffer: bool,
-) -> Option<(SndPcmHwParams, u32)> {
+    max_channels: u32,
+) -> Option<(SndPcmHwParams, u32, u32)> {
     // unwrap: Allocating memory should not fail unless out of memory.
     let hw_params = device.snd_pcm_hw_params_malloc().unwrap();
     // unwrap: Getting default settings should never fail.
@@ -44,12 +46,12 @@ fn pcm_hw_params(
         .unwrap();
     // Find something near 48_000 (this will prefer 48_000, but fallback to
     // 44_100, if that's what's supported.
-    let mut actual_rate = 48_000;
+    let mut sample_rate = 48_000;
     device
         .snd_pcm_hw_params_set_rate_near(
             sound_device,
             &hw_params,
-            &mut actual_rate,
+            &mut sample_rate,
             None,
         )
         .unwrap();
@@ -70,11 +72,17 @@ fn pcm_hw_params(
             SndPcmFormat::S16Le,
         )
         .expect("PCM does not support S16LE");
-    // Set channels to stereo (2).
-    // unwrap: FIXME: Fallback SIMD resampler if this were to fail.
-    device
-        .snd_pcm_hw_params_set_channels(sound_device, &hw_params, 2)
-        .unwrap();
+    // Get speaker configuration & number of channels.
+    let mut ch_count = None;
+    for count in CHANNEL_COUNT.iter().cloned() {
+        if count > max_channels {
+            continue;
+        }
+        if device.snd_pcm_hw_params_set_channels(sound_device, &hw_params, count).is_ok() {
+            ch_count = Some(count);
+        }
+    }
+    let ch_count = ch_count.expect("Speaker configuration failed");
     // Period size must be a power of two
     // Currently only tries 1024
     let mut period_size = 1024;
@@ -86,12 +94,6 @@ fn pcm_hw_params(
             None,
         )
         .unwrap();
-    if period_size != 1024 {
-        panic!(
-            "Wavy: Tried to set period size: {}, Got: {}!",
-            1024, period_size
-        );
-    }
     // Set buffer size to about 3 times the period (setting latency).
     if limit_buffer {
         let mut buffer_size = 1024 * 3;
@@ -115,7 +117,7 @@ fn pcm_hw_params(
     // unwrap: Should always be able to apply parameters that succeeded
     device.snd_pcm_hw_params(sound_device, &hw_params).unwrap();
 
-    Some((hw_params, actual_rate))
+    Some((hw_params, sample_rate, ch_count))
 }
 
 // Player/Recorder Shared Code for ALSA.
@@ -127,7 +129,7 @@ pub(super) struct Pcm {
 
 impl Pcm {
     /// Create a new async PCM.
-    fn new(direction: SndPcmStream) -> Option<(Self, u32)> {
+    fn new(direction: SndPcmStream, max_channels: usize) -> Option<(Self, u32, u32)> {
         // Load shared alsa module.
         let device = AlsaDevice::new()?;
         // FIXME: Currently only the default device is supported.
@@ -137,10 +139,11 @@ impl Pcm {
             .snd_pcm_open(&device_name, direction, SndPcmMode::Nonblock)
             .ok()?;
         // Configure Hardware Parameters
-        let (mut hw_params, sample_rate) = pcm_hw_params(
+        let (mut hw_params, sample_rate, n_channels) = pcm_hw_params(
             &device,
             &sound_device,
             direction == SndPcmStream::Playback,
+            max_channels.try_into().unwrap(),
         )?;
         // Free Hardware Parameters
         device.snd_pcm_hw_params_free(&mut hw_params);
@@ -170,6 +173,7 @@ impl Pcm {
                 fd,
             },
             sample_rate,
+            n_channels,
         ))
     }
 }
@@ -190,6 +194,8 @@ where
     player: AlsaPlayer,
     pcm: Pcm,
     is_ready: bool,
+    buffer: Vec<[u8; 2]>,
+    written: usize,
     _phantom: PhantomData<S>,
 }
 
@@ -200,11 +206,26 @@ where
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.is_ready {
-            // Default to ready
-            Poll::Ready(())
+        let this = self.get_mut();
+        if this.is_ready {
+            if this.written >= 1024 {
+                // Default to ready
+                Poll::Ready(())
+            } else {
+                this.write();
+                if this.written >= 1024 {
+                    // Has read entire buffer, ready for more.
+                    Poll::Ready(())
+                } else {
+                    // Buffer still has data, so still pending
+                    // Next time this task wakes up, assume ready.
+                    this.is_ready = true;
+                    // Register waker, and then return not ready.
+                    this.pcm.fd.register_waker(cx.waker());
+                    Poll::Pending
+                }
+            }
         } else {
-            let this = self.get_mut();
             // Next time this task wakes up, assume ready.
             this.is_ready = true;
             // Register waker, and then return not ready.
@@ -224,7 +245,9 @@ where
         let player = AlsaPlayer::new().unwrap();
         // Create Playback PCM.
         // unwrap(): FIXME - Should connect to dummy backend instead if fail.
-        let (pcm, sample_rate) = Pcm::new(SndPcmStream::Playback).unwrap();
+        let (pcm, sample_rate, nc) = Pcm::new(SndPcmStream::Playback, S::Conf::CHANNEL_COUNT).unwrap();
+        let buffer = vec![[0; 2]; nc as usize * 1024];
+        let written = 0;
         let is_ready = true;
         let _phantom = PhantomData;
 
@@ -233,45 +256,67 @@ where
                 player,
                 pcm,
                 is_ready,
+                buffer,
+                written,
                 _phantom,
             },
             sample_rate,
         )
     }
 
-    #[allow(unsafe_code)]
-    pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize {
-        const SILENCE: [[u8; 4]; 1024] = [[0; 4]; 1024];
+    pub(crate) fn play(&mut self, audio: &Audio<S>) {
+        // Convert to speaker's native type.
+        self.written = 0;
+        match self.buffer.len() >> 10 {
+            1 => { // Mono
+                for (i, sample) in audio.iter().enumerate() {
+                    let sample: Mono16 = sample.convert();
+                    for (j, channel) in sample.channels().iter().enumerate() {
+                        self.buffer[S::Conf::CHANNEL_COUNT * i + j] = i16::from(*channel).to_le_bytes();
+                    }
+                }
+            }
+            2 => { // Stereo
+                for (i, sample) in audio.iter().enumerate() {
+                    let sample: Stereo16 = sample.convert();
+                    for (j, channel) in sample.channels().iter().enumerate() {
+                        self.buffer[S::Conf::CHANNEL_COUNT * i + j] = i16::from(*channel).to_le_bytes();
+                    }
+                }
+            }
+            4 => { // Surround 4.0
+                todo!()
+            }
+            6 => { // Surround 5.1
+                for (i, sample) in audio.iter().enumerate() {
+                    let sample: Surround16 = sample.convert();
+                    for (j, channel) in sample.channels().iter().enumerate() {
+                        self.buffer[S::Conf::CHANNEL_COUNT * i + j] = i16::from(*channel).to_le_bytes();
+                    }
+                }
+            }
+            8 => { // Surround 7.1
+                for (i, sample) in audio.iter().enumerate() {
+                    let sample: SurroundHD16 = sample.convert();
+                    for (j, channel) in sample.channels().iter().enumerate() {
+                        self.buffer[S::Conf::CHANNEL_COUNT * i + j] = i16::from(*channel).to_le_bytes();
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        
+        self.write();
+    }
 
-        // Record into temporary buffer.
-        let ret = if audio.is_empty() {
-            // Play 1024 samples of silence
-            unsafe {
-                self.player.snd_pcm_writei(
-                    &self.pcm.sound_device,
-                    SILENCE.as_ptr().cast(),
-                    SILENCE.len(),
-                )
-            }
-        } else if TypeId::of::<Stereo16>() == TypeId::of::<S>() {
-            // Play unconverted slice of audio.
-            unsafe {
-                self.player.snd_pcm_writei(
-                    &self.pcm.sound_device,
-                    audio.as_u8_slice().as_ptr().cast(),
-                    audio.len(),
-                )
-            }
-        } else {
-            // Play converted slice of audio.
-            Audio::<Stereo16>::with_audio(audio.sample_rate(), audio);
-            unsafe {
-                self.player.snd_pcm_writei(
-                    &self.pcm.sound_device,
-                    audio.as_u8_slice().as_ptr().cast(),
-                    audio.len(),
-                )
-            }
+    #[allow(unsafe_code)]
+    fn write(&mut self) {
+        let ret = unsafe {
+            self.player.snd_pcm_writei(
+                &self.pcm.sound_device,
+                self.buffer[self.written..].as_ptr().cast(),
+                self.buffer[self.written..].len(),
+            )
         };
         match ret {
             Err(error) => {
@@ -283,7 +328,6 @@ where
                     // page)
                     -11 => {
                         self.is_ready = false;
-                        0
                     }
                     -32 => match state {
                         SndPcmState::Xrun => {
@@ -296,12 +340,11 @@ where
                                 self.player
                                     .snd_pcm_writei(
                                         &self.pcm.sound_device,
-                                        SILENCE.as_ptr().cast(),
-                                        SILENCE.len(),
+                                        self.buffer[..].as_ptr().cast(),
+                                        self.buffer[..].len(),
                                     )
                                     .unwrap();
                             }
-                            0
                         }
                         st => {
                             eprintln!("Incorrect state = {:?} (XRUN): Report Bug to https://github.com/libcala/wavy/issues/new", st);
@@ -329,18 +372,17 @@ where
                                 self.player
                                     .snd_pcm_writei(
                                         &self.pcm.sound_device,
-                                        SILENCE.as_ptr().cast(),
-                                        SILENCE.len(),
+                                        self.buffer[..].as_ptr().cast(),
+                                        self.buffer[..].len(),
                                     )
                                     .unwrap();
                             }
                         }
-                        0
                     }
                     _ => unreachable!(),
                 }
             }
-            Ok(len) => len as usize,
+            Ok(len) => self.written += len as usize,
         }
     }
 }
@@ -358,7 +400,7 @@ impl<F: Frame> Recorder<F> {
         // Load Recorder ALSA module
         let recorder = AlsaRecorder::new()?;
         // Create Capture PCM.
-        let (pcm, sample_rate) = Pcm::new(SndPcmStream::Capture)?;
+        let (pcm, sample_rate, _one) = Pcm::new(SndPcmStream::Capture, 1)?;
         // pcm.device.snd_pcm_start(&pcm.sound_device).unwrap();
         let is_ready = true;
         let _phantom = PhantomData;

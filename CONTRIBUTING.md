@@ -25,3 +25,15 @@ Sound format:
  - web uses f64s for sound, so convert to Ch64
  - other targets may have a specific format that makes more sense (guaranteed
    support)
+   
+### Speaker Configuration
+Some platforms may only have support up to stereo, when initializing speaker,
+don't try anything higher than the user's requested sample format.
+ 0. Mono / (Front) Left - **Mono**
+ 1. (Front) Right - **Stereo**
+ 2. Back Left
+ 3. Back Right - **Surround 4**
+ 4. Front Center
+ 5. LFE - **Surround 5.1**
+ 6. Side Left
+ 7. Side Right - **Surround 7.1**
