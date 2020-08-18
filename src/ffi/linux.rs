@@ -11,8 +11,7 @@ use self::gen::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
-use crate::frame::Frame;
-use fon::{chan::Ch16, sample::Sample, stereo::Stereo16, mono::Mono16, surround::{SurroundHD16, Surround16}, Audio, Config};
+use fon::{chan::{Channel, Ch16}, sample::{Sample, Sample1}, stereo::Stereo16, mono::Mono16, surround::{SurroundHD16, Surround16}, Audio, Config};
 use std::{
     convert::TryInto,
     ffi::CString,
@@ -120,7 +119,7 @@ fn pcm_hw_params(
     Some((hw_params, sample_rate, ch_count))
 }
 
-// Player/Recorder Shared Code for ALSA.
+// Speakers/Microphone Shared Code for ALSA.
 pub(super) struct Pcm {
     device: AlsaDevice,
     sound_device: SndPcm,
@@ -387,15 +386,14 @@ where
     }
 }
 
-pub(crate) struct Recorder<F: Frame> {
+pub(crate) struct Microphone<C: Channel + Unpin, F: Config + Unpin> {
     recorder: AlsaRecorder,
     pcm: Pcm,
-    sample_rate: u32,
     is_ready: bool,
-    _phantom: PhantomData<F>,
+    stream: MicrophoneStream<C, F>,
 }
 
-impl<F: Frame> Recorder<F> {
+impl<C: Channel + Unpin, F: Config + Unpin> Microphone<C, F> {
     pub(crate) fn new() -> Option<Self> {
         // Load Recorder ALSA module
         let recorder = AlsaRecorder::new()?;
@@ -404,33 +402,30 @@ impl<F: Frame> Recorder<F> {
         // pcm.device.snd_pcm_start(&pcm.sound_device).unwrap();
         let is_ready = true;
         let _phantom = PhantomData;
+        let stream = MicrophoneStream {
+            buffer: Vec::with_capacity(1024),
+            sample_rate,
+            phase: 0.0,
+            temp: C::MID,
+            _phantom,
+        };
         // Return successfully
-        Some(Recorder {
+        Some(Self {
             recorder,
             pcm,
-            sample_rate,
             is_ready,
-            _phantom,
+            stream,
         })
     }
-
-    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<u32> {
-        if self.is_ready {
-            // Default to ready
-            Poll::Ready(self.sample_rate)
-        } else {
-            // Next time this task wakes up, assume ready.
-            self.is_ready = true;
-            // Register waker, and then return not ready.
-            self.pcm.fd.register_waker(cx.waker());
-            Poll::Pending
-        }
+    
+    pub(crate) fn sample_rate(&self) -> u32 {
+        self.stream.sample_rate
     }
 
-    pub(crate) fn record_last(&mut self, audio: &mut Vec<F>) {
+    pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C, F> {
         // Record into temporary buffer.
         if let Err(error) =
-            self.recorder.snd_pcm_readi(&self.pcm.sound_device, audio)
+            self.recorder.snd_pcm_readi(&self.pcm.sound_device, &mut self.stream.buffer)
         {
             let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
             match error {
@@ -446,7 +441,7 @@ impl<F: Frame> Recorder<F> {
                 }
                 -32 => match state {
                     SndPcmState::Xrun => {
-                        eprintln!("Recorder XRUN: Latency cause?");
+                        eprintln!("Microphone XRUN: Latency cause?");
                         self.pcm
                             .device
                             .snd_pcm_prepare(&self.pcm.sound_device)
@@ -477,5 +472,80 @@ impl<F: Frame> Recorder<F> {
                 _ => unreachable!(),
             }
         }
+        &mut self.stream
+    }
+}
+
+impl<C: Channel + Unpin, F: Config + Unpin> Future for Microphone<C, F> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        if this.is_ready {
+            // Default to ready
+            Poll::Ready(())
+        } else {
+            // Next time this task wakes up, assume ready.
+            this.is_ready = true;
+            // Register waker, and then return not ready.
+            this.pcm.fd.register_waker(cx.waker());
+            Poll::Pending
+        }
+    }
+}
+
+pub(crate) struct MicrophoneStream<C: Channel + Unpin, F: Config + Unpin> {
+    // S16LE Audio Buffer
+    buffer: Vec<[u8; 2]>,
+    // Amount (0~1) of channel added to `temp`
+    phase: f64,
+    // Temporary for storing a partial channel from the last conversion
+    temp: C,
+    // Sample Rate of The Microphone (src)
+    sample_rate: u32,
+    // Phantom Data
+    _phantom: PhantomData<(C, F)>,
+}
+
+impl<C: Channel + Unpin + From<Ch16>, F: Config + Unpin> crate::StreamRecv<Sample1<C, F>> for &mut MicrophoneStream<C, F> {
+    fn recv(&mut self, buffer: &mut Audio<Sample1<C, F>>) {
+        let src_sr = self.sample_rate;
+        let dst_sr = buffer.sample_rate();
+        let sr_rat = dst_sr as f64 / src_sr as f64;
+        // Swap audio buffer out.
+        let mut tmp = Audio::with_silence(1, 0);
+        std::mem::swap(&mut tmp, buffer);
+
+        // Add samples
+        let mut tmp = Vec::<Sample1<C, F>>::from(tmp);
+        let len = sr_rat * self.buffer.len() as f64;
+        let phase_offset = len.fract();
+        let len = len.trunc() as usize;
+        for i in 0..len {
+            let i = sr_rat * i as f64 - (1.0 - self.phase);
+            let first: C = match i.floor() {
+                x if x < 0.0 => self.temp,
+                _ => {
+                    let first: Ch16 = i16::from_le_bytes(self.buffer[i as usize]).into();
+                    first.into()
+                },
+            };
+            let second = self.buffer[i as usize + 1];
+            let amount: C = i.fract().into();
+            let second: Ch16 = i16::from_le_bytes(second).into();
+            let second: C = second.into();
+            tmp.push(Sample1::new(first.lerp(second, amount)));
+        }
+        self.phase += phase_offset;
+        self.temp = Ch16::from(i16::from_le_bytes(self.buffer[self.buffer.len() - 1])).into();
+        if self.phase >= 1.0 {
+            tmp.push(Sample1::new(self.temp));
+        }
+        self.phase %= 1.0;
+
+        let mut tmp: Audio<Sample1<C, F>> = Audio::with_samples(dst_sr, tmp);
+
+        // Swap audio buffer back.
+        std::mem::swap(&mut tmp, buffer);
     }
 }

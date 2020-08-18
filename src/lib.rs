@@ -32,11 +32,6 @@
     variant_size_differences
 )]
 
-mod frame;
-mod recorder;
-mod speakers;
-mod stereo;
-
 #[cfg_attr(target_arch = "wasm32", path = "ffi/wasm32.rs")]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -62,6 +57,8 @@ mod stereo;
 )]
 mod ffi;
 
-pub use recorder::Recorder;
+mod microphone;
+mod speakers;
+
+pub use microphone::{Microphone, StreamRecv, StreamSend};
 pub use speakers::Speakers;
-pub use stereo::S16LEx2;

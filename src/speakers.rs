@@ -11,8 +11,54 @@ use fon::{chan::Ch16, sample::Sample, Audio};
 
 use crate::ffi::Speakers as SpeakersSys;
 
-/// Audio Player (Speaker output).  When polled as a future, returns the sample
-/// rate of the device.
+/// Play audio samples through speaker system.
+///
+/// # 440 HZ Sine Wave Example
+/// **note:** This example depends on `twang = "0.3"` to synthesize the sine
+/// wave.
+/// ```no_run
+/// use fon::mono::Mono64;
+/// use pasts::{prelude::*, CvarExec};
+/// use std::cell::RefCell;
+/// use twang::Synth;
+/// use wavy::Speakers;
+/// 
+/// /// The program's shared state.
+/// struct State {}
+/// 
+/// /// Speakers task (play sine wave).
+/// async fn speakers(state: &RefCell<State>) {
+///     // Connect to system's speaker(s)
+///     let mut speakers = Speakers::<Mono64>::new();
+///     // Create a new synthesizer
+///     let mut synth = Synth::new();
+/// 
+///     loop {
+///         // 1. Wait for speaker to need more samples.
+///         let audio = speakers.play().await;
+///         // 2. Borrow shared state mutably
+///         let _state = state.borrow_mut();
+///         // 3. Generate and write samples into speaker buffer.
+///         synth.gen(audio, |fc| fc.freq(440.0).sine().amp(0.7));
+///     }
+/// }
+/// 
+/// /// Program start.
+/// async fn start() {
+///     // Initialize shared state.
+///     let state = RefCell::new(State {});
+///     // Create speaker task.
+///     let mut speakers = speakers(&state);
+///     // Wait for first task to complete.
+///     [speakers.fut()].select().await;
+/// }
+/// 
+/// /// Start the async executor.
+/// fn main() {
+///     static EXECUTOR: CvarExec = CvarExec::new();
+///     EXECUTOR.block_on(start())
+/// }
+/// ```
 #[allow(missing_debug_implementations)]
 pub struct Speakers<S: Sample + Unpin>
 where
@@ -35,6 +81,11 @@ where
         let (speakers, sample_rate) = SpeakersSys::connect();
         let audiobuf = Audio::with_silence(sample_rate, 1024);
         Self { speakers, audiobuf }
+    }
+    
+    /// Get the speakers' sample rate.
+    pub fn sample_rate(&self) -> u32 {
+        self.audiobuf.sample_rate()
     }
 
     /// Play audio through speakers.  Returns mutable reference to next audio

@@ -941,10 +941,10 @@ impl AlsaRecorder {
     ///
     /// If the non-blocking behaviour is selected, then routine doesn't wait at
     /// all.
-    pub(super) fn snd_pcm_readi<F: super::Frame>(
+    pub(super) fn snd_pcm_readi(
         &self,
         pcm: &SndPcm,
-        buffer: &mut Vec<F>,
+        buffer: &mut Vec<[u8; 2]>,
     ) -> Result<(), isize> {
         let len = buffer.len();
         unsafe {

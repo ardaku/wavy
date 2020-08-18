@@ -1,52 +1,62 @@
 //! This example records audio and plays it back in real time as it's being
-//! recorded.  Examples are in the public domain.
+//! recorded.
 
+use fon::{Audio, mono::Mono16};
 use pasts::{prelude::*, CvarExec};
-use wavy::{Player, Recorder, S16LEx2};
-
 use std::cell::RefCell;
+use wavy::{Speakers, Microphone, StreamRecv};
 
-/// Shared data between recorder and player.
-struct Shared {
-    /// A stereo audio buffer.
-    buffer: Vec<S16LEx2>,
+/// The program's shared state.
+struct State {
+    /// Temporary buffer for holding real-time audio samples.
+    buffer: Audio<Mono16>,
 }
 
-/// Create a new monitor.
-async fn monitor() {
-    /// Extend buffer by slice of new frames from last plugged in device.
-    async fn record(shared: &RefCell<Shared>) {
-        let mut recorder = Recorder::<S16LEx2>::new().unwrap();
-
-        loop {
-            let _sample_rate = recorder.fut().await;
-            let shared: &mut Shared = &mut *shared.borrow_mut();
-            recorder.record_last(&mut shared.buffer);
-        }
+/// Microphone task (record audio).
+async fn microphone_task(state: &RefCell<State>) {
+    // Connect to a microphone.
+    let mut microphone = Microphone::new().expect("Need a microphone");
+    
+    loop {
+        // 1. Wait for microphone to record some samples.
+        let mut stream = microphone.record().await;
+        // 2. Borrow shared state mutably.
+        let mut state = state.borrow_mut();
+        // 3. Write samples into buffer.
+        stream.recv(&mut state.buffer);
     }
-    /// Drain double ended queue frames into last plugged in device.
-    async fn play(shared: &RefCell<Shared>) {
-        let mut player = Player::<S16LEx2>::new().unwrap();
+}
 
-        loop {
-            let _sample_rate = player.fut().await;
-            let shared: &mut Shared = &mut *shared.borrow_mut();
-            let n_frames = player.play_last(shared.buffer.as_slice());
-            shared.buffer.drain(..n_frames.min(shared.buffer.len()));
-        }
+/// Speakers task (play recorded audio).
+async fn speakers_task(state: &RefCell<State>, speakers: Speakers<Mono16>) {
+    loop {
+        // 1. Wait for speaker to need more samples.
+        let mut stream = speakers.play().await;
+        // 2. Borrow shared state mutably
+        let mut state = state.borrow_mut();
+        // 3. Generate and write samples into speaker buffer.
+        stream.send(&mut state.buffer);
     }
+}
 
-    let shared = RefCell::new(Shared { buffer: Vec::new() });
-    let mut record = record(&shared);
-    let mut play = play(&shared);
-    println!("Entering async loop…");
-    [record.fut(), play.fut()].select().await;
-    unreachable!()
+/// Program start.
+async fn start() {
+    // Connect to system's speaker(s)
+    let speakers = Speakers::<Mono16>::new();
+    // Get the speaker's sample rate.
+    let sr = speakers.sample_rate();
+    // Initialize shared state.
+    let state = RefCell::new(State { buffer: Audio::with_silence(sr, 0) });
+    // Create speaker task.
+    let mut speakers = speakers_task(&state, speakers);
+    // Create microphone task.
+    let mut microphone = microphone_task(&state);
+    // Wait for first task to complete.
+    [speakers.fut(), microphone.fut()].select().await;
 }
 
 /// Start the async executor.
 fn main() {
     static EXECUTOR: CvarExec = CvarExec::new();
-
-    EXECUTOR.block_on(monitor())
+    EXECUTOR.block_on(start())
 }
