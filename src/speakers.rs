@@ -22,17 +22,17 @@ use crate::ffi::Speakers as SpeakersSys;
 /// use std::cell::RefCell;
 /// use twang::Synth;
 /// use wavy::Speakers;
-/// 
+///
 /// /// The program's shared state.
 /// struct State {}
-/// 
+///
 /// /// Speakers task (play sine wave).
 /// async fn speakers(state: &RefCell<State>) {
 ///     // Connect to system's speaker(s)
 ///     let mut speakers = Speakers::<Mono64>::new();
 ///     // Create a new synthesizer
 ///     let mut synth = Synth::new();
-/// 
+///
 ///     loop {
 ///         // 1. Wait for speaker to need more samples.
 ///         let audio = speakers.play().await;
@@ -42,7 +42,7 @@ use crate::ffi::Speakers as SpeakersSys;
 ///         synth.gen(audio, |fc| fc.freq(440.0).sine().amp(0.7));
 ///     }
 /// }
-/// 
+///
 /// /// Program start.
 /// async fn start() {
 ///     // Initialize shared state.
@@ -52,7 +52,7 @@ use crate::ffi::Speakers as SpeakersSys;
 ///     // Wait for first task to complete.
 ///     [speakers.fut()].select().await;
 /// }
-/// 
+///
 /// /// Start the async executor.
 /// fn main() {
 ///     static EXECUTOR: CvarExec = CvarExec::new();
@@ -82,7 +82,7 @@ where
         let audiobuf = Audio::with_silence(sample_rate, 1024);
         Self { speakers, audiobuf }
     }
-    
+
     /// Get the speakers' sample rate.
     pub fn sample_rate(&self) -> u32 {
         self.audiobuf.sample_rate()

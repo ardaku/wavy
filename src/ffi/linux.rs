@@ -11,7 +11,14 @@ use self::gen::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
-use fon::{chan::{Channel, Ch16}, sample::{Sample, Sample1}, stereo::Stereo16, mono::Mono16, surround::{SurroundHD16, Surround16}, Audio, Config};
+use fon::{
+    chan::{Ch16, Channel},
+    mono::Mono16,
+    sample::{Sample, Sample1},
+    stereo::Stereo16,
+    surround::{Surround5x16, Surround7x16},
+    Audio,
+};
 use std::{
     convert::TryInto,
     ffi::CString,
@@ -77,7 +84,10 @@ fn pcm_hw_params(
         if count > max_channels {
             continue;
         }
-        if device.snd_pcm_hw_params_set_channels(sound_device, &hw_params, count).is_ok() {
+        if device
+            .snd_pcm_hw_params_set_channels(sound_device, &hw_params, count)
+            .is_ok()
+        {
             ch_count = Some(count);
         }
     }
@@ -128,7 +138,10 @@ pub(super) struct Pcm {
 
 impl Pcm {
     /// Create a new async PCM.
-    fn new(direction: SndPcmStream, max_channels: usize) -> Option<(Self, u32, u32)> {
+    fn new(
+        direction: SndPcmStream,
+        max_channels: usize,
+    ) -> Option<(Self, u32, u32)> {
         // Load shared alsa module.
         let device = AlsaDevice::new()?;
         // FIXME: Currently only the default device is supported.
@@ -244,7 +257,8 @@ where
         let player = AlsaPlayer::new().unwrap();
         // Create Playback PCM.
         // unwrap(): FIXME - Should connect to dummy backend instead if fail.
-        let (pcm, sample_rate, nc) = Pcm::new(SndPcmStream::Playback, S::Conf::CHANNEL_COUNT).unwrap();
+        let (pcm, sample_rate, nc) =
+            Pcm::new(SndPcmStream::Playback, S::CHAN_COUNT).unwrap();
         let buffer = vec![[0; 2]; nc as usize * 1024];
         let written = 0;
         let is_ready = true;
@@ -267,44 +281,53 @@ where
         // Convert to speaker's native type.
         self.written = 0;
         match self.buffer.len() >> 10 {
-            1 => { // Mono
+            1 => {
+                // Mono
                 for (i, sample) in audio.iter().enumerate() {
                     let sample: Mono16 = sample.convert();
                     for (j, channel) in sample.channels().iter().enumerate() {
-                        self.buffer[S::Conf::CHANNEL_COUNT * i + j] = i16::from(*channel).to_le_bytes();
+                        self.buffer[S::CHAN_COUNT * i + j] =
+                            i16::from(*channel).to_le_bytes();
                     }
                 }
             }
-            2 => { // Stereo
+            2 => {
+                // Stereo
                 for (i, sample) in audio.iter().enumerate() {
                     let sample: Stereo16 = sample.convert();
                     for (j, channel) in sample.channels().iter().enumerate() {
-                        self.buffer[S::Conf::CHANNEL_COUNT * i + j] = i16::from(*channel).to_le_bytes();
+                        self.buffer[S::CHAN_COUNT * i + j] =
+                            i16::from(*channel).to_le_bytes();
                     }
                 }
             }
-            4 => { // Surround 4.0
+            4 => {
+                // Surround 4.0
                 todo!()
             }
-            6 => { // Surround 5.1
+            6 => {
+                // Surround 5.1
                 for (i, sample) in audio.iter().enumerate() {
-                    let sample: Surround16 = sample.convert();
+                    let sample: Surround5x16 = sample.convert();
                     for (j, channel) in sample.channels().iter().enumerate() {
-                        self.buffer[S::Conf::CHANNEL_COUNT * i + j] = i16::from(*channel).to_le_bytes();
+                        self.buffer[S::CHAN_COUNT * i + j] =
+                            i16::from(*channel).to_le_bytes();
                     }
                 }
             }
-            8 => { // Surround 7.1
+            8 => {
+                // Surround 7.1
                 for (i, sample) in audio.iter().enumerate() {
-                    let sample: SurroundHD16 = sample.convert();
+                    let sample: Surround7x16 = sample.convert();
                     for (j, channel) in sample.channels().iter().enumerate() {
-                        self.buffer[S::Conf::CHANNEL_COUNT * i + j] = i16::from(*channel).to_le_bytes();
+                        self.buffer[S::CHAN_COUNT * i + j] =
+                            i16::from(*channel).to_le_bytes();
                     }
                 }
             }
             _ => unreachable!(),
         }
-        
+
         self.write();
     }
 
@@ -386,14 +409,14 @@ where
     }
 }
 
-pub(crate) struct Microphone<C: Channel + Unpin, F: Config + Unpin> {
+pub(crate) struct Microphone<C: Channel + Unpin> {
     recorder: AlsaRecorder,
     pcm: Pcm,
     is_ready: bool,
-    stream: MicrophoneStream<C, F>,
+    stream: MicrophoneStream<C>,
 }
 
-impl<C: Channel + Unpin, F: Config + Unpin> Microphone<C, F> {
+impl<C: Channel + Unpin> Microphone<C> {
     pub(crate) fn new() -> Option<Self> {
         // Load Recorder ALSA module
         let recorder = AlsaRecorder::new()?;
@@ -417,15 +440,16 @@ impl<C: Channel + Unpin, F: Config + Unpin> Microphone<C, F> {
             stream,
         })
     }
-    
+
     pub(crate) fn sample_rate(&self) -> u32 {
         self.stream.sample_rate
     }
 
-    pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C, F> {
+    pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C> {
         // Record into temporary buffer.
-        if let Err(error) =
-            self.recorder.snd_pcm_readi(&self.pcm.sound_device, &mut self.stream.buffer)
+        if let Err(error) = self
+            .recorder
+            .snd_pcm_readi(&self.pcm.sound_device, &mut self.stream.buffer)
         {
             let state = self.pcm.device.snd_pcm_state(&self.pcm.sound_device);
             match error {
@@ -436,7 +460,10 @@ impl<C: Channel + Unpin, F: Config + Unpin> Microphone<C, F> {
                     self.is_ready = false;
                 }
                 -77 => {
-                    eprintln!("Incorrect state (-EBADFD): Report Bug to https://github.com/libcala/wavy/issues/new");
+                    eprintln!(
+                        "Incorrect state (-EBADFD): Report Bug to \
+                        https://github.com/libcala/wavy/issues/new"
+                    );
                     unreachable!()
                 }
                 -32 => match state {
@@ -448,7 +475,11 @@ impl<C: Channel + Unpin, F: Config + Unpin> Microphone<C, F> {
                             .unwrap();
                     }
                     st => {
-                        eprintln!("Incorrect state = {:?} (XRUN): Report Bug to https://github.com/libcala/wavy/issues/new", st);
+                        eprintln!(
+                            "Incorrect state = {:?} (XRUN): Report Bug \
+                            to https://github.com/libcala/wavy/issues/new",
+                            st
+                        );
                         unreachable!()
                     }
                 },
@@ -476,7 +507,7 @@ impl<C: Channel + Unpin, F: Config + Unpin> Microphone<C, F> {
     }
 }
 
-impl<C: Channel + Unpin, F: Config + Unpin> Future for Microphone<C, F> {
+impl<C: Channel + Unpin> Future for Microphone<C> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -494,7 +525,7 @@ impl<C: Channel + Unpin, F: Config + Unpin> Future for Microphone<C, F> {
     }
 }
 
-pub(crate) struct MicrophoneStream<C: Channel + Unpin, F: Config + Unpin> {
+pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
     // S16LE Audio Buffer
     buffer: Vec<[u8; 2]>,
     // Amount (0~1) of channel added to `temp`
@@ -504,11 +535,13 @@ pub(crate) struct MicrophoneStream<C: Channel + Unpin, F: Config + Unpin> {
     // Sample Rate of The Microphone (src)
     sample_rate: u32,
     // Phantom Data
-    _phantom: PhantomData<(C, F)>,
+    _phantom: PhantomData<C>,
 }
 
-impl<C: Channel + Unpin + From<Ch16>, F: Config + Unpin> crate::StreamRecv<Sample1<C, F>> for &mut MicrophoneStream<C, F> {
-    fn recv(&mut self, buffer: &mut Audio<Sample1<C, F>>) {
+impl<C: Channel + Unpin + From<Ch16>> crate::StreamRecv<Sample1<C>>
+    for &mut MicrophoneStream<C>
+{
+    fn recv(&mut self, buffer: &mut Audio<Sample1<C>>) {
         let src_sr = self.sample_rate;
         let dst_sr = buffer.sample_rate();
         let sr_rat = dst_sr as f64 / src_sr as f64;
@@ -517,7 +550,7 @@ impl<C: Channel + Unpin + From<Ch16>, F: Config + Unpin> crate::StreamRecv<Sampl
         std::mem::swap(&mut tmp, buffer);
 
         // Add samples
-        let mut tmp = Vec::<Sample1<C, F>>::from(tmp);
+        let mut tmp = Vec::<Sample1<C>>::from(tmp);
         let len = sr_rat * self.buffer.len() as f64;
         let phase_offset = len.fract();
         let len = len.trunc() as usize;
@@ -526,9 +559,10 @@ impl<C: Channel + Unpin + From<Ch16>, F: Config + Unpin> crate::StreamRecv<Sampl
             let first: C = match i.floor() {
                 x if x < 0.0 => self.temp,
                 _ => {
-                    let first: Ch16 = i16::from_le_bytes(self.buffer[i as usize]).into();
+                    let first: Ch16 =
+                        i16::from_le_bytes(self.buffer[i as usize]).into();
                     first.into()
-                },
+                }
             };
             let second = self.buffer[i as usize + 1];
             let amount: C = i.fract().into();
@@ -537,13 +571,15 @@ impl<C: Channel + Unpin + From<Ch16>, F: Config + Unpin> crate::StreamRecv<Sampl
             tmp.push(Sample1::new(first.lerp(second, amount)));
         }
         self.phase += phase_offset;
-        self.temp = Ch16::from(i16::from_le_bytes(self.buffer[self.buffer.len() - 1])).into();
+        self.temp =
+            Ch16::from(i16::from_le_bytes(self.buffer[self.buffer.len() - 1]))
+                .into();
         if self.phase >= 1.0 {
             tmp.push(Sample1::new(self.temp));
         }
         self.phase %= 1.0;
 
-        let mut tmp: Audio<Sample1<C, F>> = Audio::with_samples(dst_sr, tmp);
+        let mut tmp: Audio<Sample1<C>> = Audio::with_samples(dst_sr, tmp);
 
         // Swap audio buffer back.
         std::mem::swap(&mut tmp, buffer);

@@ -54,3 +54,6 @@ docs-rs = []
 cala = ["cala_core/cala"]
 stdweb = ["cala_core/stdweb"]
 wasm-bindgen = ["cala_core/wasm-bindgen"]
+
+[replace]
+"fon:0.1.0" = { path = "../fon" }

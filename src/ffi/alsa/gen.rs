@@ -12,7 +12,7 @@
 #![allow(unsafe_code)]
 #![allow(trivial_numeric_casts, trivial_casts)]
 
-use std::os::raw::{c_uint, c_void, c_int};
+use std::os::raw::{c_int, c_uint, c_void};
 
 const LM_ID_NEWLM: std::os::raw::c_long = -1;
 const RTLD_NOW: c_int = 0x00002;
@@ -296,11 +296,7 @@ static mut FN_SND_PCM_HW_PARAMS_ANY: std::mem::MaybeUninit<
     extern "C" fn(pcm: *mut c_void, params: *mut c_void) -> c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE: std::mem::MaybeUninit<
-    extern "C" fn(
-        pcm: *mut c_void,
-        params: *mut c_void,
-        val: c_uint,
-    ) -> c_int,
+    extern "C" fn(pcm: *mut c_void, params: *mut c_void, val: c_uint) -> c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_ACCESS: std::mem::MaybeUninit<
     extern "C" fn(
@@ -317,11 +313,7 @@ static mut FN_SND_PCM_HW_PARAMS_SET_FORMAT: std::mem::MaybeUninit<
     ) -> c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_CHANNELS: std::mem::MaybeUninit<
-    extern "C" fn(
-        pcm: *mut c_void,
-        params: *mut c_void,
-        val: c_uint,
-    ) -> c_int,
+    extern "C" fn(pcm: *mut c_void, params: *mut c_void, val: c_uint) -> c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_RATE_NEAR: std::mem::MaybeUninit<
     extern "C" fn(
@@ -362,14 +354,14 @@ static mut FN_SND_PCM_HW_PARAMS_FREE: std::mem::MaybeUninit<
 static mut FN_SND_PCM_WRITEI: std::mem::MaybeUninit<
     extern "C" fn(
         pcm: *mut c_void,
-        buffer: *const u32,
+        buffer: *const c_void,
         size: std::os::raw::c_ulong,
     ) -> std::os::raw::c_long,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_READI: std::mem::MaybeUninit<
     extern "C" fn(
         pcm: *mut c_void,
-        buffer: *mut u32,
+        buffer: *mut c_void,
         size: std::os::raw::c_ulong,
     ) -> std::os::raw::c_long,
 > = std::mem::MaybeUninit::uninit();
@@ -380,11 +372,7 @@ static mut FN_SND_PCM_POLL_DESCRIPTORS_COUNT: std::mem::MaybeUninit<
     extern "C" fn(pcm: *mut c_void) -> c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_POLL_DESCRIPTORS: std::mem::MaybeUninit<
-    extern "C" fn(
-        pcm: *mut c_void,
-        pfds: *mut PollFd,
-        space: c_uint,
-    ) -> c_int,
+    extern "C" fn(pcm: *mut c_void, pfds: *mut PollFd, space: c_uint) -> c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_STATE: std::mem::MaybeUninit<
     extern "C" fn(pcm: *mut c_void) -> SndPcmState,
