@@ -18,6 +18,8 @@ use fon::{
     stereo::Stereo16,
     surround::{Surround5x16, Surround7x16},
     Audio,
+    Resampler,
+    Stream,
 };
 use std::{
     convert::TryInto,
@@ -424,13 +426,11 @@ impl<C: Channel + Unpin> Microphone<C> {
         let (pcm, sample_rate, _one) = Pcm::new(SndPcmStream::Capture, 1)?;
         // pcm.device.snd_pcm_start(&pcm.sound_device).unwrap();
         let is_ready = true;
-        let _phantom = PhantomData;
         let stream = MicrophoneStream {
             buffer: Vec::with_capacity(1024),
+            index: 0,
+            resampler: Resampler::new(),
             sample_rate,
-            phase: 0.0,
-            temp: C::MID,
-            _phantom,
         };
         // Return successfully
         Some(Self {
@@ -528,60 +528,31 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
 pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
     // S16LE Audio Buffer
     buffer: Vec<[u8; 2]>,
-    // Amount (0~1) of channel added to `temp`
-    phase: f64,
-    // Temporary for storing a partial channel from the last conversion
-    temp: C,
     // Sample Rate of The Microphone (src)
     sample_rate: u32,
-    // Phantom Data
-    _phantom: PhantomData<C>,
+    // Index into buffer
+    index: usize,
+    // Stream's resampler
+    resampler: Resampler<Sample1<C>>,
 }
 
-impl<C: Channel + Unpin + From<Ch16>> crate::StreamRecv<Sample1<C>>
-    for &mut MicrophoneStream<C>
+impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
+    where C: Channel + Unpin + From<Ch16>
 {
-    fn recv(&mut self, buffer: &mut Audio<Sample1<C>>) {
-        let src_sr = self.sample_rate;
-        let dst_sr = buffer.sample_rate();
-        let sr_rat = dst_sr as f64 / src_sr as f64;
-        // Swap audio buffer out.
-        let mut tmp = Audio::with_silence(1, 0);
-        std::mem::swap(&mut tmp, buffer);
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
 
-        // Add samples
-        let mut tmp = Vec::<Sample1<C>>::from(tmp);
-        let len = sr_rat * self.buffer.len() as f64;
-        let phase_offset = len.fract();
-        let len = len.trunc() as usize;
-        for i in 0..len {
-            let i = sr_rat * i as f64 - (1.0 - self.phase);
-            let first: C = match i.floor() {
-                x if x < 0.0 => self.temp,
-                _ => {
-                    let first: Ch16 =
-                        i16::from_le_bytes(self.buffer[i as usize]).into();
-                    first.into()
-                }
-            };
-            let second = self.buffer[i as usize + 1];
-            let amount: C = i.fract().into();
-            let second: Ch16 = i16::from_le_bytes(second).into();
-            let second: C = second.into();
-            tmp.push(Sample1::new(first.lerp(second, amount)));
+    fn stream_sample(&mut self) -> Option<Sample1<C>> {
+        if self.index == self.buffer.len() {
+            return None;
         }
-        self.phase += phase_offset;
-        self.temp =
-            Ch16::from(i16::from_le_bytes(self.buffer[self.buffer.len() - 1]))
-                .into();
-        if self.phase >= 1.0 {
-            tmp.push(Sample1::new(self.temp));
-        }
-        self.phase %= 1.0;
+        let sample: C = Ch16::from(i16::from_le_bytes(self.buffer[self.index])).into();
+        self.index += 1;
+        Some(Sample1::new(sample))
+    }
 
-        let mut tmp: Audio<Sample1<C>> = Audio::with_samples(dst_sr, tmp);
-
-        // Swap audio buffer back.
-        std::mem::swap(&mut tmp, buffer);
+    fn resampler(&mut self) -> &mut Resampler<Sample1<C>> {
+        &mut self.resampler
     }
 }

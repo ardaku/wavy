@@ -10,28 +10,9 @@
 use crate::ffi;
 use fon::{
     chan::{Ch16, Channel},
-    sample::{Sample, Sample1},
-    Audio,
+    sample::Sample1,
+    Stream,
 };
-
-// FIXME: Probably move stream stuff to the `fon` crate.
-/// The receiver end of an audio stream.
-pub trait StreamRecv<S>
-where
-    S: Sample + Unpin,
-{
-    /// Receive data from stream write into an `Audio` buffer.
-    fn recv(&mut self, buffer: &mut Audio<S>);
-}
-
-/// The sender end of an audio stream.
-pub trait StreamSend<S>
-where
-    S: Sample + Unpin,
-{
-    /// Send data from `Audio` buffer and write into stream.
-    fn send(&mut self, buffer: &mut Audio<S>);
-}
 
 /// Record audio samples from a microphone.
 #[allow(missing_debug_implementations)]
@@ -55,7 +36,7 @@ impl<C: Channel + Unpin + From<Ch16>> Microphone<C> {
 
     /// Record audio from connected microphone.  Returns new audio frames as an
     /// `Audio` buffer in the requested format.
-    pub async fn record(&mut self) -> impl StreamRecv<Sample1<C>> + '_ {
+    pub async fn record(&mut self) -> impl Stream<Sample1<C>> + '_ {
         (&mut self.microphone).await;
         self.microphone.record()
     }

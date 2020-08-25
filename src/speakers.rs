@@ -7,7 +7,7 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use fon::{chan::Ch16, sample::Sample, Audio};
+use fon::{chan::Ch16, sample::Sample, Audio, Sink};
 
 use crate::ffi::Speakers as SpeakersSys;
 
@@ -91,9 +91,9 @@ where
     /// Play audio through speakers.  Returns mutable reference to next audio
     /// buffer to play.  If you don't overwrite the buffer, it will keep playing
     /// whatever was last written into it.
-    pub async fn play(&mut self) -> &mut Audio<S> {
+    pub async fn play(&mut self) -> impl Sink<S> + '_ {
         self.speakers.play(&self.audiobuf);
         (&mut self.speakers).await;
-        &mut self.audiobuf
+        self.audiobuf.sink(..)
     }
 }

@@ -60,5 +60,5 @@ mod ffi;
 mod microphone;
 mod speakers;
 
-pub use microphone::{Microphone, StreamRecv, StreamSend};
+pub use microphone::Microphone;
 pub use speakers::Speakers;

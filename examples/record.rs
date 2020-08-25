@@ -4,7 +4,7 @@
 use fon::{chan::Ch16, mono::Mono16, Audio, Stream};
 use pasts::{prelude::*, CvarExec};
 use std::cell::RefCell;
-use wavy::{Microphone, Speakers, StreamRecv};
+use wavy::{Microphone, Speakers};
 
 /// The program's shared state.
 struct State {
@@ -20,7 +20,7 @@ async fn microphone_task(state: &RefCell<State>, mut mic: Microphone<Ch16>) {
         // 2. Borrow shared state mutably.
         let mut state = state.borrow_mut();
         // 3. Write samples into buffer.
-        stream.recv(&mut state.buffer);
+        state.buffer.extend(&mut stream);
     }
 }
 
@@ -31,11 +31,11 @@ async fn speakers_task(state: &RefCell<State>) {
 
     loop {
         // 1. Wait for speaker to need more samples.
-        let sink = speakers.play().await;
+        let mut sink = speakers.play().await;
         // 2. Borrow shared state mutably
         let mut state = state.borrow_mut();
         // 3. Generate and write samples into speaker buffer.
-        state.buffer.drain(..).stream(&mut sink.sink(..));
+        state.buffer.drain(..).stream(&mut sink);
     }
 }
 

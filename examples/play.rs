@@ -18,11 +18,11 @@ async fn speakers(state: &RefCell<State>) {
 
     loop {
         // 1. Wait for speaker to need more samples.
-        let audio = speakers.play().await;
+        let sink = speakers.play().await;
         // 2. Borrow shared state mutably
         let _state = state.borrow_mut();
         // 3. Generate and write samples into speaker buffer.
-        synth.gen(audio.sink(..), |fc| fc.freq(440.0).sine().amp(0.7));
+        synth.gen(sink, |fc| fc.freq(440.0).sine().amp(0.7));
     }
 }
 
