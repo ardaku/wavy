@@ -424,7 +424,6 @@ impl<C: Channel + Unpin> Microphone<C> {
         let recorder = AlsaRecorder::new()?;
         // Create Capture PCM.
         let (pcm, sample_rate, _one) = Pcm::new(SndPcmStream::Capture, 1)?;
-        // pcm.device.snd_pcm_start(&pcm.sound_device).unwrap();
         let is_ready = true;
         let stream = MicrophoneStream {
             buffer: Vec::with_capacity(1024),
@@ -446,6 +445,9 @@ impl<C: Channel + Unpin> Microphone<C> {
     }
 
     pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C> {
+        // Reset everything
+        self.stream.buffer.clear();
+        self.stream.index = 0;
         // Record into temporary buffer.
         if let Err(error) = self
             .recorder
