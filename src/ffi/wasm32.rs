@@ -11,7 +11,7 @@
 
 use std::{convert::TryInto, marker::PhantomData, pin::Pin, task::{Context, Poll}, future::Future};
 use cala_core::os::web::{JsFn, JsPromise, JsVar};
-use fon::{Audio, chan::{Channel}, sample::{Sample1, Sample}, Resampler, Stream};
+use fon::{Audio, chan::{Channel, Ch64}, sample::{Sample1, Sample}, Resampler, Stream, stereo::Stereo64};
 
 pub(crate) struct Speakers<S: Sample> {
     // Sample rate of the speakers
@@ -132,7 +132,9 @@ impl<S: Sample> Speakers<S> {
         }, sample_rate)
     }
 
-    pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize {
+    pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize
+        where Ch64: From<S::Chan>
+    {
         //
         if self.ready == false {
             return 0;
@@ -150,6 +152,7 @@ impl<S: Sample> Speakers<S> {
             if i == 1024 {
                 break;
             }
+            let sample: Stereo64 = sample.convert();
             self.tmp_audio_l[i] = sample.channels()[0].to_f64();
             self.tmp_audio_r[i] = sample.channels()[1].to_f64();
         }
@@ -289,6 +292,10 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
         if let Poll::Ready(_result) = this.promise.poll() {
+            // Reset 
+            this.stream.buffer.clear();
+            this.stream.index = 0;
+            // 
             unsafe {
                 this.array.read_doubles(&mut this.stream.buffer);
             }

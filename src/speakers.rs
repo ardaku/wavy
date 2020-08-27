@@ -7,7 +7,7 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use fon::{chan::Ch16, sample::Sample, Audio, Sink};
+use fon::{chan::{Ch64, Ch32, Ch16}, sample::Sample, Audio, Sink};
 
 use crate::ffi::Speakers as SpeakersSys;
 
@@ -71,6 +71,8 @@ where
 impl<S: Sample + Unpin> Speakers<S>
 where
     Ch16: From<S::Chan>,
+    Ch32: From<S::Chan>,
+    Ch64: From<S::Chan>,
 {
     /// Connect to the speaker system.
     ///
