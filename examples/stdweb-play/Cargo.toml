@@ -17,6 +17,12 @@ version = "0.1"
 [dependencies.pasts]
 version = "0.4"
 
+[dependencies.fon]
+version = "0.2"
+
+[dependencies.twang]
+version = "0.3"
+
 [dependencies.devout]
 version = "0.1"
 features = ["stdweb"]

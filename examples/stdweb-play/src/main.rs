@@ -1,66 +1,44 @@
-//! This example records audio and plays it back in real time as it's being
-//! recorded.  Examples are in the public domain.
+//! Play a 220 Hertz sine wave through the system's speakers.
 
-#![forbid(unsafe_code)]
+use fon::mono::Mono64;
+use pasts::prelude::*;
+use std::cell::RefCell;
+use twang::Synth;
+use wavy::Speakers;
 
-#[macro_use]
-extern crate devout;
+/// The program's shared state.
+struct State {}
 
-use pasts::{prelude::*};
-use wavy::{Player, S16LEx2};
+/// Speakers task (play sine wave).
+async fn speakers(state: &RefCell<State>) {
+    // Connect to system's speaker(s)
+    let mut speakers = Speakers::<Mono64>::new();
+    // Create a new synthesizer
+    let mut synth = Synth::new();
 
-const PLAYER: &str = "Player";
-
-/// Shared data between recorder and player.
-struct Shared {
-    /// Audio Player
-    player: Player<S16LEx2>,
-    /// Generator
-    gen: Generator,
-}
-
-#[derive(Debug)]
-struct Generator {
-    counter: i8,
-    buf: Vec<S16LEx2>,
-}
-
-impl Generator {
-    fn generate(&mut self) {
-        for _ in 0..(1024 - self.buf.len()) {
-            self.counter = self.counter.wrapping_add(1);
-            let sample = self.counter as i16 * 255;
-            self.buf.push(S16LEx2::new(sample, sample));
-        }
-    }
-}
-
-/// Create a new monitor.
-async fn monitor() {
-    async fn play(shared: &mut Shared) {
-        shared.gen.generate();
-        shared.player.fut().await;
-        let n_frames = shared.player.play_last(&mut shared.gen.buf);
-        shared.gen.buf.drain(..n_frames.min(shared.gen.buf.len()));
-        // out!(PLAYER, "played {} frames", n_frames);
-    }
-
-    let gen = Generator {
-        counter: -1,
-        buf: Vec::with_capacity(1024),
-    };
-    out!(PLAYER, "Opening player…");
-    let player = Player::new().unwrap();
-    let mut shared = Shared { gen, player };
-    out!(PLAYER, "Done, entering async loop…");
     loop {
-        play(&mut shared).await;
+        // 1. Wait for speaker to need more samples.
+        let sink = speakers.play().await;
+        // 2. Borrow shared state mutably
+        let _state = state.borrow_mut();
+        // 3. Generate and write samples into speaker buffer.
+        synth.gen(sink, |fc| fc.freq(440.0).sine().amp(0.7));
     }
+}
+
+/// Program start.
+async fn start() {
+    // Initialize shared state.
+    let state = RefCell::new(State {});
+    // Create speaker task.
+    let mut speakers = speakers(&state);
+    // Wait for first task to complete.
+    [speakers.fut()].select().await;
 }
 
 fn main() {
     // Set panic handler for clean prints.
     cala_core::os::web::panic_hook();
     // Start the executor
-    cala_core::os::web::block_on(monitor());
+    cala_core::os::web::block_on(start());
 }

@@ -9,16 +9,13 @@
 
 #![allow(unsafe_code)]
 
-use crate::frame::Frame;
+use std::{convert::TryInto, marker::PhantomData, pin::Pin, task::{Context, Poll}, future::Future};
 use cala_core::os::web::{JsFn, JsPromise, JsVar};
-use std::convert::TryInto;
-use std::marker::PhantomData;
-use std::task::Context;
-use std::task::Poll;
+use fon::{Audio, chan::{Channel}, sample::{Sample1, Sample}, Resampler, Stream};
 
-pub(crate) struct Player<F: Frame> {
+pub(crate) struct Speakers<S: Sample> {
     // Sample rate of the speakers
-    sample_rate: f64,
+    sample_rate: u32,
     // JavaScript audio double buffer
     buffers: JsVar,
     // If buffer_b is the one to write to next.
@@ -37,12 +34,12 @@ pub(crate) struct Player<F: Frame> {
     reset_promise: JsFn,
     //
     ready: bool,
-    _phantom: PhantomData<F>,
+    _phantom: PhantomData<S>,
 }
 
-impl<F: Frame> Player<F> {
-    pub(crate) fn new() -> Option<Self> {
-        let _phantom = PhantomData::<F>;
+impl<S: Sample> Speakers<S> {
+    pub(crate) fn connect() -> (Self, u32) {
+        let _phantom = PhantomData::<S>;
         let audio_ctx = unsafe {
             JsFn::new(
                 "return new (window.AudioContext\
@@ -51,11 +48,11 @@ impl<F: Frame> Player<F> {
             .call(None, None)
             .unwrap()
         };
-        let sample_rate: f64 = unsafe {
+        let sample_rate: u32 = unsafe {
             JsFn::new("return param_a.sampleRate;")
                 .call(Some(&audio_ctx), None)
                 .unwrap()
-                .into_f64()
+                .into_i32()
                 .try_into()
                 .unwrap()
         };
@@ -120,7 +117,7 @@ impl<F: Frame> Player<F> {
         let promise =
             unsafe { reset_promise.call(None, None).unwrap().into_promise() };
 
-        Some(Self {
+        (Self {
             promise,
             reset_promise,
             tmp_audio_l,
@@ -132,23 +129,10 @@ impl<F: Frame> Player<F> {
             fn_right,
             ready: false,
             _phantom,
-        })
+        }, sample_rate)
     }
 
-    pub(crate) fn poll(&mut self, _cx: &mut Context<'_>) -> Poll<f64> {
-        if let Poll::Ready(_result) = self.promise.poll() {
-            debug_assert_eq!(unsafe { _result.into_i32() }, 1024);
-            self.promise = unsafe {
-                self.reset_promise.call(None, None).unwrap().into_promise()
-            };
-            self.ready = true;
-            Poll::Ready(self.sample_rate)
-        } else {
-            Poll::Pending
-        }
-    }
-
-    pub(crate) fn play_last(&mut self, audio: &[F]) -> usize {
+    pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize {
         //
         if self.ready == false {
             return 0;
@@ -156,7 +140,7 @@ impl<F: Frame> Player<F> {
         self.ready = false;
 
         //
-        let silence = [F::default(); 1024];
+        let silence = Audio::with_silence(self.sample_rate, 1024);
         let audio = if audio.len() < 1024 { &silence } else { audio };
 
         //
@@ -166,9 +150,8 @@ impl<F: Frame> Player<F> {
             if i == 1024 {
                 break;
             }
-            let (l, r) = sample.into_f64x2();
-            self.tmp_audio_l[i] = l;
-            self.tmp_audio_r[i] = r;
+            self.tmp_audio_l[i] = sample.channels()[0].to_f64();
+            self.tmp_audio_r[i] = sample.channels()[1].to_f64();
         }
         unsafe {
             let buffer_l = self
@@ -183,17 +166,29 @@ impl<F: Frame> Player<F> {
             buffer_r.write_doubles(&self.tmp_audio_r);
         }
 
-        if audio.as_ptr() == silence.as_ptr() {
-            1024 // audio.len()
+        1024
+    }
+}
+
+impl<S: Sample + Unpin> Future for &mut Speakers<S> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        if let Poll::Ready(_result) = this.promise.poll() {
+            debug_assert_eq!(unsafe { _result.into_i32() }, 1024);
+            this.promise = unsafe {
+                this.reset_promise.call(None, None).unwrap().into_promise()
+            };
+            this.ready = true;
+            Poll::Ready(())
         } else {
-            1024
+            Poll::Pending
         }
     }
 }
 
-pub(crate) struct Recorder<F: Frame> {
-    // Sample rate of the speakers
-    sample_rate: f64,
+pub(crate) struct Microphone<C: Channel> {
     // JavaScript Promise
     promise: JsPromise<JsVar>,
     // JavaScript Function for resetting promise
@@ -202,14 +197,14 @@ pub(crate) struct Recorder<F: Frame> {
     ready: bool,
     // JavaScript output: audio array
     array: JsVar,
-    // Input buffer
-    buffer: Vec<f64>,
-    _phantom: PhantomData<F>,
+    // 
+    stream: MicrophoneStream<C>,
+    _phantom: PhantomData<C>,
 }
 
-impl<F: Frame> Recorder<F> {
+impl<C: Channel> Microphone<C> {
     pub(crate) fn new() -> Option<Self> {
-        let _phantom = PhantomData::<F>;
+        let _phantom = PhantomData::<C>;
         let audio_ctx = unsafe {
             JsFn::new(
                 "return new (window.AudioContext\
@@ -218,11 +213,11 @@ impl<F: Frame> Recorder<F> {
             .call(None, None)
             .unwrap()
         };
-        let sample_rate: f64 = unsafe {
+        let sample_rate: u32 = unsafe {
             JsFn::new("return param_a.sampleRate;")
                 .call(Some(&audio_ctx), None)
                 .unwrap()
-                .into_f64()
+                .into_i32()
                 .try_into()
                 .unwrap()
         };
@@ -266,35 +261,76 @@ impl<F: Frame> Recorder<F> {
         Some(Self {
             array,
             ready: false,
-            buffer: Vec::new(),
+            stream: MicrophoneStream {
+                buffer: Vec::new(),
+                index: 0,
+                resampler: Resampler::new(),
+                sample_rate,
+            },
             _phantom,
             promise,
-            sample_rate,
             reset_promise,
         })
     }
 
-    pub(crate) fn poll(&mut self, _cx: &mut Context<'_>) -> Poll<f64> {
-        if let Poll::Ready(_result) = self.promise.poll() {
+    pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C> {
+        self.ready = false;
+        &mut self.stream
+    }
+    
+    pub(crate) fn sample_rate(&self) -> u32 {
+        self.stream.sample_rate
+    }
+}
+
+impl<C: Channel + Unpin> Future for Microphone<C> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        if let Poll::Ready(_result) = this.promise.poll() {
             unsafe {
-                self.array.read_doubles(&mut self.buffer);
+                this.array.read_doubles(&mut this.stream.buffer);
             }
-            self.ready = true;
-            self.promise = unsafe {
-                self.reset_promise.call(None, None).unwrap().into_promise()
+            this.ready = true;
+            this.promise = unsafe {
+                this.reset_promise.call(None, None).unwrap().into_promise()
             };
-            Poll::Ready(self.sample_rate)
+            Poll::Ready(())
         } else {
             Poll::Pending
         }
     }
+}
 
-    pub(crate) fn record_last(&mut self, audio: &mut Vec<F>) {
-        if self.ready {
-            for i in self.buffer.iter().cloned() {
-                audio.push(F::from_f64x2(i, i));
-            }
+pub(crate) struct MicrophoneStream<C: Channel> {
+    // Sample rate of the speakers
+    sample_rate: u32,
+    // Input buffer
+    buffer: Vec<f64>,
+    // 
+    index: usize,
+    // Stream's resampler
+    resampler: Resampler<Sample1<C>>,
+}
+
+impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
+    where C: Channel
+{
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    fn stream_sample(&mut self) -> Option<Sample1<C>> {
+        if self.index == self.buffer.len() {
+            return None;
         }
-        self.ready = false;
+        let sample: C = C::from(self.buffer[self.index]);
+        self.index += 1;
+        Some(Sample1::new(sample))
+    }
+
+    fn resampler(&mut self) -> &mut Resampler<Sample1<C>> {
+        &mut self.resampler
     }
 }
