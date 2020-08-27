@@ -7,7 +7,11 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use fon::{chan::{Ch64, Ch32, Ch16}, sample::Sample, Audio, Sink};
+use fon::{
+    chan::{Ch16, Ch32, Ch64},
+    sample::Sample,
+    Audio, Sink,
+};
 
 use crate::ffi::Speakers as SpeakersSys;
 

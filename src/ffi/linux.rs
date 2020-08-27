@@ -17,9 +17,7 @@ use fon::{
     sample::{Sample, Sample1},
     stereo::Stereo16,
     surround::{Surround5x16, Surround7x16},
-    Audio,
-    Resampler,
-    Stream,
+    Audio, Resampler, Stream,
 };
 use std::{
     convert::TryInto,
@@ -539,7 +537,8 @@ pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
 }
 
 impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
-    where C: Channel + Unpin + From<Ch16>
+where
+    C: Channel + Unpin + From<Ch16>,
 {
     fn sample_rate(&self) -> u32 {
         self.sample_rate
@@ -549,7 +548,8 @@ impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
         if self.index == self.buffer.len() {
             return None;
         }
-        let sample: C = Ch16::from(i16::from_le_bytes(self.buffer[self.index])).into();
+        let sample: C =
+            Ch16::from(i16::from_le_bytes(self.buffer[self.index])).into();
         self.index += 1;
         Some(Sample1::new(sample))
     }

@@ -9,9 +9,20 @@
 
 #![allow(unsafe_code)]
 
-use std::{convert::TryInto, marker::PhantomData, pin::Pin, task::{Context, Poll}, future::Future};
 use cala_core::os::web::{JsFn, JsPromise, JsVar};
-use fon::{Audio, chan::{Channel, Ch64}, sample::{Sample1, Sample}, Resampler, Stream, stereo::Stereo64};
+use fon::{
+    chan::{Ch64, Channel},
+    sample::{Sample, Sample1},
+    stereo::Stereo64,
+    Audio, Resampler, Stream,
+};
+use std::{
+    convert::TryInto,
+    future::Future,
+    marker::PhantomData,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 pub(crate) struct Speakers<S: Sample> {
     // Sample rate of the speakers
@@ -117,23 +128,27 @@ impl<S: Sample> Speakers<S> {
         let promise =
             unsafe { reset_promise.call(None, None).unwrap().into_promise() };
 
-        (Self {
-            promise,
-            reset_promise,
-            tmp_audio_l,
-            tmp_audio_r,
+        (
+            Self {
+                promise,
+                reset_promise,
+                tmp_audio_l,
+                tmp_audio_r,
+                sample_rate,
+                buffers,
+                is_buffer_b,
+                fn_left,
+                fn_right,
+                ready: false,
+                _phantom,
+            },
             sample_rate,
-            buffers,
-            is_buffer_b,
-            fn_left,
-            fn_right,
-            ready: false,
-            _phantom,
-        }, sample_rate)
+        )
     }
 
     pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize
-        where Ch64: From<S::Chan>
+    where
+        Ch64: From<S::Chan>,
     {
         //
         if self.ready == false {
@@ -200,7 +215,7 @@ pub(crate) struct Microphone<C: Channel> {
     ready: bool,
     // JavaScript output: audio array
     array: JsVar,
-    // 
+    //
     stream: MicrophoneStream<C>,
     _phantom: PhantomData<C>,
 }
@@ -280,7 +295,7 @@ impl<C: Channel> Microphone<C> {
         self.ready = false;
         &mut self.stream
     }
-    
+
     pub(crate) fn sample_rate(&self) -> u32 {
         self.stream.sample_rate
     }
@@ -292,10 +307,10 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
         if let Poll::Ready(_result) = this.promise.poll() {
-            // Reset 
+            // Reset
             this.stream.buffer.clear();
             this.stream.index = 0;
-            // 
+            //
             unsafe {
                 this.array.read_doubles(&mut this.stream.buffer);
             }
@@ -315,14 +330,15 @@ pub(crate) struct MicrophoneStream<C: Channel> {
     sample_rate: u32,
     // Input buffer
     buffer: Vec<f64>,
-    // 
+    //
     index: usize,
     // Stream's resampler
     resampler: Resampler<Sample1<C>>,
 }
 
 impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
-    where C: Channel
+where
+    C: Channel,
 {
     fn sample_rate(&self) -> u32 {
         self.sample_rate
