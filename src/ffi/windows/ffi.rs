@@ -7,7 +7,4 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-compile_error!(
-    "Target os not supported, please open an issue at \
-    https://github.com/libcala/wavy/issues"
-);
+include!("../dummy/ffi.rs");

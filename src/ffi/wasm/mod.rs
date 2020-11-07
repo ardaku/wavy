@@ -7,9 +7,9 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-#![allow(unsafe_code)]
+include!("../dummy/ffi.rs");
 
-use cala_core::os::web::{JsFn, JsPromise, JsVar};
+/* use cala_core::os::web::{JsFn, JsPromise, JsVar};
 use fon::{
     chan::{Ch64, Channel},
     sample::{Sample, Sample1},
@@ -356,4 +356,4 @@ where
     fn resampler(&mut self) -> &mut Resampler<Sample1<C>> {
         &mut self.resampler
     }
-}
+}*/

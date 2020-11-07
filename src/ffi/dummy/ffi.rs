@@ -7,4 +7,8 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-include!("dummy.rs");
+mod microphone;
+mod speakers;
+
+pub(super) use microphone::Microphone;
+pub(super) use speakers::Speakers;

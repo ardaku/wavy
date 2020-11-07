@@ -7,7 +7,7 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use self::gen::{
+use self::alsa::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
@@ -31,8 +31,7 @@ use std::{
 const CHANNEL_COUNT: &[u32] = &[8, 6, 4, 2, 1];
 
 // Update with: `dl_api ffi/asound,so,2.muon src/linux/gen.rs`
-#[path = "alsa/gen.rs"]
-mod gen;
+mod alsa;
 
 fn pcm_hw_params(
     device: &AlsaDevice,

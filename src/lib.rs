@@ -11,7 +11,7 @@
 //!
 //! # Getting Started
 //! Add the following to your *Cargo.toml*:
-//! 
+//!
 //! ```toml
 //! [dependencies]
 //! pasts = "0.4"
@@ -27,13 +27,13 @@
 //! use pasts::{prelude::*, CvarExec};
 //! use std::cell::RefCell;
 //! use wavy::{Microphone, Speakers};
-//! 
+//!
 //! /// The program's shared state.
 //! struct State {
 //!     /// Temporary buffer for holding real-time audio samples.
 //!     buffer: Audio<Mono16>,
 //! }
-//! 
+//!
 //! /// Microphone task (record audio).
 //! async fn microphone_task(state: &RefCell<State>, mut mic: Microphone<Ch16>) {
 //!     loop {
@@ -45,12 +45,12 @@
 //!         state.buffer.extend(&mut stream);
 //!     }
 //! }
-//! 
+//!
 //! /// Speakers task (play recorded audio).
 //! async fn speakers_task(state: &RefCell<State>) {
 //!     // Connect to system's speaker(s)
 //!     let mut speakers = Speakers::<Mono16>::new();
-//! 
+//!
 //!     loop {
 //!         // 1. Wait for speaker to need more samples.
 //!         let mut sink = speakers.play().await;
@@ -60,7 +60,7 @@
 //!         state.buffer.drain(..).stream(&mut sink);
 //!     }
 //! }
-//! 
+//!
 //! /// Program start.
 //! async fn start() {
 //!     // Connect to a user-selected microphone.
@@ -77,7 +77,7 @@
 //!     // Wait for first task to complete.
 //!     [speakers.fut(), microphone.fut()].select().await;
 //! }
-//! 
+//!
 //! /// Start the async executor.
 //! fn main() {
 //!     static EXECUTOR: CvarExec = CvarExec::new();
@@ -88,7 +88,7 @@
 #![doc(
     html_logo_url = "https://libcala.github.io/logo.svg",
     html_favicon_url = "https://libcala.github.io/icon.svg",
-    html_root_url = "https://docs.rs/wavy",
+    html_root_url = "https://docs.rs/wavy"
 )]
 #![deny(unsafe_code)]
 #![warn(
@@ -107,14 +107,14 @@
     variant_size_differences
 )]
 
-#[cfg_attr(target_arch = "wasm32", path = "ffi/wasm32.rs")]
+#[cfg_attr(target_arch = "wasm32", path = "ffi/wasm/ffi.rs")]
 #[cfg_attr(
     not(target_arch = "wasm32"),
-    cfg_attr(target_os = "linux", path = "ffi/linux.rs"),
-    cfg_attr(target_os = "android", path = "ffi/android.rs"),
-    cfg_attr(target_os = "macos", path = "ffi/macos.rs"),
-    cfg_attr(target_os = "ios", path = "ffi/ios.rs"),
-    cfg_attr(target_os = "windows", path = "ffi/windows.rs"),
+    cfg_attr(target_os = "linux", path = "ffi/linux/ffi.rs"),
+    cfg_attr(target_os = "android", path = "ffi/android/ffi.rs"),
+    cfg_attr(target_os = "macos", path = "ffi/macos/ffi.rs"),
+    cfg_attr(target_os = "ios", path = "ffi/ios/ffi.rs"),
+    cfg_attr(target_os = "windows", path = "ffi/windows/ffi.rs"),
     cfg_attr(
         any(
             target_os = "freebsd",
@@ -123,12 +123,12 @@
             target_os = "openbsd",
             target_os = "netbsd"
         ),
-        path = "ffi/bsd.rs"
+        path = "ffi/bsd/ffi.rs"
     ),
-    cfg_attr(target_os = "fuchsia", path = "ffi/fuchsia.rs"),
-    cfg_attr(target_os = "redox", path = "ffi/redox.rs"),
-    cfg_attr(target_os = "none", path = "ffi/none.rs"),
-    cfg_attr(target_os = "dummy", path = "ffi/dummy.rs")
+    cfg_attr(target_os = "fuchsia", path = "ffi/fuchsia/ffi.rs"),
+    cfg_attr(target_os = "redox", path = "ffi/redox/ffi.rs"),
+    cfg_attr(target_os = "none", path = "ffi/none/ffi.rs"),
+    cfg_attr(target_os = "dummy", path = "ffi/dummy/ffi.rs")
 )]
 mod ffi;
 

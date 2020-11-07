@@ -13,7 +13,9 @@ Library for asynchronous cross-platform real-time audio recording &amp;
 playback.  This library is great for if you need low-latency sound effects in
 video games, if you're making a multi-media player, Digital Audio
 Workstation, or building a synthesizer; anything that needs access to speakers
-or microphones.  Check out the [documentation][0] for examples.
+or microphones.
+
+Check out the [documentation][0] for examples.
 
 ### Supported Platforms
 Wavy targets all platforms that can run Rust.
