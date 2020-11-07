@@ -288,7 +288,7 @@ checksum = "93b162580e34310e5931c4b792560108b10fd14d64915d7fff8ff00180e70092"
 
 [[package]]
 name = "wavy"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cala_core",
  "fon",
