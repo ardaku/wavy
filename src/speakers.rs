@@ -67,6 +67,8 @@ use crate::ffi::Speakers as SpeakersSys;
 pub struct Speakers<S: Sample + Unpin>
 where
     Ch16: From<S::Chan>,
+    Ch32: From<S::Chan>,
+    Ch64: From<S::Chan>,
 {
     speakers: SpeakersSys<S>,
     audiobuf: Audio<S>,
