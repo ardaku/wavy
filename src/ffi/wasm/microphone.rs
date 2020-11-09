@@ -13,8 +13,11 @@ use std::{
     task::{Context, Poll},
 };
 
+use web_sys::{MediaStream, MediaStreamAudioSourceNode, MediaStreamAudioSourceOptions, MediaStreamConstraints};
+use wasm_bindgen::{JsValue, closure::Closure, JsCast};
+
 use fon::{
-    chan::{Ch16, Channel},
+    chan::{Channel},
     sample::Sample1,
     Resampler, Stream,
 };
@@ -25,11 +28,36 @@ pub(crate) struct Microphone<C: Channel + Unpin> {
 
 impl<C: Channel + Unpin> Microphone<C> {
     pub(crate) fn new() -> Option<Self> {
-        None
+        let state = super::state();
+    
+        // Lazily Initialize audio context & processor node.
+        state.lazy_init();
+        
+        // Prompt User To Connect Microphone.
+        let md = web_sys::window().unwrap().navigator().media_devices().ok()?;
+        let promise = md.get_user_media_with_constraints(
+            MediaStreamConstraints::new().audio(&JsValue::TRUE)
+        ).unwrap();
+        #[allow(trivial_casts)] // Actually needed here.
+        let cb = Closure::wrap(Box::new(|media_stream| {
+            let state = super::state();
+        
+            state.microphone.push(MediaStreamAudioSourceNode::new(
+                state.context.as_ref().unwrap(),
+                &MediaStreamAudioSourceOptions::new(&MediaStream::unchecked_from_js(media_stream)),
+            ).unwrap());
+            state.microphone_waker.push(None);
+            
+            // FIXME
+        }) as Box<dyn FnMut(_)>);
+        let _ = promise.then(&cb);
+
+        Some(Self { stream: MicrophoneStream { resampler: Resampler::new(),
+             } })
     }
 
     pub(crate) fn sample_rate(&self) -> u32 {
-        self.stream.sample_rate
+        super::SAMPLE_RATE
     }
 
     pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C> {
@@ -46,18 +74,16 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
 }
 
 pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
-    // Sample rate of the stream.
-    sample_rate: u32,
     // Stream's resampler
     resampler: Resampler<Sample1<C>>,
 }
 
 impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
 where
-    C: Channel + Unpin + From<Ch16>,
+    C: Channel + Unpin,
 {
     fn sample_rate(&self) -> u32 {
-        self.sample_rate
+        super::SAMPLE_RATE
     }
 
     fn stream_sample(&mut self) -> Option<Sample1<C>> {

@@ -11,8 +11,8 @@ use std::task::Waker;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    AudioContext, AudioContextOptions, AudioDestinationNode, AudioNode,
-    AudioProcessingEvent, ScriptProcessorNode,
+    AudioContext, AudioContextOptions, AudioDestinationNode,
+    AudioProcessingEvent, ScriptProcessorNode, MediaStreamAudioSourceNode
 };
 
 /// 1024 samples per period.
@@ -33,7 +33,7 @@ struct State {
     /// Speaker, if any.
     speaker: Option<AudioDestinationNode>,
     /// Microphones, if any.
-    microphone: Vec<AudioNode>,
+    microphone: Vec<MediaStreamAudioSourceNode>,
     /// Input channel buffer.
     i_buffer: [f32; PERIOD as usize],
     /// Left output channel buffer.
@@ -48,7 +48,7 @@ struct State {
     /// Waker from speaker future
     speaker_waker: Option<Waker>,
     /// Waker from microphone future.
-    microphone_waker: Option<Waker>,
+    microphone_waker: Vec<Option<Waker>>,
     ///
     played: bool,
     ///
@@ -93,7 +93,7 @@ static mut STATE: State = State {
     r_buffer: [0.0; PERIOD as usize],
     proc: None,
     speaker_waker: None,
-    microphone_waker: None,
+    microphone_waker: Vec::new(),
     played: false,
     recorded: false,
 };
@@ -109,9 +109,10 @@ fn state() -> &'static mut State {
 /// Function called inside ScriptProcessorNode, must handle audio input and
 /// provide audio output.
 fn wake(event: AudioProcessingEvent) {
-    // If the microphone is being `.await`ed, wake the thread with the input
+    // If a microphone is being `.await`ed, wake the thread with the input
     // buffer.
-    if let Some(waker) = state().microphone_waker.take() {
+    for microphone in &mut state().microphone_waker {
+    if let Some(waker) = microphone.take() {
         // Set future to complete.
         state().recorded = true;
         // Wake the microphone future.
@@ -120,6 +121,7 @@ fn wake(event: AudioProcessingEvent) {
         let inbuf = event.input_buffer().expect("Failed to get input buffer");
         // Read microphone input.
         inbuf.copy_from_channel(&mut state().i_buffer, 0).unwrap();
+    }
     }
 
     // If the speakers are being `.await`ed, wake the thread to fill the output
