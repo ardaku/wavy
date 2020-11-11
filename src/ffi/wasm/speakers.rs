@@ -43,7 +43,12 @@ where
         state.speaker = Some(state.context.as_mut().unwrap().destination());
 
         // Connect speakers.
-        state.proc.as_ref().unwrap().connect_with_audio_node(state.speaker.as_ref().unwrap()).unwrap();
+        state
+            .proc
+            .as_ref()
+            .unwrap()
+            .connect_with_audio_node(state.speaker.as_ref().unwrap())
+            .unwrap();
 
         (Self { _phantom }, super::SAMPLE_RATE)
     }

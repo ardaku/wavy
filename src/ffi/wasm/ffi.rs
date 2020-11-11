@@ -12,7 +12,7 @@ use std::task::Waker;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
     AudioContext, AudioContextOptions, AudioDestinationNode,
-    AudioProcessingEvent, ScriptProcessorNode, MediaStreamAudioSourceNode
+    AudioProcessingEvent, MediaStreamAudioSourceNode, ScriptProcessorNode,
 };
 
 /// 1024 samples per period.

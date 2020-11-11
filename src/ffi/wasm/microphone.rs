@@ -13,14 +13,13 @@ use std::{
     task::{Context, Poll},
 };
 
-use web_sys::{MediaStream, MediaStreamAudioSourceNode, MediaStreamAudioSourceOptions, MediaStreamConstraints};
-use wasm_bindgen::{JsValue, closure::Closure, JsCast};
-
-use fon::{
-    chan::{Channel},
-    sample::Sample1,
-    Resampler, Stream,
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use web_sys::{
+    MediaStream, MediaStreamAudioSourceNode, MediaStreamAudioSourceOptions,
+    MediaStreamConstraints,
 };
+
+use fon::{chan::Channel, sample::Sample1, Resampler, Stream};
 
 pub(crate) struct Microphone<C: Channel + Unpin> {
     stream: MicrophoneStream<C>,
@@ -29,34 +28,48 @@ pub(crate) struct Microphone<C: Channel + Unpin> {
 impl<C: Channel + Unpin> Microphone<C> {
     pub(crate) fn new() -> Option<Self> {
         let state = super::state();
-    
+
         // Lazily Initialize audio context & processor node.
         state.lazy_init();
-        
+
         // Prompt User To Connect Microphone.
-        let md = web_sys::window().unwrap().navigator().media_devices().ok()?;
-        let promise = md.get_user_media_with_constraints(
-            MediaStreamConstraints::new().audio(&JsValue::TRUE)
-        ).unwrap();
+        let md = web_sys::window()
+            .unwrap()
+            .navigator()
+            .media_devices()
+            .ok()?;
+        let promise = md
+            .get_user_media_with_constraints(
+                MediaStreamConstraints::new().audio(&JsValue::TRUE),
+            )
+            .unwrap();
         #[allow(trivial_casts)] // Actually needed here.
         let cb = Closure::wrap(Box::new(|media_stream| {
             let state = super::state();
             // Create audio source from media stream.
             let audio_src = MediaStreamAudioSourceNode::new(
                 state.context.as_ref().unwrap(),
-                &MediaStreamAudioSourceOptions::new(&MediaStream::unchecked_from_js(media_stream)),
-            ).unwrap();
+                &MediaStreamAudioSourceOptions::new(
+                    &MediaStream::unchecked_from_js(media_stream),
+                ),
+            )
+            .unwrap();
 
             // Connect microphones to processor node.
-            audio_src.connect_with_audio_node(state.proc.as_ref().unwrap()).unwrap();
+            audio_src
+                .connect_with_audio_node(state.proc.as_ref().unwrap())
+                .unwrap();
 
             // Add to connected microphones (refresh browser to remove).
             state.microphone.push(audio_src);
         }) as Box<dyn FnMut(_)>);
         let _ = promise.then(&cb);
 
-        Some(Self { stream: MicrophoneStream { resampler: Resampler::new(),
-             } })
+        Some(Self {
+            stream: MicrophoneStream {
+                resampler: Resampler::new(),
+            },
+        })
     }
 
     pub(crate) fn sample_rate(&self) -> u32 {
