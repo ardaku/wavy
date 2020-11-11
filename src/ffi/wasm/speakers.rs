@@ -73,12 +73,13 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let state = super::state();
         if state.played {
             state.played = false;
             Poll::Ready(())
         } else {
+            state.speaker_waker = Some(cx.waker().clone());
             Poll::Pending
         }
     }

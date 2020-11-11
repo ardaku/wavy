@@ -48,7 +48,7 @@ struct State {
     /// Waker from speaker future
     speaker_waker: Option<Waker>,
     /// Waker from microphone future.
-    microphone_waker: Vec<Option<Waker>>,
+    mics_waker: Option<Waker>,
     ///
     played: bool,
     ///
@@ -93,7 +93,7 @@ static mut STATE: State = State {
     r_buffer: [0.0; PERIOD as usize],
     proc: None,
     speaker_waker: None,
-    microphone_waker: Vec::new(),
+    mics_waker: None,
     played: false,
     recorded: false,
 };
@@ -111,8 +111,7 @@ fn state() -> &'static mut State {
 fn wake(event: AudioProcessingEvent) {
     // If a microphone is being `.await`ed, wake the thread with the input
     // buffer.
-    for microphone in &mut state().microphone_waker {
-    if let Some(waker) = microphone.take() {
+    if let Some(waker) = state().mics_waker.take() {
         // Set future to complete.
         state().recorded = true;
         // Wake the microphone future.
@@ -121,7 +120,6 @@ fn wake(event: AudioProcessingEvent) {
         let inbuf = event.input_buffer().expect("Failed to get input buffer");
         // Read microphone input.
         inbuf.copy_from_channel(&mut state().i_buffer, 0).unwrap();
-    }
     }
 
     // If the speakers are being `.await`ed, wake the thread to fill the output

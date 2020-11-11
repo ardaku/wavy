@@ -41,14 +41,17 @@ impl<C: Channel + Unpin> Microphone<C> {
         #[allow(trivial_casts)] // Actually needed here.
         let cb = Closure::wrap(Box::new(|media_stream| {
             let state = super::state();
-        
-            state.microphone.push(MediaStreamAudioSourceNode::new(
+            // Create audio source from media stream.
+            let audio_src = MediaStreamAudioSourceNode::new(
                 state.context.as_ref().unwrap(),
                 &MediaStreamAudioSourceOptions::new(&MediaStream::unchecked_from_js(media_stream)),
-            ).unwrap());
-            state.microphone_waker.push(None);
-            
-            // FIXME
+            ).unwrap();
+
+            // Connect microphones to processor node.
+            audio_src.connect_with_audio_node(state.proc.as_ref().unwrap()).unwrap();
+
+            // Add to connected microphones (refresh browser to remove).
+            state.microphone.push(audio_src);
         }) as Box<dyn FnMut(_)>);
         let _ = promise.then(&cb);
 
@@ -68,8 +71,15 @@ impl<C: Channel + Unpin> Microphone<C> {
 impl<C: Channel + Unpin> Future for Microphone<C> {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Pending
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let state = super::state();
+        if state.recorded {
+            state.recorded = false;
+            Poll::Ready(())
+        } else {
+            state.mics_waker = Some(cx.waker().clone());
+            Poll::Pending
+        }
     }
 }
 
