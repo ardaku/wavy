@@ -42,7 +42,7 @@ web-sys = "0.3"
 # Examples
 [dev-dependencies]
 pasts = "0.4"
-twang = "0.3"
+twang = "0.4"
 
 # Default to x86 64-bit Linux
 [package.metadata.docs.rs]
