@@ -64,9 +64,12 @@ impl<C: Channel + Unpin> Microphone<C> {
             state.microphone.push(audio_src);
         }) as Box<dyn FnMut(_)>);
         let _ = promise.then(&cb);
+        cb.forget();
 
         Some(Self {
             stream: MicrophoneStream {
+                audio: vec![0.0; super::PERIOD.into()],
+                index: super::PERIOD.into(),
                 resampler: Resampler::new(),
             },
         })
@@ -77,6 +80,19 @@ impl<C: Channel + Unpin> Microphone<C> {
     }
 
     pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C> {
+        // Grab global state.
+        let state = super::state();
+        
+        // Convert to requested audio type.
+        for (i, sample) in state.i_buffer.iter().enumerate() {
+            if i == super::PERIOD.into() {
+                break;
+            }
+            self.stream.audio[i] = *sample;
+        }
+        
+        self.stream.index = 0;
+
         &mut self.stream
     }
 }
@@ -99,6 +115,10 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
 pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
     // Stream's resampler
     resampler: Resampler<Sample1<C>>,
+    // Buffer
+    audio: Vec<f32>,
+    // Index into buffer
+    index: usize,
 }
 
 impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
@@ -110,7 +130,12 @@ where
     }
 
     fn stream_sample(&mut self) -> Option<Sample1<C>> {
-        None
+        if self.index == self.audio.len() {
+            return None;
+        }
+        let sample: C = C::from(self.audio[self.index].into());
+        self.index += 1;
+        Some(Sample1::new(sample))
     }
 
     fn resampler(&mut self) -> &mut Resampler<Sample1<C>> {

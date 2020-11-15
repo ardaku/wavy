@@ -61,7 +61,7 @@ impl State {
         if state().context.is_none() {
             state().context = Some(
                 AudioContext::new_with_context_options(
-                    AudioContextOptions::new().sample_rate(SAMPLE_RATE as f32),
+                    &AudioContextOptions::new()//.sample_rate(SAMPLE_RATE as f32),
                 )
                 .expect("Couldn't initialize AudioContext"),
             );
@@ -81,16 +81,16 @@ impl State {
                     // If a microphone is being `.await`ed, wake the thread with
                     // the input buffer.
                     if let Some(waker) = state().mics_waker.take() {
-                        // Set future to complete.
-                        state().recorded = true;
-                        // Wake the microphone future.
-                        waker.wake();
                         // Grab the AudioBuffer.
                         let inbuf = event.input_buffer()
                             .expect("Failed to get input buffer");
                         // Read microphone input.
                         inbuf.copy_from_channel(&mut state().i_buffer, 0)
                             .unwrap();
+                        // Set future to complete.
+                        state().recorded = true;
+                        // Wake the microphone future.
+                        waker.wake();
                     }
 
                     // If the speakers are being `.await`ed, wake the thread to
