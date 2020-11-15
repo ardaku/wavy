@@ -59,7 +59,7 @@ version = "0.2"
 
 # Examples
 [dev-dependencies]
-pasts = "0.4"
+pasts = "0.5"
 twang = "0.3"
 
 # Default to x86 64-bit Linux

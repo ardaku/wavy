@@ -2,7 +2,7 @@
 //! recorded.
 
 use fon::{chan::Ch16, mono::Mono16, Audio, Stream};
-use pasts::{prelude::*, CvarExec};
+use pasts::prelude::*;
 use std::cell::RefCell;
 use wavy::{Microphone, Speakers};
 
@@ -58,6 +58,5 @@ async fn start() {
 
 /// Start the async executor.
 fn main() {
-    static EXECUTOR: CvarExec = CvarExec::new();
-    EXECUTOR.block_on(start())
+    pasts::spawn(start);
 }
