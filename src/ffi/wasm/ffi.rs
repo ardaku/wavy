@@ -61,7 +61,7 @@ impl State {
         if state().context.is_none() {
             state().context = Some(
                 AudioContext::new_with_context_options(
-                    &AudioContextOptions::new()//.sample_rate(SAMPLE_RATE as f32),
+                    &AudioContextOptions::new(), //.sample_rate(SAMPLE_RATE as f32),
                 )
                 .expect("Couldn't initialize AudioContext"),
             );
@@ -76,16 +76,18 @@ impl State {
                 .create_script_processor_with_buffer_size(PERIOD.into())
                 .unwrap();
             #[allow(trivial_casts)] // Actually needed here.
-            let js_function: Closure::<dyn Fn(AudioProcessingEvent)>
-                = Closure::wrap(Box::new(move |event| {
+            let js_function: Closure<dyn Fn(AudioProcessingEvent)> =
+                Closure::wrap(Box::new(move |event| {
                     // If a microphone is being `.await`ed, wake the thread with
                     // the input buffer.
                     if let Some(waker) = state().mics_waker.take() {
                         // Grab the AudioBuffer.
-                        let inbuf = event.input_buffer()
+                        let inbuf = event
+                            .input_buffer()
                             .expect("Failed to get input buffer");
                         // Read microphone input.
-                        inbuf.copy_from_channel(&mut state().i_buffer, 0)
+                        inbuf
+                            .copy_from_channel(&mut state().i_buffer, 0)
                             .unwrap();
                         // Set future to complete.
                         state().recorded = true;
@@ -101,7 +103,8 @@ impl State {
                         // Wake the speaker future to generate audio data.
                         waker.wake();
                         // Grab the AudioBuffer.
-                        let out = event.output_buffer()
+                        let out = event
+                            .output_buffer()
                             .expect("Failed to get output buffer");
                         // Write speaker output.
                         out.copy_to_channel(&mut state().l_buffer, 0).unwrap();

@@ -15,7 +15,7 @@
 //! ```toml
 //! [dependencies]
 //! pasts = "0.5"
-//! wavy = "0.4"
+//! wavy = "0.5"
 //! fon = "0.2"
 //! ```
 //!

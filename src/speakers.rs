@@ -15,6 +15,7 @@ use fon::{
 
 use crate::ffi::Speakers as SpeakersSys;
 
+#[allow(clippy::needless_doctest_main)]
 /// Play audio samples through speaker system.
 ///
 /// # 440 HZ Sine Wave Example

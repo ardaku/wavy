@@ -82,7 +82,7 @@ impl<C: Channel + Unpin> Microphone<C> {
     pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C> {
         // Grab global state.
         let state = super::state();
-        
+
         // Convert to requested audio type.
         for (i, sample) in state.i_buffer.iter().enumerate() {
             if i == super::PERIOD.into() {
@@ -90,7 +90,7 @@ impl<C: Channel + Unpin> Microphone<C> {
             }
             self.stream.audio[i] = *sample;
         }
-        
+
         self.stream.index = 0;
 
         &mut self.stream
