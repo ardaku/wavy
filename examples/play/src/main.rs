@@ -1,4 +1,4 @@
-//! Play a 220 Hertz sine wave through the system's speakers.
+// Play a 220 Hertz sine wave through the system's speakers.
 
 use fon::mono::Mono64;
 use pasts::prelude::*;
@@ -22,7 +22,7 @@ async fn speakers(state: &RefCell<State>) {
         // 2. Borrow shared state mutably
         let _state = state.borrow_mut();
         // 3. Generate and write samples into speaker buffer.
-        synth.gen(sink, |fc| fc.freq(440.0).sine().amp(0.7));
+        synth.gen(sink, |fc| fc.freq(440.0).sine().gain(0.7));
     }
 }
 
@@ -36,9 +36,7 @@ async fn start() {
     [speakers.fut()].select().await;
 }
 
+/// Start the async executor.
 fn main() {
-    // Set panic handler for clean prints.
-    cala_core::os::web::panic_hook();
-    // Start the executor
-    cala_core::os::web::block_on(start());
+    pasts::spawn(start);
 }

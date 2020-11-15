@@ -15,6 +15,7 @@ use fon::{
 
 use crate::ffi::Speakers as SpeakersSys;
 
+#[allow(clippy::needless_doctest_main)]
 /// Play audio samples through speaker system.
 ///
 /// # 440 HZ Sine Wave Example
@@ -22,7 +23,7 @@ use crate::ffi::Speakers as SpeakersSys;
 /// wave.
 /// ```no_run
 /// use fon::mono::Mono64;
-/// use pasts::{prelude::*, CvarExec};
+/// use pasts::prelude::*;
 /// use std::cell::RefCell;
 /// use twang::Synth;
 /// use wavy::Speakers;
@@ -59,14 +60,15 @@ use crate::ffi::Speakers as SpeakersSys;
 ///
 /// /// Start the async executor.
 /// fn main() {
-///     static EXECUTOR: CvarExec = CvarExec::new();
-///     EXECUTOR.block_on(start())
+///     pasts::spawn(start);
 /// }
 /// ```
 #[allow(missing_debug_implementations)]
 pub struct Speakers<S: Sample + Unpin>
 where
     Ch16: From<S::Chan>,
+    Ch32: From<S::Chan>,
+    Ch64: From<S::Chan>,
 {
     speakers: SpeakersSys<S>,
     audiobuf: Audio<S>,

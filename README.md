@@ -48,4 +48,3 @@ dual licensed as above, without any additional terms or conditions.
 [8]: https://www.apache.org/licenses/LICENSE-2.0
 [9]: https://github.com/libcala/wavy/blob/master/LICENSE-ZLIB
 [10]: https://opensource.org/licenses/Zlib
-[11]: mailto:jeronlau@plopgrizzly.com

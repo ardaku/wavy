@@ -1,5 +1,5 @@
-//! This example records audio and plays it back in real time as it's being
-//! recorded.
+// This example records audio and plays it back in real time as it's being
+// recorded.
 
 use fon::{chan::Ch16, mono::Mono16, Audio, Stream};
 use pasts::prelude::*;
@@ -56,9 +56,7 @@ async fn start() {
     [speakers.fut(), microphone.fut()].select().await;
 }
 
+/// Start the async executor.
 fn main() {
-    // Set panic handler for clean prints.
-    cala_core::os::web::panic_hook();
-    // Start the executor
-    cala_core::os::web::block_on(start());
+    pasts::spawn(start);
 }

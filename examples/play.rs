@@ -1,7 +1,7 @@
 //! Play a 220 Hertz sine wave through the system's speakers.
 
 use fon::mono::Mono64;
-use pasts::{prelude::*, CvarExec};
+use pasts::prelude::*;
 use std::cell::RefCell;
 use twang::Synth;
 use wavy::Speakers;
@@ -38,6 +38,5 @@ async fn start() {
 
 /// Start the async executor.
 fn main() {
-    static EXECUTOR: CvarExec = CvarExec::new();
-    EXECUTOR.block_on(start())
+    pasts::spawn(start);
 }

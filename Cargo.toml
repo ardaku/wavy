@@ -9,7 +9,7 @@
 
 [package]
 name = "wavy"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Jeron Aldaron Lau <jeronlau@plopgrizzly.com>"]
 license = "Apache-2.0/Zlib"
 
@@ -36,12 +36,30 @@ version = "0.2"
 version = "0.1"
 
 # For Web Assembly
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-web-sys = "0.3"
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3"
+features = [
+    "AudioContext",
+    "AudioContextOptions",
+    "AudioNode",
+    "AudioDestinationNode",
+    "ScriptProcessorNode",
+    "AudioProcessingEvent",
+    "AudioBuffer",
+    "MediaStreamConstraints",
+    "Window",
+    "Navigator",
+    "MediaDevices",
+    "MediaStream",
+    "MediaStreamAudioSourceNode",
+    "MediaStreamAudioSourceOptions",
+]
+[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
+version = "0.2"
 
 # Examples
 [dev-dependencies]
-pasts = "0.4"
+pasts = "0.5"
 twang = "0.4"
 
 # Default to x86 64-bit Linux

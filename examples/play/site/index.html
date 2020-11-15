@@ -1,0 +1,13 @@
+<html>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+  </head>
+  <body>
+    <script type="module">
+        import init, {wasm_start_main} from './gen/play.js';
+        init().then(function(wasm) {
+            wasm_start_main();
+        });
+    </script>
+  </body>
+</html>

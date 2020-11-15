@@ -14,8 +14,8 @@
 //!
 //! ```toml
 //! [dependencies]
-//! pasts = "0.4"
-//! wavy = "0.4"
+//! pasts = "0.5"
+//! wavy = "0.5"
 //! fon = "0.2"
 //! ```
 //!
@@ -24,7 +24,7 @@
 //!
 //! ```rust,no_run
 //! use fon::{chan::Ch16, mono::Mono16, Audio, Stream};
-//! use pasts::{prelude::*, CvarExec};
+//! use pasts::prelude::*;
 //! use std::cell::RefCell;
 //! use wavy::{Microphone, Speakers};
 //!
@@ -80,8 +80,7 @@
 //!
 //! /// Start the async executor.
 //! fn main() {
-//!     static EXECUTOR: CvarExec = CvarExec::new();
-//!     EXECUTOR.block_on(start())
+//!     pasts::spawn(start);
 //! }
 //! ```
 
