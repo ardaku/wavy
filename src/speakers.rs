@@ -43,7 +43,7 @@ use crate::ffi::Speakers as SpeakersSys;
 ///         // 2. Borrow shared state mutably
 ///         let _state = state.borrow_mut();
 ///         // 3. Generate and write samples into speaker buffer.
-///         synth.gen(audio, |fc| fc.freq(440.0).sine().amp(0.7));
+///         synth.gen(audio, |fc| fc.freq(440.0).sine().gain(0.7));
 ///     }
 /// }
 ///
