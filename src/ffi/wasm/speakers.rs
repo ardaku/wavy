@@ -38,11 +38,11 @@ where
         if state.speaker.is_some() {
             panic!("Already connected to speakers!");
         }
-
+        
         // Initialize speakers.
         state.speaker = Some(state.context.as_mut().unwrap().destination());
 
-        // Connect speakers.
+        // Connect speakers. FIXME
         state
             .proc
             .as_ref()

@@ -76,8 +76,40 @@ impl State {
                 .create_script_processor_with_buffer_size(PERIOD.into())
                 .unwrap();
             #[allow(trivial_casts)] // Actually needed here.
-            let js_function = Closure::wrap(Box::new(wake) as Box<dyn Fn(_)>);
+            let js_function: Closure::<dyn Fn(AudioProcessingEvent)>
+                = Closure::wrap(Box::new(move |event| {
+                    // If a microphone is being `.await`ed, wake the thread with
+                    // the input buffer.
+                    if let Some(waker) = state().mics_waker.take() {
+                        // Set future to complete.
+                        state().recorded = true;
+                        // Wake the microphone future.
+                        waker.wake();
+                        // Grab the AudioBuffer.
+                        let inbuf = event.input_buffer()
+                            .expect("Failed to get input buffer");
+                        // Read microphone input.
+                        inbuf.copy_from_channel(&mut state().i_buffer, 0)
+                            .unwrap();
+                    }
+
+                    // If the speakers are being `.await`ed, wake the thread to
+                    // fill the output buffer.
+                    if let Some(waker) = state().speaker_waker.take() {
+                        // Set future to complete.
+                        state().played = true;
+                        // Wake the speaker future to generate audio data.
+                        waker.wake();
+                        // Grab the AudioBuffer.
+                        let out = event.output_buffer()
+                            .expect("Failed to get output buffer");
+                        // Write speaker output.
+                        out.copy_to_channel(&mut state().l_buffer, 0).unwrap();
+                        out.copy_to_channel(&mut state().r_buffer, 1).unwrap();
+                    }
+                }));
             proc.set_onaudioprocess(Some(js_function.as_ref().unchecked_ref()));
+            js_function.forget();
             self.proc = Some(proc);
         }
     }
@@ -104,37 +136,6 @@ static mut STATE: State = State {
 #[inline(always)]
 fn state() -> &'static mut State {
     unsafe { &mut STATE }
-}
-
-/// Function called inside ScriptProcessorNode, must handle audio input and
-/// provide audio output.
-fn wake(event: AudioProcessingEvent) {
-    // If a microphone is being `.await`ed, wake the thread with the input
-    // buffer.
-    if let Some(waker) = state().mics_waker.take() {
-        // Set future to complete.
-        state().recorded = true;
-        // Wake the microphone future.
-        waker.wake();
-        // Grab the AudioBuffer.
-        let inbuf = event.input_buffer().expect("Failed to get input buffer");
-        // Read microphone input.
-        inbuf.copy_from_channel(&mut state().i_buffer, 0).unwrap();
-    }
-
-    // If the speakers are being `.await`ed, wake the thread to fill the output
-    // buffer.
-    if let Some(waker) = state().speaker_waker.take() {
-        // Set future to complete.
-        state().played = true;
-        // Wake the speaker future to generate audio data.
-        waker.wake();
-        // Grab the AudioBuffer.
-        let out = event.output_buffer().expect("Failed to get output buffer");
-        // Write speaker output.
-        out.copy_to_channel(&mut state().l_buffer, 0).unwrap();
-        out.copy_to_channel(&mut state().r_buffer, 1).unwrap();
-    }
 }
 
 mod microphone;
