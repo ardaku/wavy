@@ -22,7 +22,7 @@ async fn speakers(state: &RefCell<State>) {
         // 2. Borrow shared state mutably
         let _state = state.borrow_mut();
         // 3. Generate and write samples into speaker buffer.
-        synth.gen(sink, |fc| fc.freq(440.0).sine().amp(0.7));
+        synth.gen(sink, |fc| fc.freq(440.0).sine().gain(0.7));
     }
 }
 
