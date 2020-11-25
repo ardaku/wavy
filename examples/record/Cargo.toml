@@ -28,7 +28,7 @@ wee_alloc = { version = "0.4.5", optional = true }
 
 # To play audio
 fon = "0.2"
-pasts = "0.5"
+pasts = "0.6"
 twang = "0.4"
 wavy = { path = "../.." }
 

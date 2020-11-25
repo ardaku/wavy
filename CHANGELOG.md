@@ -4,6 +4,10 @@ All notable changes to `wavy` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
 
+## [0.6.0] - Unreleased
+### Changed
+ - Updated docs and examples to use newest pasts (0.6)
+
 ## [0.5.0] - 2020-11-15
 ### Changed
  - No longer support stdweb, wasm-pack only (see examples folder)

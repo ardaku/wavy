@@ -14,7 +14,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! pasts = "0.5"
+//! pasts = "0.6"
 //! wavy = "0.5"
 //! fon = "0.2"
 //! ```
@@ -70,17 +70,18 @@
 //!     let state = RefCell::new(State {
 //!         buffer: Audio::with_silence(microphone.sample_rate(), 0),
 //!     });
-//!     // Create speaker task.
-//!     let mut speakers = speakers_task(&state);
-//!     // Create microphone task.
-//!     let mut microphone = microphone_task(&state, microphone);
+//!     // Create speaker and microphone tasks.
+//!     task! {
+//!         let speakers = speakers_task(&state);
+//!         let microphone = microphone_task(&state, microphone);
+//!     }
 //!     // Wait for first task to complete.
-//!     [speakers.fut(), microphone.fut()].select().await;
+//!     poll![speakers, microphone].await;
 //! }
 //!
 //! /// Start the async executor.
 //! fn main() {
-//!     pasts::spawn(start);
+//!     exec!(start());
 //! }
 //! ```
 

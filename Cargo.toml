@@ -59,7 +59,7 @@ version = "0.2"
 
 # Examples
 [dev-dependencies]
-pasts = "0.5"
+pasts = "0.6"
 twang = "0.4"
 
 # Default to x86 64-bit Linux
@@ -69,4 +69,4 @@ default-target = "x86_64-unknown-linux-gnu"
 
 # Uncomment to replace dependencies with experimental versions.
 # [replace]
-# "fon:0.2.0" = { path = "../fon" }
+# "pasts:0.6.0" = { path = "../pasts" }
