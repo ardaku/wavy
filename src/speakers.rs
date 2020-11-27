@@ -52,15 +52,13 @@ use crate::ffi::Speakers as SpeakersSys;
 /// async fn start() {
 ///     // Initialize shared state.
 ///     let state = RefCell::new(State {});
-///     // Create speaker task.
-///     let mut speakers = speakers(&state);
-///     // Wait for first task to complete.
-///     [speakers.fut()].select().await;
+///     // Create and wait on speaker task.
+///     speakers(&state).await;
 /// }
 ///
 /// /// Start the async executor.
 /// fn main() {
-///     pasts::spawn(start);
+///     exec!(start());
 /// }
 /// ```
 #[allow(missing_debug_implementations)]
