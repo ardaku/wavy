@@ -32,6 +32,11 @@ const CHANNEL_COUNT: &[u32] = &[8, 6, 4, 2, 1];
 
 // Update with: `dl_api ffi/asound,so,2.muon src/linux/gen.rs`
 mod alsa;
+// ALSA bindings.
+mod asound;
+
+// Implementation Expectations:
+pub(crate) use asound::device_list::{AudioSrc, AudioDst, device_list};
 
 fn pcm_hw_params(
     device: &AlsaDevice,

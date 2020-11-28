@@ -32,8 +32,9 @@ edition = "2018"
 version = "0.2"
 
 # For Linux and Android
-[target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies.smelling_salts]
-version = "0.1"
+[target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
+smelling_salts = "0.1"
+dl_api = "0.4"
 
 # For Web Assembly
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]

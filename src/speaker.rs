@@ -26,7 +26,7 @@ use crate::ffi::Speakers as SpeakersSys;
 /// use pasts::prelude::*;
 /// use std::cell::RefCell;
 /// use twang::Synth;
-/// use wavy::Speakers;
+/// use wavy::Speaker;
 ///
 /// /// The program's shared state.
 /// struct State {}
@@ -34,7 +34,7 @@ use crate::ffi::Speakers as SpeakersSys;
 /// /// Speakers task (play sine wave).
 /// async fn speakers(state: &RefCell<State>) {
 ///     // Connect to system's speaker(s)
-///     let mut speakers = Speakers::<Mono64>::new();
+///     let mut speakers = Speaker::<Mono64>::new();
 ///     // Create a new synthesizer
 ///     let mut synth = Synth::new();
 ///
@@ -62,7 +62,7 @@ use crate::ffi::Speakers as SpeakersSys;
 /// }
 /// ```
 #[allow(missing_debug_implementations)]
-pub struct Speakers<S: Sample + Unpin>
+pub struct Speaker<S: Sample + Unpin>
 where
     Ch16: From<S::Chan>,
     Ch32: From<S::Chan>,
@@ -72,7 +72,7 @@ where
     audiobuf: Audio<S>,
 }
 
-impl<S: Sample + Unpin> Speakers<S>
+impl<S: Sample + Unpin> Speaker<S>
 where
     Ch16: From<S::Chan>,
     Ch32: From<S::Chan>,

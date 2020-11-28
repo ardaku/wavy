@@ -4,7 +4,7 @@
 use fon::{chan::Ch16, mono::Mono16, Audio, Stream};
 use pasts::prelude::*;
 use std::cell::RefCell;
-use wavy::{Microphone, Speakers};
+use wavy::{Microphone, Speaker};
 
 /// The program's shared state.
 struct State {
@@ -27,7 +27,7 @@ async fn microphone_task(state: &RefCell<State>, mut mic: Microphone<Ch16>) {
 /// Speakers task (play recorded audio).
 async fn speakers_task(state: &RefCell<State>) {
     // Connect to system's speaker(s)
-    let mut speakers = Speakers::<Mono16>::new();
+    let mut speakers = Speaker::<Mono16>::new();
 
     loop {
         // 1. Wait for speaker to need more samples.
