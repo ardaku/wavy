@@ -24,7 +24,7 @@ impl<S: Sample> Speakers<S> {
     pub(crate) fn connect(_id: crate::SpeakerId) -> Option<(Self, u32)> {
         let _phantom = PhantomData::<S>;
 
-        Ok((Self { _phantom }, 48_000))
+        Some((Self { _phantom }, 48_000))
     }
 
     pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize {
