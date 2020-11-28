@@ -9,25 +9,34 @@
 
 #![allow(unsafe_code)]
 
-use std::{
-    mem::MaybeUninit, os::raw::{c_char}, ffi::CStr, fmt::{Formatter, Display, Error}
-};
 use super::{free, Alsa};
+use std::{
+    ffi::CStr,
+    fmt::{Display, Error, Formatter},
+    mem::MaybeUninit,
+    os::raw::c_char,
+};
+
+const DEFAULT: &[u8] = b"default\0";
 
 pub(crate) trait SoundDevice: Display + From<AudioDevice> {
     const INPUT: bool;
 
-    fn desc(&self) -> *mut c_char;
+    fn desc(&self) -> *const c_char;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct AudioSrc(AudioDevice);
 
 impl SoundDevice for AudioSrc {
     const INPUT: bool = true;
 
-    fn desc(&self) -> *mut c_char {
-        self.0.desc
+    fn desc(&self) -> *const c_char {
+        if self.0.desc.is_null() {
+            DEFAULT.as_ptr().cast()
+        } else {
+            self.0.desc
+        }
     }
 }
 
@@ -43,14 +52,18 @@ impl Display for AudioSrc {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct AudioDst(AudioDevice);
 
 impl SoundDevice for AudioDst {
     const INPUT: bool = false;
 
-    fn desc(&self) -> *mut c_char {
-        self.0.desc
+    fn desc(&self) -> *const c_char {
+        if self.0.desc.is_null() {
+            DEFAULT.as_ptr().cast()
+        } else {
+            self.0.desc
+        }
     }
 }
 
@@ -75,16 +88,29 @@ pub(crate) struct AudioDevice {
     desc: *mut c_char,
 }
 
+impl Default for AudioDevice {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            desc: std::ptr::null_mut(),
+        }
+    }
+}
+
 impl Drop for AudioDevice {
     fn drop(&mut self) {
-        unsafe {
-            free(self.desc.cast());
+        if self.desc as *const _ != DEFAULT.as_ptr() {
+            unsafe {
+                free(self.desc.cast());
+            }
         }
     }
 }
 
 /// Return a list of available audio devices.
-pub(crate) fn device_list<D: SoundDevice, F: Fn(D) -> T, T>(abstrakt: F) -> Vec<T> {
+pub(crate) fn device_list<D: SoundDevice, F: Fn(D) -> T, T>(
+    abstrakt: F,
+) -> Vec<T> {
     super::ALSA.with(|alsa| {
         if let Some(alsa) = alsa {
             device_list_internal(&alsa, abstrakt)
@@ -94,7 +120,10 @@ pub(crate) fn device_list<D: SoundDevice, F: Fn(D) -> T, T>(abstrakt: F) -> Vec<
     })
 }
 
-fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(alsa: &Alsa, abstrakt: F) -> Vec<T> {
+fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(
+    alsa: &Alsa,
+    abstrakt: F,
+) -> Vec<T> {
     let tpcm = CStr::from_bytes_with_nul(b"pcm\0").unwrap();
     let tname = CStr::from_bytes_with_nul(b"NAME\0").unwrap();
     let tdesc = CStr::from_bytes_with_nul(b"DESC\0").unwrap();
@@ -103,7 +132,9 @@ fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(alsa: &Alsa, abstrakt:
     let mut hints = MaybeUninit::uninit();
     let mut devices = Vec::new();
     unsafe {
-        if (alsa.snd_device_name_hint)(-1, tpcm.as_ptr(), hints.as_mut_ptr()) < 0 {
+        if (alsa.snd_device_name_hint)(-1, tpcm.as_ptr(), hints.as_mut_ptr())
+            < 0
+        {
             return Vec::new();
         }
         let hints = hints.assume_init();
@@ -119,9 +150,11 @@ fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(alsa: &Alsa, abstrakt:
                 Ok("null") => "Null".to_string(),
                 Ok("default") => "Default".to_string(),
                 _ => {
-                    let desc = (alsa.snd_device_name_get_hint)(*n, tdesc.as_ptr());
+                    let desc =
+                        (alsa.snd_device_name_get_hint)(*n, tdesc.as_ptr());
                     assert_ne!(desc, std::ptr::null_mut());
-                    let rust = CStr::from_ptr(desc).to_string_lossy().to_string();
+                    let rust =
+                        CStr::from_ptr(desc).to_string_lossy().to_string();
                     free(desc.cast());
                     rust.replace("\n", ": ")
                 }
@@ -134,7 +167,10 @@ fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(alsa: &Alsa, abstrakt:
             }
             if (D::INPUT && is_input) || (!D::INPUT && is_output) {
                 // Add device to list of devices.
-                devices.push(abstrakt(D::from(AudioDevice { name: desc, desc: name })));
+                devices.push(abstrakt(D::from(AudioDevice {
+                    name: desc,
+                    desc: name,
+                })));
             }
             n = n.offset(1);
         }

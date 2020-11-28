@@ -13,10 +13,10 @@ use fon::{
     Audio, Sink,
 };
 
-use crate::ffi::Speakers as SpeakersSys;
+use crate::{ffi::Speakers as SpeakersSys, SpeakerId};
 
 #[allow(clippy::needless_doctest_main)]
-/// Play audio samples through speaker system.
+/// Play audio samples through a speaker.
 ///
 /// # 440 HZ Sine Wave Example
 /// **note:** This example depends on `twang = "0.3"` to synthesize the sine
@@ -34,7 +34,7 @@ use crate::ffi::Speakers as SpeakersSys;
 /// /// Speakers task (play sine wave).
 /// async fn speakers(state: &RefCell<State>) {
 ///     // Connect to system's speaker(s)
-///     let mut speakers = Speaker::<Mono64>::new();
+///     let mut speakers = Speaker::<Mono64>::new(Default::default()).unwrap();
 ///     // Create a new synthesizer
 ///     let mut synth = Synth::new();
 ///
@@ -78,15 +78,13 @@ where
     Ch32: From<S::Chan>,
     Ch64: From<S::Chan>,
 {
-    /// Connect to the speaker system.
-    ///
-    /// # Panics
-    /// - If already connected to the speaker system.
+    /// Connect to a speaker (also includes virtual speaker, headphones, HDMI,
+    /// stereo speakers, surround, etc.).
     #[allow(clippy::new_without_default)] // Because it may panic
-    pub fn new() -> Self {
-        let (speakers, sample_rate) = SpeakersSys::connect();
+    pub fn new(id: SpeakerId) -> Option<Self> {
+        let (speakers, sample_rate) = SpeakersSys::connect(id)?;
         let audiobuf = Audio::with_silence(sample_rate, 1024);
-        Self { speakers, audiobuf }
+        Some(Self { speakers, audiobuf })
     }
 
     /// Get the speakers' sample rate.

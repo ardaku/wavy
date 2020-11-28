@@ -11,6 +11,7 @@ use self::alsa::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
+use asound::device_list::SoundDevice;
 use fon::{
     chan::{Ch16, Channel},
     mono::Mono16,
@@ -21,9 +22,9 @@ use fon::{
 };
 use std::{
     convert::TryInto,
-    ffi::CString,
     future::Future,
     marker::PhantomData,
+    os::raw::c_char,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -36,7 +37,7 @@ mod alsa;
 mod asound;
 
 // Implementation Expectations:
-pub(crate) use asound::device_list::{AudioSrc, AudioDst, device_list};
+pub(crate) use asound::device_list::{device_list, AudioDst, AudioSrc};
 
 fn pcm_hw_params(
     device: &AlsaDevice,
@@ -141,36 +142,34 @@ pub(super) struct Pcm {
 }
 
 impl Pcm {
-    /// Create a new async PCM.
+    /// Create a new async PCM.  If it fails return `None`.
     fn new(
+        device_name: *const c_char,
         direction: SndPcmStream,
         max_channels: usize,
     ) -> Option<(Self, u32, u32)> {
         // Load shared alsa module.
         let device = AlsaDevice::new()?;
-        // FIXME: Currently only the default device is supported.
-        let device_name = CString::new("default").unwrap();
         // Create the ALSA PCM.
         let sound_device: SndPcm = device
-            .snd_pcm_open(&device_name, direction, SndPcmMode::Nonblock)
+            .snd_pcm_open(device_name, direction, SndPcmMode::Nonblock)
             .ok()?;
         // Configure Hardware Parameters
         let (mut hw_params, sample_rate, n_channels) = pcm_hw_params(
             &device,
             &sound_device,
             direction == SndPcmStream::Playback,
-            max_channels.try_into().unwrap(),
+            max_channels.try_into().ok()?,
         )?;
         // Free Hardware Parameters
         device.snd_pcm_hw_params_free(&mut hw_params);
         // Get file descriptor
-        let fd_count = device
-            .snd_pcm_poll_descriptors_count(&sound_device)
-            .unwrap();
-        let mut fd_list = Vec::with_capacity(fd_count.try_into().unwrap());
+        let fd_count =
+            device.snd_pcm_poll_descriptors_count(&sound_device).ok()?;
+        let mut fd_list = Vec::with_capacity(fd_count.try_into().ok()?);
         device
             .snd_pcm_poll_descriptors(&sound_device, &mut fd_list)
-            .unwrap();
+            .ok()?;
         // FIXME: More?
         assert_eq!(fd_count, 1);
         // Register file descriptor with OS's I/O Event Notifier
@@ -255,20 +254,18 @@ impl<S: Sample> Speakers<S>
 where
     Ch16: From<S::Chan>,
 {
-    pub(crate) fn connect() -> (Self, u32) {
+    pub(crate) fn connect(id: crate::SpeakerId) -> Option<(Self, u32)> {
         // Load Player ALSA module
-        // unwrap(): FIXME - Should connect to dummy backend instead if fail.
-        let player = AlsaPlayer::new().unwrap();
+        let player = AlsaPlayer::new()?;
         // Create Playback PCM.
-        // unwrap(): FIXME - Should connect to dummy backend instead if fail.
         let (pcm, sample_rate, nc) =
-            Pcm::new(SndPcmStream::Playback, S::CHAN_COUNT).unwrap();
+            Pcm::new(id.0.desc(), SndPcmStream::Playback, S::CHAN_COUNT)?;
         let buffer = vec![[0; 2]; nc as usize * 1024];
         let written = 0;
         let is_ready = true;
         let _phantom = PhantomData;
 
-        (
+        Some((
             Self {
                 player,
                 pcm,
@@ -278,7 +275,7 @@ where
                 _phantom,
             },
             sample_rate,
-        )
+        ))
     }
 
     pub(crate) fn play(&mut self, audio: &Audio<S>) {
@@ -421,11 +418,12 @@ pub(crate) struct Microphone<C: Channel + Unpin> {
 }
 
 impl<C: Channel + Unpin> Microphone<C> {
-    pub(crate) fn new() -> Option<Self> {
+    pub(crate) fn new(id: crate::MicrophoneId) -> Option<Self> {
         // Load Recorder ALSA module
         let recorder = AlsaRecorder::new()?;
         // Create Capture PCM.
-        let (pcm, sample_rate, _one) = Pcm::new(SndPcmStream::Capture, 1)?;
+        let (pcm, sample_rate, _one) =
+            Pcm::new(id.0.desc(), SndPcmStream::Capture, 1)?;
         let is_ready = true;
         let stream = MicrophoneStream {
             buffer: Vec::with_capacity(1024),

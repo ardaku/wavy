@@ -7,7 +7,7 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use crate::ffi;
+use crate::{ffi, MicrophoneId};
 use fon::{
     chan::{Ch16, Channel},
     sample::Sample1,
@@ -23,9 +23,9 @@ pub struct Microphone<C: Channel + Unpin> {
 impl<C: Channel + Unpin + From<Ch16>> Microphone<C> {
     /// Connect to a microphone.  Unlike `Speakers`, you may call this multiple
     /// times to connect to multiple devices.
-    pub fn new() -> Option<Self> {
+    pub fn new(id: MicrophoneId) -> Option<Self> {
         Some(Self {
-            microphone: ffi::Microphone::new()?,
+            microphone: ffi::Microphone::new(id)?,
         })
     }
 

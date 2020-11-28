@@ -7,17 +7,17 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use std::fmt::{Formatter, Error, Display};
-use crate::ffi::{AudioSrc as AudioSrcSys, AudioDst as AudioDstSys, device_list};
+use crate::ffi::{device_list, AudioDst, AudioSrc};
+use std::fmt::{Display, Error, Formatter};
 
-/// An available audio input.
-#[derive(Debug)]
-pub struct MicrophoneId(AudioSrcSys);
+/// ID of an available microphone.
+#[derive(Debug, Default)]
+pub struct MicrophoneId(pub(crate) AudioSrc);
 
 impl MicrophoneId {
     /// Query available audio sources.
     pub fn query() -> Vec<Self> {
-        device_list(|a: AudioSrcSys| Self(a))
+        device_list(Self)
     }
 }
 
@@ -27,14 +27,14 @@ impl Display for MicrophoneId {
     }
 }
 
-/// An available audio output.
-#[derive(Debug)]
-pub struct SpeakerId(AudioDstSys);
+/// ID of an available speaker.
+#[derive(Debug, Default)]
+pub struct SpeakerId(pub(crate) AudioDst);
 
 impl SpeakerId {
     /// Query available audio destinations.
     pub fn query() -> Vec<Self> {
-        device_list(|a: AudioDstSys| Self(a))
+        device_list(Self)
     }
 }
 

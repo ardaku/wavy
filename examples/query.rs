@@ -1,4 +1,4 @@
-use wavy::{SpeakerId, MicrophoneId};
+use wavy::{MicrophoneId, SpeakerId};
 
 fn main() {
     for speaker in SpeakerId::query() {

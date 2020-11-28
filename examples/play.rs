@@ -12,7 +12,7 @@ struct State {}
 /// Speakers task (play sine wave).
 async fn speakers(state: &RefCell<State>) {
     // Connect to system's speaker(s)
-    let mut speakers = Speaker::<Mono64>::new();
+    let mut speakers = Speaker::<Mono64>::new(Default::default()).unwrap();
     // Create a new synthesizer
     let mut synth = Synth::new();
 

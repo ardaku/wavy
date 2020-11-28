@@ -49,7 +49,7 @@
 //! /// Speakers task (play recorded audio).
 //! async fn speakers_task(state: &RefCell<State>) {
 //!     // Connect to system's speaker(s)
-//!     let mut speakers = Speaker::<Mono16>::new();
+//!     let mut speakers = Speaker::<Mono16>::new(Default::default()).unwrap();
 //!
 //!     loop {
 //!         // 1. Wait for speaker to need more samples.
@@ -64,7 +64,7 @@
 //! /// Program start.
 //! async fn start() {
 //!     // Connect to a user-selected microphone.
-//!     let microphone = Microphone::new().expect("Need a microphone");
+//!     let microphone = Microphone::new(Default::default()).unwrap();
 //!     // Get the microphone's sample rate.
 //!     // Initialize shared state.
 //!     let state = RefCell::new(State {
@@ -73,7 +73,7 @@
 //!     // Create speaker and microphone tasks.
 //!     task! {
 //!         let speakers = speakers_task(&state);
-//!         let microphone = microphone_task(&state, microphone);
+//!         let microphone = microphone_task(&state, microphone)
 //!     }
 //!     // Wait for first task to complete.
 //!     poll![speakers, microphone].await;
@@ -133,9 +133,9 @@
 mod ffi;
 
 mod microphone;
-mod speaker;
 mod route;
+mod speaker;
 
 pub use microphone::Microphone;
+pub use route::{MicrophoneId, SpeakerId};
 pub use speaker::Speaker;
-pub use route::{SpeakerId, MicrophoneId};

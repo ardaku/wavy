@@ -489,7 +489,7 @@ impl AlsaDevice {
     /// Return 0 on success otherwise a negative error code
     pub(super) fn snd_pcm_open(
         &self,
-        name: &std::ffi::CStr,
+        name: *const std::os::raw::c_char,
         stream: SndPcmStream,
         mode: SndPcmMode,
     ) -> Result<SndPcm, i32> {
@@ -497,7 +497,7 @@ impl AlsaDevice {
             let mut pcmp = std::mem::MaybeUninit::uninit();
             let __ret = ((FN_SND_PCM_OPEN).assume_init())(
                 pcmp.as_mut_ptr(),
-                name.as_ptr(),
+                name,
                 stream as _,
                 mode as _,
             );
