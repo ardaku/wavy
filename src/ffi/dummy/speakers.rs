@@ -21,7 +21,7 @@ pub(crate) struct Speakers<S: Sample> {
 }
 
 impl<S: Sample> Speakers<S> {
-    pub(crate) fn connect() -> (Self, u32) {
+    pub(crate) fn connect(_id: crate::SpeakerId) -> Option<(Self, u32)> {
         let _phantom = PhantomData::<S>;
 
         (Self { _phantom }, 48_000)

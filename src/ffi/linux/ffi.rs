@@ -47,14 +47,10 @@ fn pcm_hw_params(
 ) -> Option<(SndPcmHwParams, u32, u32)> {
     // unwrap: Allocating memory should not fail unless out of memory.
     let hw_params = device.snd_pcm_hw_params_malloc().unwrap();
-    // unwrap: Getting default settings should never fail.
-    device
-        .snd_pcm_hw_params_any(sound_device, &hw_params)
-        .unwrap();
+    // Getting default settings should never fail.
+    device.snd_pcm_hw_params_any(sound_device, &hw_params).ok()?;
     // Tell it not to resample
-    device
-        .snd_pcm_hw_params_set_rate_resample(sound_device, &hw_params, 0)
-        .unwrap();
+    device.snd_pcm_hw_params_set_rate_resample(sound_device, &hw_params, 0).ok()?;
     // Find something near 48_000 (this will prefer 48_000, but fallback to
     // 44_100, if that's what's supported.
     let mut sample_rate = 48_000;
@@ -64,25 +60,22 @@ fn pcm_hw_params(
             &hw_params,
             &mut sample_rate,
             None,
-        )
-        .unwrap();
+        ).ok()?;
     // Set access to RW noninterleaved.
-    // unwrap: Kernel should always support interleaved mode.
+    // Kernel should always support interleaved mode.
     device
         .snd_pcm_hw_params_set_access(
             sound_device,
             &hw_params,
             SndPcmAccess::RwInterleaved,
-        )
-        .unwrap();
-    // unwrap: S16LE should be supported by all popular speakers / microphones.
+        ).ok()?;
+    // S16LE should be supported by all popular speakers / microphones.
     device
         .snd_pcm_hw_params_set_format(
             sound_device,
             &hw_params,
             SndPcmFormat::S16Le,
-        )
-        .expect("PCM does not support S16LE");
+        ).ok()?;
     // Get speaker configuration & number of channels.
     let mut ch_count = None;
     for count in CHANNEL_COUNT.iter().cloned() {
@@ -96,7 +89,7 @@ fn pcm_hw_params(
             ch_count = Some(count);
         }
     }
-    let ch_count = ch_count.expect("Speaker configuration failed");
+    let ch_count = ch_count?;
     // Period size must be a power of two
     // Currently only tries 1024
     let mut period_size = 1024;
@@ -106,30 +99,28 @@ fn pcm_hw_params(
             &hw_params,
             &mut period_size,
             None,
-        )
-        .unwrap();
+        ).ok()?;
     // Set buffer size to about 3 times the period (setting latency).
     if limit_buffer {
         let mut buffer_size = 1024 * 3;
-        // unwrap: Some buffer size should always be available.
+        // Some buffer size should always be available.
         device
             .snd_pcm_hw_params_set_buffer_size_near(
                 sound_device,
                 &hw_params,
                 &mut buffer_size,
-            )
-            .unwrap();
+            ).ok()?;
     } else {
         // Apply the hardware parameters that just got set.
-        // unwrap: Should always be able to apply parameters that succeeded
-        device.snd_pcm_hw_params(sound_device, &hw_params).unwrap();
+        // Should always be able to apply parameters that succeeded
+        device.snd_pcm_hw_params(sound_device, &hw_params).ok()?;
         // Get rid of garbage.
-        // unwrap: Should always be able free data from the heap.
-        device.snd_pcm_drop(&sound_device).unwrap();
+        // Should always be able free data from the heap.
+        device.snd_pcm_drop(&sound_device).ok()?;
     }
     // Re-Apply the hardware parameters that just got set.
-    // unwrap: Should always be able to apply parameters that succeeded
-    device.snd_pcm_hw_params(sound_device, &hw_params).unwrap();
+    // Should always be able to apply parameters that succeeded
+    device.snd_pcm_hw_params(sound_device, &hw_params).ok()?;
 
     Some((hw_params, sample_rate, ch_count))
 }
