@@ -4,9 +4,19 @@ All notable changes to `wavy` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
 
-## [0.6.0] - Unreleased
+## [0.6.0] - 2020-11-28
+### Added
+ - `MicrophoneId`, with `query()` method to get list of microphones.
+ - `SpeakerId`, with `query()` method to get list of speakers.
+
 ### Changed
  - Updated docs and examples to use newest pasts (0.6)
+ - Replace `Microphone::new()` with `MicrophoneId::default().connect()`
+ - Replace `Speaker::new()` with `SpeakerId::default().connect()`
+
+### Fixed
+ - Removed a lot of unwraps that occured when a microphone or speaker wasn't
+   plugged in.
 
 ## [0.5.0] - 2020-11-15
 ### Changed
