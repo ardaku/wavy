@@ -10,9 +10,10 @@ and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
  - `SpeakerId`, with `query()` method to get list of speakers.
 
 ### Changed
- - Updated docs and examples to use newest pasts (0.6)
+ - Rename `Speakers` to `Speaker`
  - Replace `Microphone::new()` with `MicrophoneId::default().connect()`
  - Replace `Speaker::new()` with `SpeakerId::default().connect()`
+ - Updated docs and examples to use newest pasts (0.6)
 
 ### Fixed
  - Removed a lot of unwraps that occured when a microphone or speaker wasn't
