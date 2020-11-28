@@ -7,7 +7,7 @@
 // or http://opensource.org/licenses/Zlib>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use crate::{ffi, MicrophoneId};
+use crate::ffi;
 use fon::{
     chan::{Ch16, Channel},
     sample::Sample1,
@@ -17,18 +17,10 @@ use fon::{
 /// Record audio samples from a microphone.
 #[allow(missing_debug_implementations)]
 pub struct Microphone<C: Channel + Unpin> {
-    microphone: ffi::Microphone<C>,
+    pub(super) microphone: ffi::Microphone<C>,
 }
 
 impl<C: Channel + Unpin + From<Ch16>> Microphone<C> {
-    /// Connect to a microphone.  Unlike `Speakers`, you may call this multiple
-    /// times to connect to multiple devices.
-    pub fn new(id: MicrophoneId) -> Option<Self> {
-        Some(Self {
-            microphone: ffi::Microphone::new(id)?,
-        })
-    }
-
     /// Get the microphone's sample rate.
     pub fn sample_rate(&self) -> u32 {
         self.microphone.sample_rate()

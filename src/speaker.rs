@@ -13,7 +13,7 @@ use fon::{
     Audio, Sink,
 };
 
-use crate::{ffi::Speakers as SpeakersSys, SpeakerId};
+use crate::{ffi::Speakers as SpeakersSys};
 
 #[allow(clippy::needless_doctest_main)]
 /// Play audio samples through a speaker.
@@ -26,7 +26,7 @@ use crate::{ffi::Speakers as SpeakersSys, SpeakerId};
 /// use pasts::prelude::*;
 /// use std::cell::RefCell;
 /// use twang::Synth;
-/// use wavy::Speaker;
+/// use wavy::SpeakerId;
 ///
 /// /// The program's shared state.
 /// struct State {}
@@ -34,7 +34,7 @@ use crate::{ffi::Speakers as SpeakersSys, SpeakerId};
 /// /// Speakers task (play sine wave).
 /// async fn speakers(state: &RefCell<State>) {
 ///     // Connect to system's speaker(s)
-///     let mut speakers = Speaker::<Mono64>::new(Default::default()).unwrap();
+///     let mut speakers = SpeakerId::default().connect::<Mono64>().unwrap();
 ///     // Create a new synthesizer
 ///     let mut synth = Synth::new();
 ///
@@ -68,8 +68,8 @@ where
     Ch32: From<S::Chan>,
     Ch64: From<S::Chan>,
 {
-    speakers: SpeakersSys<S>,
-    audiobuf: Audio<S>,
+    pub(super) speakers: SpeakersSys<S>,
+    pub(super) audiobuf: Audio<S>,
 }
 
 impl<S: Sample + Unpin> Speaker<S>
@@ -78,15 +78,6 @@ where
     Ch32: From<S::Chan>,
     Ch64: From<S::Chan>,
 {
-    /// Connect to a speaker (also includes virtual speaker, headphones, HDMI,
-    /// stereo speakers, surround, etc.).
-    #[allow(clippy::new_without_default)] // Because it may panic
-    pub fn new(id: SpeakerId) -> Option<Self> {
-        let (speakers, sample_rate) = SpeakersSys::connect(id)?;
-        let audiobuf = Audio::with_silence(sample_rate, 1024);
-        Some(Self { speakers, audiobuf })
-    }
-
     /// Get the speakers' sample rate.
     pub fn sample_rate(&self) -> u32 {
         self.audiobuf.sample_rate()

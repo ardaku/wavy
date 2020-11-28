@@ -4,7 +4,7 @@ use fon::mono::Mono64;
 use pasts::prelude::*;
 use std::cell::RefCell;
 use twang::Synth;
-use wavy::Speaker;
+use wavy::SpeakerId;
 
 /// The program's shared state.
 struct State {}
@@ -12,7 +12,7 @@ struct State {}
 /// Speakers task (play sine wave).
 async fn speakers(state: &RefCell<State>) {
     // Connect to system's speaker(s)
-    let mut speakers = Speaker::<Mono64>::new(Default::default()).unwrap();
+    let mut speakers = SpeakerId::default().connect::<Mono64>().unwrap();
     // Create a new synthesizer
     let mut synth = Synth::new();
 
