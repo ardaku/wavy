@@ -1,4 +1,4 @@
-//! Play a 220 Hertz sine wave through the system's speakers.
+// Play a 220 Hertz sine wave through the system's speakers.
 
 use fon::mono::Mono64;
 use pasts::prelude::*;
