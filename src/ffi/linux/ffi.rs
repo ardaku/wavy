@@ -11,6 +11,7 @@ use self::alsa::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
     SndPcmHwParams, SndPcmMode, SndPcmState, SndPcmStream,
 };
+use asound::device_list::SoundDevice;
 use fon::{
     chan::{Ch16, Channel},
     mono::Mono16,
@@ -21,9 +22,9 @@ use fon::{
 };
 use std::{
     convert::TryInto,
-    ffi::CString,
     future::Future,
     marker::PhantomData,
+    os::raw::c_char,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -32,6 +33,11 @@ const CHANNEL_COUNT: &[u32] = &[8, 6, 4, 2, 1];
 
 // Update with: `dl_api ffi/asound,so,2.muon src/linux/gen.rs`
 mod alsa;
+// ALSA bindings.
+mod asound;
+
+// Implementation Expectations:
+pub(crate) use asound::device_list::{device_list, AudioDst, AudioSrc};
 
 fn pcm_hw_params(
     device: &AlsaDevice,
@@ -41,14 +47,10 @@ fn pcm_hw_params(
 ) -> Option<(SndPcmHwParams, u32, u32)> {
     // unwrap: Allocating memory should not fail unless out of memory.
     let hw_params = device.snd_pcm_hw_params_malloc().unwrap();
-    // unwrap: Getting default settings should never fail.
-    device
-        .snd_pcm_hw_params_any(sound_device, &hw_params)
-        .unwrap();
+    // Getting default settings should never fail.
+    device.snd_pcm_hw_params_any(sound_device, &hw_params).ok()?;
     // Tell it not to resample
-    device
-        .snd_pcm_hw_params_set_rate_resample(sound_device, &hw_params, 0)
-        .unwrap();
+    device.snd_pcm_hw_params_set_rate_resample(sound_device, &hw_params, 0).ok()?;
     // Find something near 48_000 (this will prefer 48_000, but fallback to
     // 44_100, if that's what's supported.
     let mut sample_rate = 48_000;
@@ -58,25 +60,22 @@ fn pcm_hw_params(
             &hw_params,
             &mut sample_rate,
             None,
-        )
-        .unwrap();
+        ).ok()?;
     // Set access to RW noninterleaved.
-    // unwrap: Kernel should always support interleaved mode.
+    // Kernel should always support interleaved mode.
     device
         .snd_pcm_hw_params_set_access(
             sound_device,
             &hw_params,
             SndPcmAccess::RwInterleaved,
-        )
-        .unwrap();
-    // unwrap: S16LE should be supported by all popular speakers / microphones.
+        ).ok()?;
+    // S16LE should be supported by all popular speakers / microphones.
     device
         .snd_pcm_hw_params_set_format(
             sound_device,
             &hw_params,
             SndPcmFormat::S16Le,
-        )
-        .expect("PCM does not support S16LE");
+        ).ok()?;
     // Get speaker configuration & number of channels.
     let mut ch_count = None;
     for count in CHANNEL_COUNT.iter().cloned() {
@@ -90,7 +89,7 @@ fn pcm_hw_params(
             ch_count = Some(count);
         }
     }
-    let ch_count = ch_count.expect("Speaker configuration failed");
+    let ch_count = ch_count?;
     // Period size must be a power of two
     // Currently only tries 1024
     let mut period_size = 1024;
@@ -100,30 +99,28 @@ fn pcm_hw_params(
             &hw_params,
             &mut period_size,
             None,
-        )
-        .unwrap();
+        ).ok()?;
     // Set buffer size to about 3 times the period (setting latency).
     if limit_buffer {
         let mut buffer_size = 1024 * 3;
-        // unwrap: Some buffer size should always be available.
+        // Some buffer size should always be available.
         device
             .snd_pcm_hw_params_set_buffer_size_near(
                 sound_device,
                 &hw_params,
                 &mut buffer_size,
-            )
-            .unwrap();
+            ).ok()?;
     } else {
         // Apply the hardware parameters that just got set.
-        // unwrap: Should always be able to apply parameters that succeeded
-        device.snd_pcm_hw_params(sound_device, &hw_params).unwrap();
+        // Should always be able to apply parameters that succeeded
+        device.snd_pcm_hw_params(sound_device, &hw_params).ok()?;
         // Get rid of garbage.
-        // unwrap: Should always be able free data from the heap.
-        device.snd_pcm_drop(&sound_device).unwrap();
+        // Should always be able free data from the heap.
+        device.snd_pcm_drop(&sound_device).ok()?;
     }
     // Re-Apply the hardware parameters that just got set.
-    // unwrap: Should always be able to apply parameters that succeeded
-    device.snd_pcm_hw_params(sound_device, &hw_params).unwrap();
+    // Should always be able to apply parameters that succeeded
+    device.snd_pcm_hw_params(sound_device, &hw_params).ok()?;
 
     Some((hw_params, sample_rate, ch_count))
 }
@@ -136,36 +133,34 @@ pub(super) struct Pcm {
 }
 
 impl Pcm {
-    /// Create a new async PCM.
+    /// Create a new async PCM.  If it fails return `None`.
     fn new(
+        device_name: *const c_char,
         direction: SndPcmStream,
         max_channels: usize,
     ) -> Option<(Self, u32, u32)> {
         // Load shared alsa module.
         let device = AlsaDevice::new()?;
-        // FIXME: Currently only the default device is supported.
-        let device_name = CString::new("default").unwrap();
         // Create the ALSA PCM.
         let sound_device: SndPcm = device
-            .snd_pcm_open(&device_name, direction, SndPcmMode::Nonblock)
+            .snd_pcm_open(device_name, direction, SndPcmMode::Nonblock)
             .ok()?;
         // Configure Hardware Parameters
         let (mut hw_params, sample_rate, n_channels) = pcm_hw_params(
             &device,
             &sound_device,
             direction == SndPcmStream::Playback,
-            max_channels.try_into().unwrap(),
+            max_channels.try_into().ok()?,
         )?;
         // Free Hardware Parameters
         device.snd_pcm_hw_params_free(&mut hw_params);
         // Get file descriptor
-        let fd_count = device
-            .snd_pcm_poll_descriptors_count(&sound_device)
-            .unwrap();
-        let mut fd_list = Vec::with_capacity(fd_count.try_into().unwrap());
+        let fd_count =
+            device.snd_pcm_poll_descriptors_count(&sound_device).ok()?;
+        let mut fd_list = Vec::with_capacity(fd_count.try_into().ok()?);
         device
             .snd_pcm_poll_descriptors(&sound_device, &mut fd_list)
-            .unwrap();
+            .ok()?;
         // FIXME: More?
         assert_eq!(fd_count, 1);
         // Register file descriptor with OS's I/O Event Notifier
@@ -250,20 +245,18 @@ impl<S: Sample> Speakers<S>
 where
     Ch16: From<S::Chan>,
 {
-    pub(crate) fn connect() -> (Self, u32) {
+    pub(crate) fn connect(id: crate::SpeakerId) -> Option<(Self, u32)> {
         // Load Player ALSA module
-        // unwrap(): FIXME - Should connect to dummy backend instead if fail.
-        let player = AlsaPlayer::new().unwrap();
+        let player = AlsaPlayer::new()?;
         // Create Playback PCM.
-        // unwrap(): FIXME - Should connect to dummy backend instead if fail.
         let (pcm, sample_rate, nc) =
-            Pcm::new(SndPcmStream::Playback, S::CHAN_COUNT).unwrap();
+            Pcm::new(id.0.desc(), SndPcmStream::Playback, S::CHAN_COUNT)?;
         let buffer = vec![[0; 2]; nc as usize * 1024];
         let written = 0;
         let is_ready = true;
         let _phantom = PhantomData;
 
-        (
+        Some((
             Self {
                 player,
                 pcm,
@@ -273,7 +266,7 @@ where
                 _phantom,
             },
             sample_rate,
-        )
+        ))
     }
 
     pub(crate) fn play(&mut self, audio: &Audio<S>) {
@@ -416,11 +409,12 @@ pub(crate) struct Microphone<C: Channel + Unpin> {
 }
 
 impl<C: Channel + Unpin> Microphone<C> {
-    pub(crate) fn new() -> Option<Self> {
+    pub(crate) fn new(id: crate::MicrophoneId) -> Option<Self> {
         // Load Recorder ALSA module
         let recorder = AlsaRecorder::new()?;
         // Create Capture PCM.
-        let (pcm, sample_rate, _one) = Pcm::new(SndPcmStream::Capture, 1)?;
+        let (pcm, sample_rate, _one) =
+            Pcm::new(id.0.desc(), SndPcmStream::Capture, 1)?;
         let is_ready = true;
         let stream = MicrophoneStream {
             buffer: Vec::with_capacity(1024),

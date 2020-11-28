@@ -26,7 +26,7 @@ pub(crate) struct Microphone<C: Channel + Unpin> {
 }
 
 impl<C: Channel + Unpin> Microphone<C> {
-    pub(crate) fn new() -> Option<Self> {
+    pub(crate) fn new(_id: crate::MicrophoneId) -> Option<Self> {
         let state = super::state();
 
         // Lazily Initialize audio context & processor node.

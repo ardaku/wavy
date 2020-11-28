@@ -13,10 +13,10 @@ use fon::{
     Audio, Sink,
 };
 
-use crate::ffi::Speakers as SpeakersSys;
+use crate::{ffi::Speakers as SpeakersSys};
 
 #[allow(clippy::needless_doctest_main)]
-/// Play audio samples through speaker system.
+/// Play audio samples through a speaker.
 ///
 /// # 440 HZ Sine Wave Example
 /// **note:** This example depends on `twang = "0.3"` to synthesize the sine
@@ -26,7 +26,7 @@ use crate::ffi::Speakers as SpeakersSys;
 /// use pasts::prelude::*;
 /// use std::cell::RefCell;
 /// use twang::Synth;
-/// use wavy::Speakers;
+/// use wavy::SpeakerId;
 ///
 /// /// The program's shared state.
 /// struct State {}
@@ -34,7 +34,7 @@ use crate::ffi::Speakers as SpeakersSys;
 /// /// Speakers task (play sine wave).
 /// async fn speakers(state: &RefCell<State>) {
 ///     // Connect to system's speaker(s)
-///     let mut speakers = Speakers::<Mono64>::new();
+///     let mut speakers = SpeakerId::default().connect::<Mono64>().unwrap();
 ///     // Create a new synthesizer
 ///     let mut synth = Synth::new();
 ///
@@ -62,33 +62,22 @@ use crate::ffi::Speakers as SpeakersSys;
 /// }
 /// ```
 #[allow(missing_debug_implementations)]
-pub struct Speakers<S: Sample + Unpin>
+pub struct Speaker<S: Sample + Unpin>
 where
     Ch16: From<S::Chan>,
     Ch32: From<S::Chan>,
     Ch64: From<S::Chan>,
 {
-    speakers: SpeakersSys<S>,
-    audiobuf: Audio<S>,
+    pub(super) speakers: SpeakersSys<S>,
+    pub(super) audiobuf: Audio<S>,
 }
 
-impl<S: Sample + Unpin> Speakers<S>
+impl<S: Sample + Unpin> Speaker<S>
 where
     Ch16: From<S::Chan>,
     Ch32: From<S::Chan>,
     Ch64: From<S::Chan>,
 {
-    /// Connect to the speaker system.
-    ///
-    /// # Panics
-    /// - If already connected to the speaker system.
-    #[allow(clippy::new_without_default)] // Because it may panic
-    pub fn new() -> Self {
-        let (speakers, sample_rate) = SpeakersSys::connect();
-        let audiobuf = Audio::with_silence(sample_rate, 1024);
-        Self { speakers, audiobuf }
-    }
-
     /// Get the speakers' sample rate.
     pub fn sample_rate(&self) -> u32 {
         self.audiobuf.sample_rate()

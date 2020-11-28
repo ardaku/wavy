@@ -27,7 +27,7 @@ impl<S: Sample> Speakers<S>
 where
     Ch32: From<S::Chan>,
 {
-    pub(crate) fn connect() -> (Self, u32) {
+    pub(crate) fn connect(_id: crate::SpeakerId) -> Option<(Self, u32)> {
         let state = super::state();
         let _phantom = PhantomData::<S>;
 
@@ -47,10 +47,9 @@ where
             .proc
             .as_ref()
             .unwrap()
-            .connect_with_audio_node(state.speaker.as_ref().unwrap())
-            .unwrap();
+            .connect_with_audio_node(state.speaker.as_ref().unwrap()).ok()?;
 
-        (Self { _phantom }, super::SAMPLE_RATE)
+        Some((Self { _phantom }, super::SAMPLE_RATE))
     }
 
     pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize {
