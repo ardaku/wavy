@@ -245,7 +245,7 @@ impl<S: Sample> Speakers<S>
 where
     Ch16: From<S::Chan>,
 {
-    pub(crate) fn connect(id: crate::SpeakerId) -> Option<(Self, u32)> {
+    pub(crate) fn connect(id: &crate::SpeakerId) -> Option<(Self, u32)> {
         // Load Player ALSA module
         let player = AlsaPlayer::new()?;
         // Create Playback PCM.
@@ -409,7 +409,7 @@ pub(crate) struct Microphone<C: Channel + Unpin> {
 }
 
 impl<C: Channel + Unpin> Microphone<C> {
-    pub(crate) fn new(id: crate::MicrophoneId) -> Option<Self> {
+    pub(crate) fn new(id: &crate::MicrophoneId) -> Option<Self> {
         // Load Recorder ALSA module
         let recorder = AlsaRecorder::new()?;
         // Create Capture PCM.

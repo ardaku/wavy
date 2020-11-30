@@ -23,9 +23,9 @@ impl MicrophoneId {
     
     /// Connect to this microphone.  Returns `None` if the microphone is
     /// unplugged.
-    pub fn connect<C: Channel + Unpin>(self) -> Option<Microphone<C>> {
+    pub fn connect<C: Channel + Unpin>(&self) -> Option<Microphone<C>> {
         Some(Microphone {
-            microphone: ffi::Microphone::new(self)?,
+            microphone: ffi::Microphone::new(&self)?,
         })
     }
 }
@@ -47,13 +47,13 @@ impl SpeakerId {
     }
     
     /// Connect to this speaker.  Returns `None` if the speaker is unplugged.
-    pub fn connect<S: Sample + Unpin>(self) -> Option<Speaker<S>>
+    pub fn connect<S: Sample + Unpin>(&self) -> Option<Speaker<S>>
     where
         Ch16: From<S::Chan>,
         Ch32: From<S::Chan>,
         Ch64: From<S::Chan>,
     {
-        let (speakers, sample_rate) = ffi::Speakers::connect(self)?;
+        let (speakers, sample_rate) = ffi::Speakers::connect(&self)?;
         let audiobuf = Audio::with_silence(sample_rate, 1024);
         Some(Speaker { speakers, audiobuf })
     }

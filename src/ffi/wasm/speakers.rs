@@ -27,7 +27,7 @@ impl<S: Sample> Speakers<S>
 where
     Ch32: From<S::Chan>,
 {
-    pub(crate) fn connect(_id: crate::SpeakerId) -> Option<(Self, u32)> {
+    pub(crate) fn connect(_id: &crate::SpeakerId) -> Option<(Self, u32)> {
         let state = super::state();
         let _phantom = PhantomData::<S>;
 
