@@ -1,11 +1,12 @@
-# Wavy
-#
-# Copyright (c) 2019-2020 Jeron Aldaron Lau
-# 
-# Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
-# https://apache.org/licenses/LICENSE-2.0>, or the Zlib License, <LICENSE-ZLIB
-# or http://opensource.org/licenses/Zlib>, at your option. This file may not be
-# copied, modified, or distributed except according to those terms.
+# Copyright Jeron Aldaron Lau 2019 - 2020.
+# Distributed under either the Apache License, Version 2.0
+#    (See accompanying file LICENSE_APACHE_2_0.txt or copy at
+#          https://apache.org/licenses/LICENSE-2.0),
+# or the Boost Software License, Version 1.0.
+#    (See accompanying file LICENSE_BOOST_1_0.txt or copy at
+#          https://www.boost.org/LICENSE_1_0.txt)
+# at your option. This file may not be copied, modified, or distributed except
+# according to those terms.
 
 [package]
 name = "wavy"
@@ -30,6 +31,7 @@ edition = "2018"
 # For all platforms
 [dependencies.fon]
 version = "0.2"
+path = "../fon"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
@@ -61,7 +63,7 @@ version = "0.2"
 # Examples
 [dev-dependencies]
 pasts = "0.6"
-twang = "0.4"
+twang = { path = "../twang" } # "0.4"
 
 # Default to x86 64-bit Linux
 [package.metadata.docs.rs]
@@ -70,4 +72,4 @@ default-target = "x86_64-unknown-linux-gnu"
 
 # Uncomment to replace dependencies with experimental versions.
 # [replace]
-# "pasts:0.6.0" = { path = "../pasts" }
+# "twang:0.4.0" = { path = "../twang" }

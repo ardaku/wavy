@@ -1,11 +1,12 @@
-// Wavy
-//
-// Copyright (c) 2019-2020 Jeron Aldaron Lau
-//
-// Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
-// https://apache.org/licenses/LICENSE-2.0>, or the Zlib License, <LICENSE-ZLIB
-// or http://opensource.org/licenses/Zlib>, at your option. This file may not be
-// copied, modified, or distributed except according to those terms.
+// Copyright Jeron Aldaron Lau 2019 - 2020.
+// Distributed under either the Apache License, Version 2.0
+//    (See accompanying file LICENSE_APACHE_2_0.txt or copy at
+//          https://apache.org/licenses/LICENSE-2.0),
+// or the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_BOOST_1_0.txt or copy at
+//          https://www.boost.org/LICENSE_1_0.txt)
+// at your option. This file may not be copied, modified, or distributed except
+// according to those terms.
 
 use self::alsa::{
     AlsaDevice, AlsaPlayer, AlsaRecorder, SndPcm, SndPcmAccess, SndPcmFormat,
@@ -15,9 +16,10 @@ use asound::device_list::SoundDevice;
 use fon::{
     chan::{Ch16, Channel},
     mono::Mono16,
-    sample::{Sample, Sample1},
+    Sample,
+    mono::Mono,
     stereo::Stereo16,
-    surround::{Surround5x16, Surround7x16},
+    surround::Surround16,
     Audio, Resampler, Stream,
 };
 use std::{
@@ -300,7 +302,7 @@ where
             6 => {
                 // Surround 5.1
                 for (i, sample) in audio.iter().enumerate() {
-                    let sample: Surround5x16 = sample.convert();
+                    let sample: Surround16 = sample.convert();
                     for (j, channel) in sample.channels().iter().enumerate() {
                         self.buffer[S::CHAN_COUNT * i + j] =
                             i16::from(*channel).to_le_bytes();
@@ -308,14 +310,7 @@ where
                 }
             }
             8 => {
-                // Surround 7.1
-                for (i, sample) in audio.iter().enumerate() {
-                    let sample: Surround7x16 = sample.convert();
-                    for (j, channel) in sample.channels().iter().enumerate() {
-                        self.buffer[S::CHAN_COUNT * i + j] =
-                            i16::from(*channel).to_le_bytes();
-                    }
-                }
+                todo!()
             }
             _ => unreachable!(),
         }
@@ -526,10 +521,10 @@ pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
     // Index into buffer
     index: usize,
     // Stream's resampler
-    resampler: Resampler<Sample1<C>>,
+    resampler: Resampler<Mono<C>>,
 }
 
-impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
+impl<C> Stream<Mono<C>> for &mut MicrophoneStream<C>
 where
     C: Channel + Unpin + From<Ch16>,
 {
@@ -537,17 +532,17 @@ where
         self.sample_rate
     }
 
-    fn stream_sample(&mut self) -> Option<Sample1<C>> {
+    fn stream_sample(&mut self) -> Option<Mono<C>> {
         if self.index == self.buffer.len() {
             return None;
         }
         let sample: C =
             Ch16::from(i16::from_le_bytes(self.buffer[self.index])).into();
         self.index += 1;
-        Some(Sample1::new(sample))
+        Some(Mono::new(sample))
     }
 
-    fn resampler(&mut self) -> &mut Resampler<Sample1<C>> {
+    fn resampler(&mut self) -> &mut Resampler<Mono<C>> {
         &mut self.resampler
     }
 }
