@@ -8,9 +8,12 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
-use crate::{ffi::{self, device_list, AudioDst, AudioSrc}, Speaker, Microphone};
+use crate::{
+    ffi::{self, device_list, AudioDst, AudioSrc},
+    Microphone, Speaker,
+};
+use fon::{chan::Channel, Audio, Sample};
 use std::fmt::{Display, Error, Formatter};
-use fon::{Audio, chan::Channel, Sample};
 
 /// ID of an available microphone, or other audio input.
 #[derive(Debug, Default)]
@@ -21,7 +24,7 @@ impl MicrophoneId {
     pub fn query() -> Vec<Self> {
         device_list(Self)
     }
-    
+
     /// Connect to this microphone.  Returns `None` if the microphone is
     /// unplugged.
     pub fn connect<C: Channel>(&self) -> Option<Microphone<C>> {

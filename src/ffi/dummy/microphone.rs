@@ -14,11 +14,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use fon::{
-    chan::Channel,
-    mono::Mono,
-    Resampler, Stream,
-};
+use fon::{chan::Channel, mono::Mono, Resampler, Stream};
 
 pub(crate) struct Microphone<C: Channel> {
     stream: MicrophoneStream<C>,

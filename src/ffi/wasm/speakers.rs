@@ -15,7 +15,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use fon::{Sample, stereo::Stereo32, Audio};
+use fon::{stereo::Stereo32, Audio, Sample};
 
 pub(crate) struct Speakers<S: Sample> {
     _phantom: PhantomData<S>,
@@ -42,7 +42,8 @@ impl<S: Sample> Speakers<S> {
             .proc
             .as_ref()
             .unwrap()
-            .connect_with_audio_node(state.speaker.as_ref().unwrap()).ok()?;
+            .connect_with_audio_node(state.speaker.as_ref().unwrap())
+            .ok()?;
 
         Some((Self { _phantom }, super::SAMPLE_RATE))
     }

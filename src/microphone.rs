@@ -9,11 +9,7 @@
 // according to those terms.
 
 use crate::ffi;
-use fon::{
-    chan::Channel,
-    mono::Mono,
-    Stream,
-};
+use fon::{chan::Channel, mono::Mono, Stream};
 
 /// Record audio samples from a microphone.
 #[allow(missing_debug_implementations)]

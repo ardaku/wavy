@@ -12,7 +12,7 @@
 name = "wavy"
 version = "0.7.1"
 authors = ["Jeron Aldaron Lau <jeronlau@plopgrizzly.com>"]
-license = "Apache-2.0/Zlib"
+license = "Apache-2.0 OR BSL-1.0"
 
 description = """
 Asynchronous cross-platform real-time audio recording & playback.
@@ -63,12 +63,7 @@ version = "0.2"
 # Examples
 [dev-dependencies]
 pasts = "0.6"
-twang = "0.5"
-
-# Default to x86 64-bit Linux
-[package.metadata.docs.rs]
-all-features = true
-default-target = "x86_64-unknown-linux-gnu"
+twang = { path = "../twang" } # "0.5"
 
 # Uncomment to replace dependencies with experimental versions.
 # [replace]

@@ -4,7 +4,7 @@
 use fon::{chan::Ch16, mono::Mono16, Audio, Stream};
 use pasts::prelude::*;
 use std::cell::RefCell;
-use wavy::{MicrophoneId, Microphone, SpeakerId};
+use wavy::{Microphone, MicrophoneId, SpeakerId};
 
 /// The program's shared state.
 struct State {

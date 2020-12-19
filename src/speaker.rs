@@ -8,12 +8,9 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
-use fon::{
-    Sample,
-    Audio, Sink,
-};
+use fon::{Audio, Sample, Sink};
 
-use crate::{ffi::Speakers as SpeakersSys};
+use crate::ffi::Speakers as SpeakersSys;
 
 #[allow(clippy::needless_doctest_main)]
 /// Play audio samples through a speaker.
@@ -73,10 +70,10 @@ impl<S: Sample> Speaker<S> {
         self.audiobuf.sample_rate()
     }
 
-    /// Play audio through speakers.  Returns mutable reference to next audio
-    /// buffer to play.  If you don't overwrite the buffer, it will keep playing
-    /// whatever was last written into it.
-    pub async fn play(&mut self) -> impl Sink<S> + '_ {
+    /// Play audio through speakers.  Returns an audio sink, which consumes an
+    /// audio stream of played samples.  If you don't overwrite the buffer, it
+    /// will keep playing whatever was last streamed into it.
+    pub async fn play(&mut self) -> impl Sink + '_ {
         self.speakers.play(&self.audiobuf);
         (&mut self.speakers).await;
         self.audiobuf.sink(..)

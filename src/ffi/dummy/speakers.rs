@@ -15,7 +15,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use fon::{Sample, Audio};
+use fon::{Audio, Sample};
 
 pub(crate) struct Speakers<S: Sample> {
     _phantom: PhantomData<S>,

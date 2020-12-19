@@ -142,13 +142,13 @@ fn state() -> &'static mut State {
     unsafe { &mut STATE }
 }
 
+mod device_list;
 mod microphone;
 mod speakers;
-mod device_list;
 
+pub(crate) use device_list::{device_list, AudioDst, AudioSrc};
 pub(super) use microphone::Microphone;
 pub(super) use speakers::Speakers;
-pub(crate) use device_list::{device_list, AudioDst, AudioSrc};
 
 /* use cala_core::os::web::{JsFn, JsPromise, JsVar};
 use fon::{
