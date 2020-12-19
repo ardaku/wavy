@@ -16,7 +16,7 @@ use std::{
 
 use fon::{
     chan::{Ch16, Channel},
-    sample::Sample1,
+    mono::Mono,
     Resampler, Stream,
 };
 
@@ -50,10 +50,10 @@ pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
     // Sample rate of the stream.
     sample_rate: u32,
     // Stream's resampler
-    resampler: Resampler<Sample1<C>>,
+    resampler: Resampler<Mono<C>>,
 }
 
-impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
+impl<C> Stream<Mono<C>> for &mut MicrophoneStream<C>
 where
     C: Channel + Unpin + From<Ch16>,
 {
@@ -61,11 +61,11 @@ where
         self.sample_rate
     }
 
-    fn stream_sample(&mut self) -> Option<Sample1<C>> {
+    fn stream_sample(&mut self) -> Option<Mono<C>> {
         None
     }
 
-    fn resampler(&mut self) -> &mut Resampler<Sample1<C>> {
+    fn resampler(&mut self) -> &mut Resampler<Mono<C>> {
         &mut self.resampler
     }
 }
