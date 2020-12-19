@@ -10,7 +10,7 @@
 
 [package]
 name = "wavy"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Jeron Aldaron Lau <jeronlau@plopgrizzly.com>"]
 license = "Apache-2.0/Zlib"
 
@@ -30,8 +30,7 @@ edition = "2018"
 
 # For all platforms
 [dependencies.fon]
-version = "0.2"
-path = "../fon"
+version = "0.3"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
@@ -63,7 +62,7 @@ version = "0.2"
 # Examples
 [dev-dependencies]
 pasts = "0.6"
-twang = { path = "../twang" } # "0.4"
+twang = "0.5"
 
 # Default to x86 64-bit Linux
 [package.metadata.docs.rs]

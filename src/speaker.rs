@@ -20,7 +20,7 @@ use crate::{ffi::Speakers as SpeakersSys};
 /// Play audio samples through a speaker.
 ///
 /// # 440 HZ Sine Wave Example
-/// **note:** This example depends on `twang = "0.3"` to synthesize the sine
+/// **note:** This example depends on `twang = "0.5"` to synthesize the sine
 /// wave.
 /// ```no_run
 /// use fon::mono::Mono64;
