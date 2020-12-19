@@ -115,14 +115,14 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
 
 pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
     // Stream's resampler
-    resampler: Resampler<Sample1<C>>,
+    resampler: Resampler<Mono<C>>,
     // Buffer
     audio: Vec<f32>,
     // Index into buffer
     index: usize,
 }
 
-impl<C> Stream<Sample1<C>> for &mut MicrophoneStream<C>
+impl<C> Stream<Mono<C>> for &mut MicrophoneStream<C>
 where
     C: Channel + Unpin,
 {
@@ -130,16 +130,16 @@ where
         super::SAMPLE_RATE
     }
 
-    fn stream_sample(&mut self) -> Option<Sample1<C>> {
+    fn stream_sample(&mut self) -> Option<Mono<C>> {
         if self.index == self.audio.len() {
             return None;
         }
         let sample: C = C::from(self.audio[self.index].into());
         self.index += 1;
-        Some(Sample1::new(sample))
+        Some(Mono::new(sample))
     }
 
-    fn resampler(&mut self) -> &mut Resampler<Sample1<C>> {
+    fn resampler(&mut self) -> &mut Resampler<Mono<C>> {
         &mut self.resampler
     }
 }
