@@ -1,7 +1,7 @@
 // This example records audio and plays it back in real time as it's being
 // recorded.
 
-use fon::{chan::Ch16, mono::Mono16, Audio, Stream};
+use fon::{chan::Ch16, mono::Mono16, Audio, Stream, ops::Src};
 use pasts::prelude::*;
 use std::cell::RefCell;
 use wavy::{Microphone, MicrophoneId, SpeakerId};
@@ -35,7 +35,7 @@ async fn speakers_task(state: &RefCell<State>) {
         // 2. Borrow shared state mutably
         let mut state = state.borrow_mut();
         // 3. Generate and write samples into speaker buffer.
-        state.buffer.drain(..).stream(&mut sink);
+        state.buffer.drain(..).stream(&mut sink, Src);
     }
 }
 
