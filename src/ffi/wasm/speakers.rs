@@ -1,11 +1,12 @@
-// Wavy
-//
-// Copyright (c) 2019-2020 Jeron Aldaron Lau
-//
-// Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
-// https://apache.org/licenses/LICENSE-2.0>, or the Zlib License, <LICENSE-ZLIB
-// or http://opensource.org/licenses/Zlib>, at your option. This file may not be
-// copied, modified, or distributed except according to those terms.
+// Copyright Jeron Aldaron Lau 2019 - 2020.
+// Distributed under either the Apache License, Version 2.0
+//    (See accompanying file LICENSE_APACHE_2_0.txt or copy at
+//          https://apache.org/licenses/LICENSE-2.0),
+// or the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_BOOST_1_0.txt or copy at
+//          https://www.boost.org/LICENSE_1_0.txt)
+// at your option. This file may not be copied, modified, or distributed except
+// according to those terms.
 
 use std::{
     future::Future,
@@ -27,7 +28,7 @@ impl<S: Sample> Speakers<S>
 where
     Ch32: From<S::Chan>,
 {
-    pub(crate) fn connect(_id: crate::SpeakerId) -> Option<(Self, u32)> {
+    pub(crate) fn connect(_id: &crate::SpeakerId) -> Option<(Self, u32)> {
         let state = super::state();
         let _phantom = PhantomData::<S>;
 
