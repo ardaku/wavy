@@ -20,7 +20,7 @@ use web_sys::{
     MediaStreamConstraints,
 };
 
-use fon::{chan::Channel, sample::Sample1, Resampler, Stream};
+use fon::{chan::Channel, mono::Mono, Resampler, Stream};
 
 pub(crate) struct Microphone<C: Channel + Unpin> {
     stream: MicrophoneStream<C>,

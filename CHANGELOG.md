@@ -4,6 +4,9 @@ All notable changes to `wavy` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
 
+## [0.7.1] - 2020-12-19
+### 
+
 ## [0.7.0] - 2020-12-19
 ### Changed
  - Update to new `fon` version 0.3

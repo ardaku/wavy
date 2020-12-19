@@ -15,7 +15,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use fon::{chan::Ch32, sample::Sample, stereo::Stereo32, Audio};
+use fon::{chan::Ch32, Sample, stereo::Stereo32, Audio};
 
 pub(crate) struct Speakers<S: Sample>
 where
