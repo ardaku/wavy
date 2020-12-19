@@ -10,18 +10,18 @@
 
 use crate::ffi;
 use fon::{
-    chan::{Ch16, Channel},
+    chan::Channel,
     mono::Mono,
     Stream,
 };
 
 /// Record audio samples from a microphone.
 #[allow(missing_debug_implementations)]
-pub struct Microphone<C: Channel + Unpin> {
+pub struct Microphone<C: Channel> {
     pub(super) microphone: ffi::Microphone<C>,
 }
 
-impl<C: Channel + Unpin + From<Ch16>> Microphone<C> {
+impl<C: Channel> Microphone<C> {
     /// Get the microphone's sample rate.
     pub fn sample_rate(&self) -> u32 {
         self.microphone.sample_rate()

@@ -10,7 +10,7 @@
 
 use crate::{ffi::{self, device_list, AudioDst, AudioSrc}, Speaker, Microphone};
 use std::fmt::{Display, Error, Formatter};
-use fon::{Audio, chan::{Ch16, Ch32, Ch64, Channel}, Sample};
+use fon::{Audio, chan::Channel, Sample};
 
 /// ID of an available microphone, or other audio input.
 #[derive(Debug, Default)]
@@ -24,7 +24,7 @@ impl MicrophoneId {
     
     /// Connect to this microphone.  Returns `None` if the microphone is
     /// unplugged.
-    pub fn connect<C: Channel + Unpin>(&self) -> Option<Microphone<C>> {
+    pub fn connect<C: Channel>(&self) -> Option<Microphone<C>> {
         Some(Microphone {
             microphone: ffi::Microphone::new(&self)?,
         })
@@ -46,14 +46,9 @@ impl SpeakerId {
     pub fn query() -> Vec<Self> {
         device_list(Self)
     }
-    
+
     /// Connect to this speaker.  Returns `None` if the speaker is unplugged.
-    pub fn connect<S: Sample + Unpin>(&self) -> Option<Speaker<S>>
-    where
-        Ch16: From<S::Chan>,
-        Ch32: From<S::Chan>,
-        Ch64: From<S::Chan>,
-    {
+    pub fn connect<S: Sample>(&self) -> Option<Speaker<S>> {
         let (speakers, sample_rate) = ffi::Speakers::connect(&self)?;
         let audiobuf = Audio::with_silence(sample_rate, 1024);
         Some(Speaker { speakers, audiobuf })

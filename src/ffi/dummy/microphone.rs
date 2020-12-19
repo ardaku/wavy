@@ -15,16 +15,16 @@ use std::{
 };
 
 use fon::{
-    chan::{Ch16, Channel},
+    chan::Channel,
     mono::Mono,
     Resampler, Stream,
 };
 
-pub(crate) struct Microphone<C: Channel + Unpin> {
+pub(crate) struct Microphone<C: Channel> {
     stream: MicrophoneStream<C>,
 }
 
-impl<C: Channel + Unpin> Microphone<C> {
+impl<C: Channel> Microphone<C> {
     pub(crate) fn new(_id: &crate::MicrophoneId) -> Option<Self> {
         None
     }
@@ -38,7 +38,7 @@ impl<C: Channel + Unpin> Microphone<C> {
     }
 }
 
-impl<C: Channel + Unpin> Future for Microphone<C> {
+impl<C: Channel> Future for Microphone<C> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -46,17 +46,14 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
     }
 }
 
-pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
+pub(crate) struct MicrophoneStream<C: Channel> {
     // Sample rate of the stream.
     sample_rate: u32,
     // Stream's resampler
     resampler: Resampler<Mono<C>>,
 }
 
-impl<C> Stream<Mono<C>> for &mut MicrophoneStream<C>
-where
-    C: Channel + Unpin + From<Ch16>,
-{
+impl<C: Channel> Stream<Mono<C>> for &mut MicrophoneStream<C> {
     fn sample_rate(&self) -> u32 {
         self.sample_rate
     }

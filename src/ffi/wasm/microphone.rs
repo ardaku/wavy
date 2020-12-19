@@ -22,11 +22,11 @@ use web_sys::{
 
 use fon::{chan::Channel, mono::Mono, Resampler, Stream};
 
-pub(crate) struct Microphone<C: Channel + Unpin> {
+pub(crate) struct Microphone<C: Channel> {
     stream: MicrophoneStream<C>,
 }
 
-impl<C: Channel + Unpin> Microphone<C> {
+impl<C: Channel> Microphone<C> {
     pub(crate) fn new(_id: &crate::MicrophoneId) -> Option<Self> {
         let state = super::state();
 
@@ -98,7 +98,7 @@ impl<C: Channel + Unpin> Microphone<C> {
     }
 }
 
-impl<C: Channel + Unpin> Future for Microphone<C> {
+impl<C: Channel> Future for Microphone<C> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -113,7 +113,7 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
     }
 }
 
-pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
+pub(crate) struct MicrophoneStream<C: Channel> {
     // Stream's resampler
     resampler: Resampler<Mono<C>>,
     // Buffer
@@ -122,10 +122,7 @@ pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
     index: usize,
 }
 
-impl<C> Stream<Mono<C>> for &mut MicrophoneStream<C>
-where
-    C: Channel + Unpin,
-{
+impl<C: Channel> Stream<Mono<C>> for &mut MicrophoneStream<C> {
     fn sample_rate(&self) -> u32 {
         super::SAMPLE_RATE
     }
@@ -134,7 +131,7 @@ where
         if self.index == self.audio.len() {
             return None;
         }
-        let sample: C = C::from(self.audio[self.index].into());
+        let sample: C = C::from(self.audio[self.index] as f64);
         self.index += 1;
         Some(Mono::new(sample))
     }

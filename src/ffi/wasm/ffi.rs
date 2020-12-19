@@ -329,7 +329,7 @@ impl<S: Sample> Speakers<S> {
     }
 }
 
-impl<S: Sample + Unpin> Future for &mut Speakers<S> {
+impl<S: Sample> Future for &mut Speakers<S> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -442,7 +442,7 @@ impl<C: Channel> Microphone<C> {
     }
 }
 
-impl<C: Channel + Unpin> Future for Microphone<C> {
+impl<C: Channel> Future for Microphone<C> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {

@@ -15,19 +15,13 @@ use std::{
     task::{Context, Poll},
 };
 
-use fon::{chan::Ch32, Sample, stereo::Stereo32, Audio};
+use fon::{Sample, stereo::Stereo32, Audio};
 
-pub(crate) struct Speakers<S: Sample>
-where
-    Ch32: From<S::Chan>,
-{
+pub(crate) struct Speakers<S: Sample> {
     _phantom: PhantomData<S>,
 }
 
-impl<S: Sample> Speakers<S>
-where
-    Ch32: From<S::Chan>,
-{
+impl<S: Sample> Speakers<S> {
     pub(crate) fn connect(_id: &crate::SpeakerId) -> Option<(Self, u32)> {
         let state = super::state();
         let _phantom = PhantomData::<S>;
@@ -72,10 +66,7 @@ where
     }
 }
 
-impl<S: Sample + Unpin> Future for &mut Speakers<S>
-where
-    Ch32: From<S::Chan>,
-{
+impl<S: Sample> Future for &mut Speakers<S> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {

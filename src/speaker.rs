@@ -9,7 +9,6 @@
 // according to those terms.
 
 use fon::{
-    chan::{Ch16, Ch32, Ch64},
     Sample,
     Audio, Sink,
 };
@@ -63,22 +62,12 @@ use crate::{ffi::Speakers as SpeakersSys};
 /// }
 /// ```
 #[allow(missing_debug_implementations)]
-pub struct Speaker<S: Sample + Unpin>
-where
-    Ch16: From<S::Chan>,
-    Ch32: From<S::Chan>,
-    Ch64: From<S::Chan>,
-{
+pub struct Speaker<S: Sample> {
     pub(super) speakers: SpeakersSys<S>,
     pub(super) audiobuf: Audio<S>,
 }
 
-impl<S: Sample + Unpin> Speaker<S>
-where
-    Ch16: From<S::Chan>,
-    Ch32: From<S::Chan>,
-    Ch64: From<S::Chan>,
-{
+impl<S: Sample> Speaker<S> {
     /// Get the speakers' sample rate.
     pub fn sample_rate(&self) -> u32 {
         self.audiobuf.sample_rate()

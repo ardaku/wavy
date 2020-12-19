@@ -15,7 +15,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use fon::{chan::Ch16, Sample, Audio};
+use fon::{Sample, Audio};
 
 pub(crate) struct Speakers<S: Sample> {
     _phantom: PhantomData<S>,
@@ -35,10 +35,7 @@ impl<S: Sample> Speakers<S> {
     }
 }
 
-impl<S: Sample + Unpin> Future for &mut Speakers<S>
-where
-    Ch16: From<S::Chan>,
-{
+impl<S: Sample> Future for &mut Speakers<S> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {

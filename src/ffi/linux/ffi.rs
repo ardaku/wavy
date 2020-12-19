@@ -195,10 +195,7 @@ impl Drop for Pcm {
     }
 }
 
-pub(crate) struct Speakers<S: Sample>
-where
-    Ch16: From<S::Chan>,
-{
+pub(crate) struct Speakers<S: Sample> {
     player: AlsaPlayer,
     pcm: Pcm,
     is_ready: bool,
@@ -207,10 +204,7 @@ where
     _phantom: PhantomData<S>,
 }
 
-impl<S: Sample + Unpin> Future for &mut Speakers<S>
-where
-    Ch16: From<S::Chan>,
-{
+impl<S: Sample> Future for &mut Speakers<S> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -244,8 +238,6 @@ where
 }
 
 impl<S: Sample> Speakers<S>
-where
-    Ch16: From<S::Chan>,
 {
     pub(crate) fn connect(id: &crate::SpeakerId) -> Option<(Self, u32)> {
         // Load Player ALSA module
@@ -396,14 +388,14 @@ where
     }
 }
 
-pub(crate) struct Microphone<C: Channel + Unpin> {
+pub(crate) struct Microphone<C: Channel> {
     recorder: AlsaRecorder,
     pcm: Pcm,
     is_ready: bool,
     stream: MicrophoneStream<C>,
 }
 
-impl<C: Channel + Unpin> Microphone<C> {
+impl<C: Channel> Microphone<C> {
     pub(crate) fn new(id: &crate::MicrophoneId) -> Option<Self> {
         // Load Recorder ALSA module
         let recorder = AlsaRecorder::new()?;
@@ -495,7 +487,7 @@ impl<C: Channel + Unpin> Microphone<C> {
     }
 }
 
-impl<C: Channel + Unpin> Future for Microphone<C> {
+impl<C: Channel> Future for Microphone<C> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -513,7 +505,7 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
     }
 }
 
-pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
+pub(crate) struct MicrophoneStream<C: Channel> {
     // S16LE Audio Buffer
     buffer: Vec<[u8; 2]>,
     // Sample Rate of The Microphone (src)
@@ -524,10 +516,7 @@ pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
     resampler: Resampler<Mono<C>>,
 }
 
-impl<C> Stream<Mono<C>> for &mut MicrophoneStream<C>
-where
-    C: Channel + Unpin + From<Ch16>,
-{
+impl<C: Channel> Stream<Mono<C>> for &mut MicrophoneStream<C> {
     fn sample_rate(&self) -> u32 {
         self.sample_rate
     }
