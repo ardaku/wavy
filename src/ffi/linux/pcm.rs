@@ -258,3 +258,23 @@ pub(crate) unsafe fn readi<T>(
         Ok(ret.try_into().map_err(|_| -> i64 { ret })?)
     })
 }
+
+/// Write speaker output from an audio frame buffer.
+///
+/// Marked unsafe because pcm must be configured to handle interleaved frames
+/// the size of `F` to prevent undefined behavior.
+pub(crate) unsafe fn writei<T>(
+    pcm: *mut c_void,
+    buffer: *const T,
+    length: u16,
+) -> Result<usize, i64> {
+    ALSA.with(|alsa| {
+        let alsa = if let Some(alsa) = alsa {
+            alsa
+        } else {
+            return Ok(0);
+        };
+        let ret = (alsa.snd_pcm_writei)(pcm, buffer.cast(), length.into());
+        Ok(ret.try_into().map_err(|_| -> i64 { ret })?)
+    })
+}

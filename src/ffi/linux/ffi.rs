@@ -9,7 +9,7 @@
 // according to those terms.
 
 use self::alsa::{
-    AlsaDevice, AlsaPlayer, SndPcm, SndPcmAccess, SndPcmFormat, SndPcmMode,
+    AlsaDevice, SndPcm, SndPcmAccess, SndPcmFormat, SndPcmMode,
     SndPcmState, SndPcmStream,
 };
 use asound::device_list::SoundDevice;

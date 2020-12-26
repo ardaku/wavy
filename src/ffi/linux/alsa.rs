@@ -334,13 +334,6 @@ static mut FN_SND_PCM_HW_PARAMS_GET_PERIOD_SIZE: std::mem::MaybeUninit<
 static mut FN_SND_PCM_HW_PARAMS_FREE: std::mem::MaybeUninit<
     extern "C" fn(obj: *mut c_void) -> (),
 > = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_WRITEI: std::mem::MaybeUninit<
-    extern "C" fn(
-        pcm: *mut c_void,
-        buffer: *const c_void,
-        size: std::os::raw::c_ulong,
-    ) -> std::os::raw::c_long,
-> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_CLOSE: std::mem::MaybeUninit<
     extern "C" fn(pcm: *mut c_void) -> c_int,
 > = std::mem::MaybeUninit::uninit();
@@ -552,57 +545,6 @@ impl AlsaDevice {
                 return Err(__ret as _);
             };
             Ok(())
-        }
-    }
-}
-
-static mut ALSA_PLAYER_INIT: Option<AlsaPlayer> = None;
-
-/// A module contains functions.
-#[derive(Clone)]
-pub(super) struct AlsaPlayer(std::marker::PhantomData<*mut u8>);
-
-impl AlsaPlayer {
-    /// Get a handle to this module.  Loads module functions on first call.
-    pub(super) fn new() -> Option<Self> {
-        unsafe {
-            let dll = check_thread()?;
-            if let Some(ref module) = ALSA_PLAYER_INIT {
-                return Some(module.clone());
-            }
-            FN_SND_PCM_WRITEI = std::mem::MaybeUninit::new(
-                std::mem::transmute(sym(dll, b"snd_pcm_writei\0")?.as_ptr()),
-            );
-            ALSA_PLAYER_INIT = Some(Self(std::marker::PhantomData));
-            Some(Self(std::marker::PhantomData))
-        }
-    }
-    /// Write interleaved frames to a PCM.
-    /// - `pcm`: PCM handle
-    /// - `buffer`: frames containing buffer
-    /// - `size`: frames to be written
-    /// If the blocking behaviour is selected and it is running, then routine
-    /// waits until all requested frames are played or put to the playback ring
-    /// buffer. The returned number of frames can be less only if a signal or
-    /// underrun occurred.
-    ///
-    /// If the non-blocking behaviour is selected, then routine doesn't wait at
-    /// all.
-    pub(super) unsafe fn snd_pcm_writei(
-        &self,
-        pcm: &SndPcm,
-        frames: *const c_void,
-        f_size: usize,
-    ) -> Result<isize, isize> {
-        let __ret = ((FN_SND_PCM_WRITEI).assume_init())(
-            pcm.0,
-            frames as _,
-            f_size as _,
-        );
-        if __ret < 0 {
-            Err(__ret as _)
-        } else {
-            Ok(__ret as _)
         }
     }
 }

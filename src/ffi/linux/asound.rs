@@ -34,6 +34,11 @@ dl_api::linker!(extern "C" Alsa "libasound.so.2" {
         buffer: *mut c_void,
         size: c_ulong,
     ) -> c_long;
+    fn snd_pcm_writei(
+        pcm: *mut c_void,
+        buffer: *const c_void,
+        size: c_ulong,
+    ) -> c_long;
 
     // HW Params
     fn snd_pcm_hw_params(pcm: *mut c_void, params: *mut c_void) -> c_int;

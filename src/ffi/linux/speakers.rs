@@ -8,19 +8,19 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
+#![allow(unsafe_code)]
+
 use std::{marker::PhantomData, task::{Poll, Context}, pin::Pin, future::Future};
 
 use fon::{chan::{Channel, Ch32}, Frame, surround::Surround32, Resampler, Sink};
 
-use super::{Pcm, AlsaPlayer, SndPcmStream, SndPcmState, pcm_hw_params, flush_buffer};
+use super::{Pcm, SndPcmStream, SndPcmState, pcm_hw_params, flush_buffer, asound};
 
 // FIXME?
 use super::SoundDevice;
 
 /// ALSA Speakers connection.
 pub(crate) struct Speakers {
-    /// FIXME: Remove in favor of new DL_API
-    player: AlsaPlayer,
     /// ALSA PCM type for both speakers and microphones.
     pcm: Pcm,
     /// Index into audio frames to start writing.
@@ -40,12 +40,9 @@ pub(crate) struct Speakers {
 impl Speakers {
     /// Attempt to connect to a speaker by id.
     pub(crate) fn connect(id: &crate::SpeakersId) -> Option<Self> {
-        // Load Player ALSA module
-        let player = AlsaPlayer::new()?;
         // Create Playback PCM.
         let pcm = Pcm::new(id.0.desc(), SndPcmStream::Playback)?;
         Some(Self {
-            player,
             pcm,
             starti: 0,
             buffer: Vec::new(),
@@ -102,7 +99,6 @@ impl Speakers {
 impl Future for &mut Speakers {
     type Output = ();
 
-    #[allow(unsafe_code)]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // Get mutable reference to speakers.
         let this = self.get_mut();
@@ -114,9 +110,9 @@ impl Future for &mut Speakers {
 
         // Attempt to write remaining internal speaker buffer to the speakers.
         let result = unsafe {
-            this.player.snd_pcm_writei(
-                &this.pcm.sound_device,
-                this.buffer.as_ptr().cast(),
+            asound::pcm::writei(
+                this.pcm.sound_device.0,
+                this.buffer.as_ptr(),
                 this.period.into(),
             )
         };
@@ -141,10 +137,9 @@ impl Future for &mut Speakers {
                                 .snd_pcm_prepare(&this.pcm.sound_device)
                                 .unwrap();
                             unsafe {
-                                this.player
-                                    .snd_pcm_writei(
-                                        &this.pcm.sound_device,
-                                        this.buffer.as_ptr().cast(),
+                                asound::pcm::writei(
+                                        this.pcm.sound_device.0,
+                                        this.buffer.as_ptr(),
                                         this.period.into(),
                                     )
                                     .unwrap();
@@ -183,10 +178,9 @@ impl Future for &mut Speakers {
                                 .snd_pcm_prepare(&this.pcm.sound_device)
                                 .unwrap();
                             unsafe {
-                                this.player
-                                    .snd_pcm_writei(
-                                        &this.pcm.sound_device,
-                                        this.buffer.as_ptr().cast(),
+                                asound::pcm::writei(
+                                        this.pcm.sound_device.0,
+                                        this.buffer.as_ptr(),
                                         this.period.into(),
                                     )
                                     .unwrap();
@@ -201,7 +195,7 @@ impl Future for &mut Speakers {
             }
             Ok(len) => {
                 // Shift buffer.
-                this.buffer.drain(..len as usize * this.channels as usize);
+                this.buffer.drain(..len * this.channels as usize);
                 this.starti = this.buffer.len() / this.channels as usize;
                 this.buffer.resize(
                     this.period as usize * this.channels as usize,
@@ -229,7 +223,6 @@ impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
         &mut self.1
     }
 
-    #[allow(unsafe_code)]
     fn buffer(&mut self) -> &mut [F] {
         let data = self.0.buffer.as_mut_ptr().cast();
         let count = self.0.period.into();
