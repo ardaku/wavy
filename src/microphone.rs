@@ -19,7 +19,12 @@ pub struct Microphone(pub(super) ffi::Microphone);
 
 impl Debug for Microphone {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
-        write!(fmt, "Microphone(rate: {:?}, channels: {})", self.0.sample_rate, self.channels())
+        write!(
+            fmt,
+            "Microphone(rate: {:?}, channels: {})",
+            self.0.sample_rate,
+            self.channels()
+        )
     }
 }
 
@@ -31,7 +36,9 @@ impl Microphone {
 
     /// Record audio from connected microphone.  Returns an audio stream, which
     /// contains the samples recorded since the previous call.
-    pub async fn record<F: Frame<Chan = Ch32>>(&mut self) -> MicrophoneStream<'_, F> {
+    pub async fn record<F: Frame<Chan = Ch32>>(
+        &mut self,
+    ) -> MicrophoneStream<'_, F> {
         (&mut self.0).await;
         MicrophoneStream(self.0.record())
     }
@@ -39,7 +46,7 @@ impl Microphone {
 
 /// A stream of recorded audio samples from a microphone.
 pub struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(
-    ffi::MicrophoneStream<'a, F>
+    ffi::MicrophoneStream<'a, F>,
 );
 
 impl<F: Frame<Chan = Ch32>> Debug for MicrophoneStream<'_, F> {

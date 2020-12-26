@@ -18,15 +18,9 @@
 /// audio format, which is the state-of-the-art audio format.
 pub(crate) const SAMPLE_RATE: u16 = 48_000;
 
-/// The number of audio frames to be sent to/received by hardware at a time.
-/// 512 is chosen because it provides a good balance between shortness (about
-/// 0.01 seconds) and number of syscalls per second (about 100).  Note that this
-/// does not necessarily mean the minimum latency for real time audio is 0.02
-/// seconds, because latency is about the synchronization between recording and
-/// playback.  It does however mean that the maximum latency for an audio
-/// reaction to user input is 11 milliseconds because it's nearly impossible to
-/// synchronize the CPU clock with the audio clock without special hardware.
-/// That makes the period of 512 frames the largest period at 48 KHz that can
-/// react at least as fast as the graphics (which also has it's own clock).
-/// Periods should always be powers of 2.
-pub(crate) const PERIOD: u16 = 512;
+/// Set latency to be about 1 millisecond.  This is how many samples need to be
+/// generated at each call to/from microphone or speaker.
+///
+/// 48 is the minimum period that doesn't create bad-sounding artifacts on ALSA
+/// running on PulseAudio.
+pub(crate) const PERIOD: u16 = 48;

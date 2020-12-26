@@ -10,7 +10,7 @@
 
 use std::fmt::{Debug, Formatter, Result};
 
-use fon::{chan::Ch32, Frame, Sink, Resampler};
+use fon::{chan::Ch32, Frame, Resampler, Sink};
 
 use crate::ffi;
 
@@ -63,7 +63,12 @@ pub struct Speakers(pub(super) ffi::Speakers);
 
 impl Debug for Speakers {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
-        write!(fmt, "Speakers(rate: {:?}, channels: {})", self.0.sample_rate, self.channels())
+        write!(
+            fmt,
+            "Speakers(rate: {:?}, channels: {})",
+            self.0.sample_rate,
+            self.channels()
+        )
     }
 }
 

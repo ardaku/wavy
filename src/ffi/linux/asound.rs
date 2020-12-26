@@ -29,14 +29,12 @@ dl_api::linker!(extern "C" Alsa "libasound.so.2" {
         buffer: *mut c_void,
         size: c_ulong,
     ) -> c_long;
-    
+
     // HW Params
     fn snd_pcm_hw_params(pcm: *mut c_void, params: *mut c_void) -> c_int;
     fn snd_pcm_hw_params_free(params: *mut c_void) -> ();
     fn snd_pcm_hw_params_set_rate_near(pcm: *mut c_void, params: *mut c_void, val: *mut c_uint, dir: *mut c_int) -> c_int;
     fn snd_pcm_hw_params_get_rate_numden(params: *mut c_void, rate_num: *mut c_uint, rate_den: *mut c_uint) -> c_int;
-    fn snd_pcm_hw_params_get_channels(params: *mut c_void, val: *mut c_uint) -> c_int;
-    fn snd_pcm_hw_params_get_channels_max(params: *mut c_void, val: *mut c_uint) -> c_int;
     fn snd_pcm_hw_params_any(pcm: *mut c_void, params: *mut c_void) -> c_int;
     fn snd_pcm_hw_params_set_channels(pcm: *mut c_void, params: *mut c_void, val: c_uint) -> c_int;
     fn snd_pcm_hw_params_malloc(ptr: *mut *mut c_void) -> c_int;

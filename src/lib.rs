@@ -133,10 +133,10 @@
 )]
 mod ffi;
 
+mod consts;
 mod microphone;
 mod route;
 mod speakers;
-mod consts;
 
 pub use microphone::{Microphone, MicrophoneStream};
 pub use route::{MicrophoneId, SpeakersId};

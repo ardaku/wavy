@@ -27,9 +27,7 @@ impl MicrophoneId {
     /// Connect to this microphone.  Returns `None` if the microphone is
     /// unplugged.
     pub fn connect(&self) -> Option<Microphone> {
-        Some(Microphone (
-             ffi::Microphone::new(&self)?,
-        ))
+        Some(Microphone(ffi::Microphone::new(&self)?))
     }
 }
 

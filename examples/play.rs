@@ -2,7 +2,7 @@
 
 use fon::{stereo::Stereo32, Sink};
 use pasts::prelude::*;
-use twang::{Synth, Fc, Signal};
+use twang::{Fc, Signal, Synth};
 use wavy::{SpeakersId, SpeakersSink};
 
 /// Shared state between tasks on the thread.
@@ -47,10 +47,12 @@ async fn start(mut state: State) {
     while {
         task! { let play = async { Event::Play(speakers.play().await) } };
         event(&mut state, poll![play,].await.1)
-    } { }
+    } {}
 }
 
 fn main() {
     // Run `start()` in an async executor on it's own thread.
-    exec!(start(State { synth: Synth::new((), sine) }));
+    exec!(start(State {
+        synth: Synth::new((), sine)
+    }));
 }
