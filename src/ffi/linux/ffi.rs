@@ -15,8 +15,7 @@ use self::alsa::{
 use asound::device_list::SoundDevice;
 use fon::{
     chan::{Ch32, Channel},
-    surround::Surround32,
-    Frame, Resampler, Sink, Stream,
+    Frame, Stream,
 };
 use std::{
     convert::TryInto,
@@ -32,16 +31,35 @@ use std::{
 mod alsa;
 // ALSA bindings.
 mod asound;
+//
+mod speakers;
+
+pub(crate) use speakers::{Speakers, SpeakersSink};
 
 // Implementation Expectations:
 pub(crate) use asound::device_list::{device_list, AudioDst, AudioSrc};
 
 #[allow(unsafe_code)]
-fn pcm_hw_params(sound_device: &SndPcm, channels: u8) -> Option<(f64, u8)> {
+fn flush_buffer(pcm: *mut std::os::raw::c_void) {
     unsafe {
-        // unwrap: Allocating memory should not fail unless out of memory.
+        // Empty the audio buffer to avoid artifacts on startup.
+        let _ = asound::pcm::drop(pcm);
+        // Once it's empty, it needs to be re-prepared.
+        let _ = asound::pcm::prepare(pcm);
+    }
+}
+
+#[allow(unsafe_code)]
+fn pcm_hw_params(
+    sound_device: &SndPcm,
+    channels: u8,
+    buffer: &mut Vec<Ch32>,
+    sample_rate: &mut Option<f64>,
+    period: &mut u8,
+) -> Option<()> {
+    unsafe {
         let mut hw_params = MaybeUninit::uninit();
-        asound::pcm::hw_params_malloc(hw_params.as_mut_ptr()).unwrap();
+        asound::pcm::hw_params_malloc(hw_params.as_mut_ptr()).ok()?;
         let hw_params = hw_params.assume_init();
         // Getting default settings should never fail.
         asound::pcm::hw_params_any(sound_device.0, hw_params).ok()?;
@@ -75,14 +93,8 @@ fn pcm_hw_params(sound_device: &SndPcm, channels: u8) -> Option<(f64, u8)> {
         )
         .ok()?;
         // Set the number of channels.
-        asound::pcm::hw_set_channels(
-            sound_device.0,
-            hw_params,
-            channels,
-        )
-        .unwrap_or_else(|_| {
-            panic!("Failed to use {} channels on speaker", channels)
-        });
+        asound::pcm::hw_set_channels(sound_device.0, hw_params, channels)
+            .ok()?;
         // Set period near library target period.
         let mut period_size = crate::consts::PERIOD.into();
         asound::pcm::hw_params_set_period_size_near(
@@ -103,12 +115,18 @@ fn pcm_hw_params(sound_device: &SndPcm, channels: u8) -> Option<(f64, u8)> {
         asound::pcm::hw_params(sound_device.0, hw_params).ok()?;
         // Now that a configuration has been chosen, we can retreive the actual
         // exact sample rate.
-        let sample_rate = asound::pcm::get_rate(hw_params)?;
+        *sample_rate = Some(asound::pcm::hw_get_rate(hw_params)?);
         // Free Hardware Parameters
         asound::pcm::hw_params_free(hw_params);
 
-        Some((sample_rate, period_size.try_into().unwrap()))
+        // Set the period of the buffer.
+        *period = period_size.try_into().ok()?;
+
+        // Resize the buffer
+        buffer.resize(*period as usize * channels as usize, Ch32::MID);
     }
+
+    Some(())
 }
 
 // Speakers/Microphone Shared Code for ALSA.
@@ -130,12 +148,6 @@ impl Pcm {
         let sound_device: SndPcm = device
             .snd_pcm_open(device_name, direction, SndPcmMode::Nonblock)
             .ok()?;
-        // FIXME
-        /*// If direction is Recording, then make sure the audio buffer is empty.
-        if direction == SndPcmStream::Capture {
-            device.snd_pcm_drop(&sound_device).ok()?;
-            device.snd_pcm_prepare(&sound_device).ok()?;
-        }*/
         // Get file descriptor
         let fd_count =
             device.snd_pcm_poll_descriptors_count(&sound_device).ok()?;
@@ -166,237 +178,8 @@ impl Drop for Pcm {
     fn drop(&mut self) {
         // Unregister async file descriptor before closing the PCM.
         self.fd.old();
-        // Should never fail here
-        self.device.snd_pcm_close(&mut self.sound_device).unwrap();
-    }
-}
-
-/// ALSA Speakers connection.
-pub(crate) struct Speakers {
-    /// FIXME: Remove in favor of new DL_API
-    player: AlsaPlayer,
-    /// ALSA PCM type for both speakers and microphones.
-    pcm: Pcm,
-    /// Index into audio frames to start writing.
-    starti: usize,
-    /// Raw buffer of audio yet to be played.
-    buffer: Vec<Ch32>,
-    /// Resampler context for speakers sink.
-    resampler: ([Ch32; 6], f64),
-    /// The number of frames in the buffer.
-    period: u8,
-    /// Number of available channels
-    pub(crate) channels: u8,
-    /// The sample rate of the speakers.
-    pub(crate) sample_rate: Option<f64>,
-}
-
-impl Speakers {
-    pub(crate) fn connect(id: &crate::SpeakersId) -> Option<Self> {
-        // Load Player ALSA module
-        let player = AlsaPlayer::new()?;
-        // Create Playback PCM.
-        let pcm = Pcm::new(id.0.desc(), SndPcmStream::Playback)?;
-        Some(Self {
-            player,
-            pcm,
-            starti: 0,
-            buffer: Vec::new(),
-            sample_rate: None,
-            channels: 0,
-            resampler: ([Ch32::MID; 6], 0.0),
-            period: 0,
-        })
-    }
-
-    #[allow(unsafe_code)]
-    pub(crate) fn play<F: Frame<Chan = Ch32>>(
-        &mut self,
-    ) -> SpeakersSink<'_, F> {
-        if F::CHAN_COUNT != self.channels.into() {
-            if !matches!(F::CHAN_COUNT, 1 | 2 | 6) {
-                panic!("Unknown speaker configuration")
-            }
-            // Configure Hardware Parameters
-            let (sample_rate, period) =
-                pcm_hw_params(&self.pcm.sound_device, F::CHAN_COUNT as u8)
-                    .expect(
-                        "Failed to adjust hardware parameters: Report Bug to \
-                         https://github.com/libcala/wavy/issues/new",
-                    );
-            // Resize the buffer
-            self.buffer
-                .resize(period as usize * F::CHAN_COUNT, Ch32::MID);
-            // Set the sample rate.
-            self.sample_rate = Some(sample_rate);
-            //
-            self.period = period;
-            //
-            self.channels = F::CHAN_COUNT as u8;
-        }
-        let resampler = Resampler::<F>::new(
-            Surround32::from_channels(&self.resampler.0[..]).convert(),
-            self.resampler.1,
-        );
-        // Create a sink that borrows this speaker's buffer mutably.
-        SpeakersSink(self, resampler, PhantomData)
-    }
-}
-
-impl Future for &mut Speakers {
-    type Output = ();
-
-    #[allow(unsafe_code)]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Get mutable reference to speakers.
-        let this = self.get_mut();
-
-        // Check if speakers have been used yet, if not return Ready.
-        if this.channels == 0 {
-            return Poll::Ready(());
-        }
-
-        // Attempt to write remaining internal speaker buffer to the speakers.
-        let result = unsafe {
-            this.player.snd_pcm_writei(
-                &this.pcm.sound_device,
-                this.buffer.as_ptr().cast(),
-                this.period.into(),
-            )
-        };
-
-        // Check if it succeeds, then return Ready.
-        match result {
-            Err(error) => {
-                match error {
-                    // Edge-triggered epoll should only go into pending mode if
-                    // read/write call results in EAGAIN (according to epoll man
-                    // page)
-                    -11 => { /* Pending */ }
-                    -32 => match this
-                        .pcm
-                        .device
-                        .snd_pcm_state(&this.pcm.sound_device)
-                    {
-                        SndPcmState::Xrun => {
-                            // Player samples are not generated fast enough
-                            this.pcm
-                                .device
-                                .snd_pcm_prepare(&this.pcm.sound_device)
-                                .unwrap();
-                            unsafe {
-                                this.player
-                                    .snd_pcm_writei(
-                                        &this.pcm.sound_device,
-                                        this.buffer.as_ptr().cast(),
-                                        this.period.into(),
-                                    )
-                                    .unwrap();
-                            }
-                        }
-                        st => {
-                            eprintln!(
-                                "Incorrect state = {:?} (XRUN): Report Bug to \
-                                 https://github.com/libcala/wavy/issues/new",
-                                st
-                            );
-                            unreachable!()
-                        }
-                    },
-                    -77 => {
-                        eprintln!(
-                            "Incorrect state (-EBADFD): Report Bug to \
-                             https://github.com/libcala/wavy/issues/new"
-                        );
-                        unreachable!()
-                    }
-                    -86 => {
-                        eprintln!(
-                            "Stream got suspended, trying to recover… \
-                            (-ESTRPIPE)"
-                        );
-                        if this
-                            .pcm
-                            .device
-                            .snd_pcm_resume(&this.pcm.sound_device)
-                            .is_ok()
-                        {
-                            // Prepare, so we keep getting samples.
-                            this.pcm
-                                .device
-                                .snd_pcm_prepare(&this.pcm.sound_device)
-                                .unwrap();
-                            unsafe {
-                                this.player
-                                    .snd_pcm_writei(
-                                        &this.pcm.sound_device,
-                                        this.buffer.as_ptr().cast(),
-                                        this.period.into(),
-                                    )
-                                    .unwrap();
-                            }
-                        }
-                    }
-                    _ => unreachable!(),
-                }
-                // Register waker, and then return not ready.
-                this.pcm.fd.register_waker(cx.waker());
-                Poll::Pending
-            }
-            Ok(len) => {
-                // Shift buffer.
-                this.buffer.drain(..len as usize * this.channels as usize);
-                this.starti = this.buffer.len() / this.channels as usize;
-                this.buffer.resize(
-                    this.period as usize * this.channels as usize,
-                    Ch32::MID,
-                );
-                // Ready for more samples.
-                Poll::Ready(())
-            }
-        }
-    }
-}
-
-pub(crate) struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(
-    &'a mut Speakers,
-    Resampler<F>,
-    PhantomData<F>,
-);
-
-impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
-    fn sample_rate(&self) -> f64 {
-        self.0.sample_rate.unwrap()
-    }
-
-    fn resampler(&mut self) -> &mut Resampler<F> {
-        &mut self.1
-    }
-
-    #[allow(unsafe_code)]
-    fn buffer(&mut self) -> &mut [F] {
-        let data = self.0.buffer.as_mut_ptr().cast();
-        let count = self.0.period.into();
-        unsafe {
-            &mut std::slice::from_raw_parts_mut(data, count)[self.0.starti..]
-        }
-    }
-}
-
-impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<'_, F> {
-    fn drop(&mut self) {
-        // Store 5.1 surround sample to resampler.
-        let frame: Surround32 = self.1.frame().convert();
-        self.0.resampler.0 = [
-            frame.channels()[0],
-            frame.channels()[1],
-            frame.channels()[2],
-            frame.channels()[3],
-            frame.channels()[4],
-            frame.channels()[5],
-        ];
-        // Store partial index from resampler.
-        self.0.resampler.1 = self.1.index() % 1.0;
+        // Shouldn't fail here
+        let _ = self.device.snd_pcm_close(&mut self.sound_device);
     }
 }
 

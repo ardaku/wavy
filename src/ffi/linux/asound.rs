@@ -16,6 +16,7 @@ use super::{SndPcmAccess, SndPcmFormat};
 
 // Link to libasound
 dl_api::linker!(extern "C" Alsa "libasound.so.2" {
+    // Device
     fn snd_device_name_hint(
         card: c_int,
         iface: *const c_char,
@@ -24,6 +25,10 @@ dl_api::linker!(extern "C" Alsa "libasound.so.2" {
     fn snd_device_name_get_hint(hint: *const c_void, id: *const c_char)
         -> *mut c_char;
     fn snd_device_name_free_hint(hints: *mut *mut c_void) -> c_int;
+
+    // PCM
+    fn snd_pcm_drop(pcm: *mut c_void) -> c_int;
+    fn snd_pcm_prepare(pcm: *mut c_void) -> c_int;
     fn snd_pcm_readi(
         pcm: *mut c_void,
         buffer: *mut c_void,

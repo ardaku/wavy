@@ -192,7 +192,7 @@ pub(crate) unsafe fn hw_set_channels(
 /// Get the exact configured sample rate from the speaker/microphone.
 ///
 /// Marked unsafe because requires that one configuration is chosen.
-pub(crate) unsafe fn get_rate(hw_params: *mut c_void) -> Option<f64> {
+pub(crate) unsafe fn hw_get_rate(hw_params: *mut c_void) -> Option<f64> {
     ALSA.with(|alsa| {
         let alsa = if let Some(alsa) = alsa {
             alsa
@@ -213,6 +213,32 @@ pub(crate) unsafe fn get_rate(hw_params: *mut c_void) -> Option<f64> {
     })
 }
 
+pub(crate) unsafe fn drop(pcm: *mut c_void) -> Result<(), i64> {
+    ALSA.with(|alsa| {
+        let alsa = if let Some(alsa) = alsa {
+            alsa
+        } else {
+            return Err(0);
+        };
+        let ret = (alsa.snd_pcm_drop)(pcm);
+        let _: u64 = ret.try_into().map_err(|_| ret)?;
+        Ok(())
+    })
+}
+
+pub(crate) unsafe fn prepare(pcm: *mut c_void) -> Result<(), i64> {
+    ALSA.with(|alsa| {
+        let alsa = if let Some(alsa) = alsa {
+            alsa
+        } else {
+            return Err(0);
+        };
+        let ret = (alsa.snd_pcm_prepare)(pcm);
+        let _: u64 = ret.try_into().map_err(|_| ret)?;
+        Ok(())
+    })
+}
+
 /// Read microphone input into an audio frame buffer.
 ///
 /// Marked unsafe because pcm must be configured to handle interleaved frames
@@ -221,7 +247,7 @@ pub(crate) unsafe fn readi<T>(
     pcm: *mut c_void,
     buffer: *mut T,
     length: u16,
-) -> Result<usize, std::os::raw::c_long> {
+) -> Result<usize, i64> {
     ALSA.with(|alsa| {
         let alsa = if let Some(alsa) = alsa {
             alsa

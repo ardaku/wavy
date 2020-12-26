@@ -353,9 +353,6 @@ static mut FN_SND_PCM_POLL_DESCRIPTORS: std::mem::MaybeUninit<
 static mut FN_SND_PCM_STATE: std::mem::MaybeUninit<
     extern "C" fn(pcm: *mut c_void) -> SndPcmState,
 > = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_DROP: std::mem::MaybeUninit<
-    extern "C" fn(pcm: *mut c_void) -> c_int,
-> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_PREPARE: std::mem::MaybeUninit<
     extern "C" fn(pcm: *mut c_void) -> c_int,
 > = std::mem::MaybeUninit::uninit();
@@ -438,9 +435,6 @@ impl AlsaDevice {
                 ));
             FN_SND_PCM_STATE = std::mem::MaybeUninit::new(std::mem::transmute(
                 sym(dll, b"snd_pcm_state\0")?.as_ptr(),
-            ));
-            FN_SND_PCM_DROP = std::mem::MaybeUninit::new(std::mem::transmute(
-                sym(dll, b"snd_pcm_drop\0")?.as_ptr(),
             ));
             FN_SND_PCM_PREPARE = std::mem::MaybeUninit::new(
                 std::mem::transmute(sym(dll, b"snd_pcm_prepare\0")?.as_ptr()),
@@ -536,18 +530,6 @@ impl AlsaDevice {
         unsafe {
             let __ret = ((FN_SND_PCM_STATE).assume_init())(pcm.0);
             __ret as _
-        }
-    }
-    /// Stop a PCM dropping pending frames.  This function stops the PCM
-    /// immediately. The pending samples on the buffer are ignored
-    ///  - `pcm`: PCM handle
-    pub(super) fn snd_pcm_drop(&self, pcm: &SndPcm) -> Result<(), i32> {
-        unsafe {
-            let __ret = ((FN_SND_PCM_DROP).assume_init())(pcm.0);
-            if __ret < 0 {
-                return Err(__ret as _);
-            };
-            Ok(())
         }
     }
     /// Prepare PCM for use.
