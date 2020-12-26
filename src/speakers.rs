@@ -8,11 +8,12 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
-use fon::{Audio, Sample, Sink};
+use std::fmt::{Debug, Formatter, Result};
 
-use crate::ffi::Speakers as SpeakersSys;
+use fon::{chan::Ch32, Frame, Sink, Resampler};
 
-#[allow(clippy::needless_doctest_main)]
+use crate::ffi;
+
 /// Play audio samples through a speaker.
 ///
 /// # 440 HZ Sine Wave Example
@@ -58,24 +59,48 @@ use crate::ffi::Speakers as SpeakersSys;
 ///     exec!(start());
 /// }
 /// ```
-#[allow(missing_debug_implementations)]
-pub struct Speaker<S: Sample> {
-    pub(super) speakers: SpeakersSys<S>,
-    pub(super) audiobuf: Audio<S>,
+pub struct Speakers(pub(super) ffi::Speakers);
+
+impl Debug for Speakers {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
+        write!(fmt, "Speakers(rate: {:?}, channels: {})", self.0.sample_rate, self.channels())
+    }
 }
 
-impl<S: Sample> Speaker<S> {
-    /// Get the speakers' sample rate.
-    pub fn sample_rate(&self) -> u32 {
-        self.audiobuf.sample_rate()
+impl Speakers {
+    /// Get the number of speaker channels.
+    pub fn channels(&self) -> u8 {
+        self.0.channels
     }
 
     /// Play audio through speakers.  Returns an audio sink, which consumes an
-    /// audio stream of played samples.  If you don't overwrite the buffer, it
-    /// will keep playing whatever was last streamed into it.
-    pub async fn play(&mut self) -> impl Sink + '_ {
-        self.speakers.play(&self.audiobuf);
-        (&mut self.speakers).await;
-        self.audiobuf.sink(..)
+    /// audio stream of played samples.  If you don't write to the sink, it will
+    /// keep playing whatever was last streamed into it.
+    pub async fn play<F: Frame<Chan = Ch32>>(&mut self) -> SpeakersSink<'_, F> {
+        (&mut self.0).await;
+        SpeakersSink(self.0.play())
+    }
+}
+
+/// A sink that consumes audio samples and plays them through the speakers.
+pub struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(ffi::SpeakersSink<'a, F>);
+
+impl<F: Frame<Chan = Ch32>> Debug for SpeakersSink<'_, F> {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
+        write!(fmt, "SpeakersSink(rate: {})", self.sample_rate())
+    }
+}
+
+impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
+    fn sample_rate(&self) -> f64 {
+        self.0.sample_rate()
+    }
+
+    fn resampler(&mut self) -> &mut Resampler<F> {
+        self.0.resampler()
+    }
+
+    fn buffer(&mut self) -> &mut [F] {
+        self.0.buffer()
     }
 }

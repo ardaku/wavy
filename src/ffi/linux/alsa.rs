@@ -99,7 +99,7 @@ pub(super) enum SndPcmStream {
 #[repr(C)]
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub(super) enum SndPcmAccess {
+pub(crate) enum SndPcmAccess {
     /// mmap access with simple interleaved channels
     MmapInterleaved = 0,
     /// mmap access with simple non interleaved channels
@@ -117,7 +117,7 @@ pub(super) enum SndPcmAccess {
 #[repr(C)]
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub(super) enum SndPcmFormat {
+pub(crate) enum SndPcmFormat {
     /// Unknown
     Unknown = -1,
     /// Signed 8 bit
@@ -257,7 +257,7 @@ pub(super) enum SndPcmState {
 }
 
 /// PCM handle
-pub(super) struct SndPcm(*mut c_void);
+pub(super) struct SndPcm(pub(super) *mut c_void);
 
 /// PCM hardware configuration space container
 ///
@@ -272,7 +272,7 @@ pub(super) struct SndPcm(*mut c_void);
 /// impossible configurations as possible. Attempting to set a parameter
 /// outside of its acceptable range will result in the function failing and
 /// an error code being returned.
-pub(super) struct SndPcmHwParams(*mut c_void);
+pub(super) struct SndPcmHwParams(pub(crate) *mut c_void);
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -295,9 +295,6 @@ static mut FN_SND_PCM_HW_PARAMS_MALLOC: std::mem::MaybeUninit<
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_ANY: std::mem::MaybeUninit<
     extern "C" fn(pcm: *mut c_void, params: *mut c_void) -> c_int,
-> = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE: std::mem::MaybeUninit<
-    extern "C" fn(pcm: *mut c_void, params: *mut c_void, val: c_uint) -> c_int,
 > = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_HW_PARAMS_SET_ACCESS: std::mem::MaybeUninit<
     extern "C" fn(
@@ -359,13 +356,6 @@ static mut FN_SND_PCM_WRITEI: std::mem::MaybeUninit<
         size: std::os::raw::c_ulong,
     ) -> std::os::raw::c_long,
 > = std::mem::MaybeUninit::uninit();
-static mut FN_SND_PCM_READI: std::mem::MaybeUninit<
-    extern "C" fn(
-        pcm: *mut c_void,
-        buffer: *mut c_void,
-        size: std::os::raw::c_ulong,
-    ) -> std::os::raw::c_long,
-> = std::mem::MaybeUninit::uninit();
 static mut FN_SND_PCM_CLOSE: std::mem::MaybeUninit<
     extern "C" fn(pcm: *mut c_void) -> c_int,
 > = std::mem::MaybeUninit::uninit();
@@ -412,11 +402,6 @@ impl AlsaDevice {
             FN_SND_PCM_HW_PARAMS_ANY =
                 std::mem::MaybeUninit::new(std::mem::transmute(
                     sym(dll, b"snd_pcm_hw_params_any\0")?.as_ptr(),
-                ));
-            FN_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE =
-                std::mem::MaybeUninit::new(std::mem::transmute(
-                    sym(dll, b"snd_pcm_hw_params_set_rate_resample\0")?
-                        .as_ptr(),
                 ));
             FN_SND_PCM_HW_PARAMS_SET_ACCESS =
                 std::mem::MaybeUninit::new(std::mem::transmute(
@@ -533,27 +518,6 @@ impl AlsaDevice {
         unsafe {
             let __ret =
                 ((FN_SND_PCM_HW_PARAMS_ANY).assume_init())(pcm.0, params.0);
-            if __ret < 0 {
-                return Err(__ret as _);
-            };
-            Ok(())
-        }
-    }
-    /// Restrict a configuration space to contain only real hardware rates.
-    /// - `pcm`: PCM handle
-    /// - `params`: Configuration space
-    /// - `val`: 0 = disable, 1 = enable (default) rate resampling
-    pub(super) fn snd_pcm_hw_params_set_rate_resample(
-        &self,
-        pcm: &SndPcm,
-        params: &SndPcmHwParams,
-        val: u32,
-    ) -> Result<(), i32> {
-        unsafe {
-            let __ret = ((FN_SND_PCM_HW_PARAMS_SET_RATE_RESAMPLE)
-                .assume_init())(
-                pcm.0, params.0, val as _
-            );
             if __ret < 0 {
                 return Err(__ret as _);
             };
@@ -895,58 +859,6 @@ impl AlsaPlayer {
             Err(__ret as _)
         } else {
             Ok(__ret as _)
-        }
-    }
-}
-
-static mut ALSA_RECORDER_INIT: Option<AlsaRecorder> = None;
-
-/// A module contains functions.
-#[derive(Clone)]
-pub(super) struct AlsaRecorder(std::marker::PhantomData<*mut u8>);
-
-impl AlsaRecorder {
-    /// Get a handle to this module.  Loads module functions on first call.
-    pub(super) fn new() -> Option<Self> {
-        unsafe {
-            let dll = check_thread()?;
-            if let Some(ref module) = ALSA_RECORDER_INIT {
-                return Some(module.clone());
-            }
-            FN_SND_PCM_READI = std::mem::MaybeUninit::new(std::mem::transmute(
-                sym(dll, b"snd_pcm_readi\0")?.as_ptr(),
-            ));
-            ALSA_RECORDER_INIT = Some(Self(std::marker::PhantomData));
-            Some(Self(std::marker::PhantomData))
-        }
-    }
-    /// Read interleaved frames from a PCM.
-    /// - `pcm`: PCM handle
-    /// - `buffer`: frames containing buffer
-    /// - `size`: frames to be read
-    /// If the blocking behaviour was selected and it is running, then routine
-    /// waits until all requested frames are filled. The returned number of
-    /// frames can be less only if a signal or underrun occurred.
-    ///
-    /// If the non-blocking behaviour is selected, then routine doesn't wait at
-    /// all.
-    pub(super) fn snd_pcm_readi(
-        &self,
-        pcm: &SndPcm,
-        buffer: &mut Vec<[u8; 2]>,
-    ) -> Result<(), isize> {
-        let len = buffer.len();
-        unsafe {
-            let __ret = ((FN_SND_PCM_READI).assume_init())(
-                pcm.0,
-                buffer[len..].as_mut_ptr() as _,
-                (buffer.capacity() - len) as _,
-            );
-            if __ret < 0 {
-                return Err(__ret as _);
-            };
-            buffer.set_len(len + __ret as usize);
-            Ok(())
         }
     }
 }

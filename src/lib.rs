@@ -135,8 +135,9 @@ mod ffi;
 
 mod microphone;
 mod route;
-mod speaker;
+mod speakers;
+mod consts;
 
-pub use microphone::Microphone;
-pub use route::{MicrophoneId, SpeakerId};
-pub use speaker::Speaker;
+pub use microphone::{Microphone, MicrophoneStream};
+pub use route::{MicrophoneId, SpeakersId};
+pub use speakers::{Speakers, SpeakersSink};

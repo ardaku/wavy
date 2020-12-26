@@ -10,9 +10,8 @@
 
 use crate::{
     ffi::{self, device_list, AudioDst, AudioSrc},
-    Microphone, Speaker,
+    Microphone, Speakers,
 };
-use fon::{chan::Channel, Audio, Sample};
 use std::fmt::{Display, Error, Formatter};
 
 /// ID of an available microphone, or other audio input.
@@ -27,10 +26,10 @@ impl MicrophoneId {
 
     /// Connect to this microphone.  Returns `None` if the microphone is
     /// unplugged.
-    pub fn connect<C: Channel>(&self) -> Option<Microphone<C>> {
-        Some(Microphone {
-            microphone: ffi::Microphone::new(&self)?,
-        })
+    pub fn connect(&self) -> Option<Microphone> {
+        Some(Microphone (
+             ffi::Microphone::new(&self)?,
+        ))
     }
 }
 
@@ -40,25 +39,24 @@ impl Display for MicrophoneId {
     }
 }
 
-/// ID of an available speaker, or other audio output.
+/// ID of an available speaker, pair of speakers, or surround sound system, or
+/// other audio output.
 #[derive(Debug, Default)]
-pub struct SpeakerId(pub(crate) AudioDst);
+pub struct SpeakersId(pub(crate) AudioDst);
 
-impl SpeakerId {
+impl SpeakersId {
     /// Query available audio destinations.
     pub fn query() -> Vec<Self> {
         device_list(Self)
     }
 
     /// Connect to this speaker.  Returns `None` if the speaker is unplugged.
-    pub fn connect<S: Sample>(&self) -> Option<Speaker<S>> {
-        let (speakers, sample_rate) = ffi::Speakers::connect(&self)?;
-        let audiobuf = Audio::with_silence(sample_rate, 1024);
-        Some(Speaker { speakers, audiobuf })
+    pub fn connect(&self) -> Option<Speakers> {
+        Some(Speakers(ffi::Speakers::connect(&self)?))
     }
 }
 
-impl Display for SpeakerId {
+impl Display for SpeakersId {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         self.0.fmt(f)
     }

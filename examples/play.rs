@@ -1,40 +1,56 @@
 // Play a 220 Hertz sine wave through the system's speakers.
 
-use fon::mono::Mono64;
+use fon::{stereo::Stereo32, Sink};
 use pasts::prelude::*;
-use std::cell::RefCell;
-use twang::Synth;
-use wavy::SpeakerId;
+use twang::{Synth, Fc, Signal};
+use wavy::{SpeakersId, SpeakersSink};
 
-/// The program's shared state.
-struct State {}
+/// Shared state between tasks on the thread.
+struct State {
+    /// A streaming synthesizer using Twang.
+    synth: Synth<()>,
+}
 
-/// Speakers task (play sine wave).
-async fn speakers(state: &RefCell<State>) {
-    // Connect to system's speaker(s)
-    let mut speakers = SpeakerId::default().connect::<Mono64>().unwrap();
-    // Create a new synthesizer
-    let mut synth = Synth::new();
+/// An event handled by the event loop.
+enum Event<'a> {
+    /// Speaker is ready to play more audio.
+    Play(SpeakersSink<'a, Stereo32>),
+}
 
-    loop {
-        // 1. Wait for speaker to need more samples.
-        let sink = speakers.play().await;
-        // 2. Borrow shared state mutably
-        let _state = state.borrow_mut();
-        // 3. Generate and write samples into speaker buffer.
-        synth.gen(sink, |fc| fc.freq(440.0).sine().gain(0.7));
+/// Synthesis for sine wave.
+fn sine(_: (), fc: Fc) -> Signal {
+    fc.freq(440.0).sine().gain(0.7)
+}
+
+/// Play audio through the speakers.
+fn play(state: &mut State, mut speakers: SpeakersSink<Stereo32>) {
+    // Stream samples from `synth` into `speakers`.
+    speakers.stream(&mut state.synth);
+}
+
+/// Handle an event (the event loop).
+fn event(state: &mut State, event: Event) -> bool {
+    // Check which event.
+    match event {
+        // Speaker is ready for more samples, so send them.
+        Event::Play(sink) => play(state, sink),
     }
+    // Default to not exiting the event loop.
+    true
 }
 
 /// Program start.
-async fn start() {
-    // Initialize shared state.
-    let state = RefCell::new(State {});
-    // Create and wait on speaker task.
-    speakers(&state).await;
+async fn start(mut state: State) {
+    // Connect to speakers using Wavy.
+    let mut speakers = SpeakersId::default().connect().unwrap();
+    // Start event loop over asynchronous tasks.
+    while {
+        task! { let play = async { Event::Play(speakers.play().await) } };
+        event(&mut state, poll![play,].await.1)
+    } { }
 }
 
-/// Start the async executor.
 fn main() {
-    exec!(start());
+    // Run `start()` in an async executor on it's own thread.
+    exec!(start(State { synth: Synth::new((), sine) }));
 }

@@ -22,10 +22,10 @@ pub(crate) struct Speakers<S: Sample> {
 }
 
 impl<S: Sample> Speakers<S> {
-    pub(crate) fn connect(_id: &crate::SpeakerId) -> Option<(Self, u32)> {
+    pub(crate) fn connect(_id: &crate::SpeakerId) -> Option<(Self, f64)> {
         let _phantom = PhantomData::<S>;
 
-        Some((Self { _phantom }, 48_000))
+        Some((Self { _phantom }, crate::consts::SAMPLE_RATE.into()))
     }
 
     pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize {
