@@ -31,9 +31,8 @@ mod speakers;
 
 // Implementation Expectations:
 pub(crate) use asound::{
-    SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState,
-    SndPcmStream, PollFd,
-    device_list::{device_list, AudioDst, AudioSrc}
+    device_list::{device_list, AudioDst, AudioSrc},
+    PollFd, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState, SndPcmStream,
 };
 pub(crate) use speakers::{Speakers, SpeakersSink};
 
@@ -91,8 +90,7 @@ fn pcm_hw_params(
         )
         .ok()?;
         // Set the number of channels.
-        asound::pcm::hw_set_channels(sound_device, hw_params, channels)
-            .ok()?;
+        asound::pcm::hw_set_channels(sound_device, hw_params, channels).ok()?;
         // Set period near library target period.
         let mut period_size = crate::consts::PERIOD.into();
         asound::pcm::hw_params_set_period_size_near(
@@ -141,9 +139,13 @@ impl Pcm {
         direction: SndPcmStream,
     ) -> Option<Self> {
         // Create the ALSA PCM.
-        let sound_device = unsafe { asound::pcm::open(device_name, direction, SndPcmMode::Nonblock).ok()? };
+        let sound_device = unsafe {
+            asound::pcm::open(device_name, direction, SndPcmMode::Nonblock)
+                .ok()?
+        };
         // Get file descriptor
-        let fd_list = unsafe { asound::pcm::poll_descriptors(sound_device).ok()? };
+        let fd_list =
+            unsafe { asound::pcm::poll_descriptors(sound_device).ok()? };
         // FIXME: More?
         assert_eq!(fd_list.len(), 1);
         // Register file descriptor with OS's I/O Event Notifier
@@ -195,7 +197,7 @@ impl Microphone {
             sample_rate: None,
         })
     }
-    
+
     /// Attempt to configure the microphone for a specific number of channels.
     pub(crate) fn set_channels<F>(&mut self) -> Option<bool>
     where
@@ -260,13 +262,12 @@ impl Future for Microphone {
                     unreachable!()
                 }
                 -32 => {
-                    match unsafe { asound::pcm::state(this.pcm.sound_device) }
-                    {
+                    match unsafe { asound::pcm::state(this.pcm.sound_device) } {
                         SndPcmState::Xrun => {
                             eprintln!("Microphone XRUN: Latency cause?");
                             unsafe {
                                 asound::pcm::prepare(this.pcm.sound_device)
-                                .unwrap();
+                                    .unwrap();
                             }
                         }
                         st => {
@@ -284,11 +285,11 @@ impl Future for Microphone {
                         "Stream got suspended, trying to recover… (-ESTRPIPE)"
                     );
                     unsafe {
-                    if asound::pcm::resume(this.pcm.sound_device).is_ok() {
-                        // Prepare, so we keep getting samples.
-                        asound::pcm::prepare(this.pcm.sound_device)
-                            .unwrap();
-                    }
+                        if asound::pcm::resume(this.pcm.sound_device).is_ok() {
+                            // Prepare, so we keep getting samples.
+                            asound::pcm::prepare(this.pcm.sound_device)
+                                .unwrap();
+                        }
                     }
                 }
                 _ => unreachable!(),

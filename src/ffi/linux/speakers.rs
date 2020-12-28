@@ -138,12 +138,15 @@ impl Future for &mut Speakers {
                     // read/write call results in EAGAIN (according to epoll man
                     // page)
                     -11 => { /* Pending */ }
-                    -32 => match unsafe { asound::pcm::state(this.pcm.sound_device) }
-                    {
+                    -32 => match unsafe {
+                        asound::pcm::state(this.pcm.sound_device)
+                    } {
                         SndPcmState::Xrun => {
                             // Player samples are not generated fast enough
-                            unsafe { asound::pcm::prepare(this.pcm.sound_device)
-                                .unwrap(); }
+                            unsafe {
+                                asound::pcm::prepare(this.pcm.sound_device)
+                                    .unwrap();
+                            }
                             unsafe {
                                 asound::pcm::writei(
                                     this.pcm.sound_device,
@@ -174,13 +177,13 @@ impl Future for &mut Speakers {
                             "Stream got suspended, trying to recover… \
                              (-ESTRPIPE)"
                         );
-                        if unsafe { asound::pcm::resume(this.pcm.sound_device)
-                            .is_ok() }
-                        {
+                        if unsafe {
+                            asound::pcm::resume(this.pcm.sound_device).is_ok()
+                        } {
                             // Prepare, so we keep getting samples.
                             unsafe {
-                            asound::pcm::prepare(this.pcm.sound_device)
-                                .unwrap();
+                                asound::pcm::prepare(this.pcm.sound_device)
+                                    .unwrap();
                                 asound::pcm::writei(
                                     this.pcm.sound_device,
                                     this.buffer.as_ptr(),

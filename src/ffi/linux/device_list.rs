@@ -154,7 +154,7 @@ fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(
                     // Can't use epoll on null.
                     n = n.offset(1);
                     continue;
-                },
+                }
                 Ok("default") => "Default".to_string(),
                 _a => {
                     let desc =

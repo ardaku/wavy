@@ -22,8 +22,7 @@ impl Debug for Microphone {
         write!(
             fmt,
             "Microphone(rate: {:?}, channels: {})",
-            self.0.sample_rate,
-            self.0.channels
+            self.0.sample_rate, self.0.channels
         )
     }
 }

@@ -67,8 +67,7 @@ impl Debug for Speakers {
         write!(
             fmt,
             "Speakers(rate: {:?}, channels: {})",
-            self.0.sample_rate,
-            self.0.channels
+            self.0.sample_rate, self.0.channels
         )
     }
 }

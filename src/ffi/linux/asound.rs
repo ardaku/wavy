@@ -222,11 +222,11 @@ dl_api::linker!(extern "C" Alsa "libasound.so.2" {
 
     // PCM
     fn snd_pcm_open(pcmp: *mut *mut c_void,
-		name: *const c_char,
-		stream: SndPcmStream,
-		mode: c_int,
-	) -> c_int;
-	fn snd_pcm_close(pcm: *mut c_void) -> c_int;
+        name: *const c_char,
+        stream: SndPcmStream,
+        mode: c_int,
+    ) -> c_int;
+    fn snd_pcm_close(pcm: *mut c_void) -> c_int;
     fn snd_pcm_drop(pcm: *mut c_void) -> c_int;
     fn snd_pcm_prepare(pcm: *mut c_void) -> c_int;
     fn snd_pcm_resume(pcm: *mut c_void) -> c_int;
@@ -241,7 +241,7 @@ dl_api::linker!(extern "C" Alsa "libasound.so.2" {
         buffer: *const c_void,
         size: c_ulong,
     ) -> c_long;
-    
+
     // Poll
     fn snd_pcm_poll_descriptors(pcm: *mut c_void, pfds: *mut PollFd, space: c_uint) -> c_int;
     fn snd_pcm_poll_descriptors_count(pcm: *mut c_void) -> c_int;

@@ -13,10 +13,12 @@
 use std::{
     convert::TryInto,
     mem::MaybeUninit,
-    os::raw::{c_int, c_uint, c_void, c_char},
+    os::raw::{c_char, c_int, c_uint, c_void},
 };
 
-use super::super::{SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmStream, PollFd, SndPcmState};
+use super::super::{
+    PollFd, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState, SndPcmStream,
+};
 use super::ALSA;
 
 pub(crate) unsafe fn hw_params_set_period_size_near(
@@ -235,25 +237,34 @@ pub(crate) unsafe fn hw_get_rate(hw_params: *mut c_void) -> Option<f64> {
     })
 }
 
-pub(crate) unsafe fn poll_descriptors(pcm: *mut c_void) -> Result<Vec<PollFd>, i64> {
+pub(crate) unsafe fn poll_descriptors(
+    pcm: *mut c_void,
+) -> Result<Vec<PollFd>, i64> {
     ALSA.with(|alsa| {
         let alsa = if let Some(alsa) = alsa {
             alsa
         } else {
             return Err(0);
         };
-        let size: usize = (alsa.snd_pcm_poll_descriptors_count)(pcm).try_into().unwrap();
+        let size: usize =
+            (alsa.snd_pcm_poll_descriptors_count)(pcm).try_into().unwrap();
         let mut poll = Vec::with_capacity(size);
-        let ret = (alsa.snd_pcm_poll_descriptors)(pcm, poll.as_mut_ptr(), size.try_into().unwrap());
+        let ret = (alsa.snd_pcm_poll_descriptors)(
+            pcm,
+            poll.as_mut_ptr(),
+            size.try_into().unwrap(),
+        );
         poll.set_len(size);
         let _: u64 = ret.try_into().map_err(|_| ret)?;
         Ok(poll)
     })
 }
 
-pub(crate) unsafe fn open(name: *const c_char,
-        stream: SndPcmStream,
-        mode: SndPcmMode) -> Result<*mut c_void, i64> {
+pub(crate) unsafe fn open(
+    name: *const c_char,
+    stream: SndPcmStream,
+    mode: SndPcmMode,
+) -> Result<*mut c_void, i64> {
     ALSA.with(|alsa| {
         let alsa = if let Some(alsa) = alsa {
             alsa
@@ -261,7 +272,8 @@ pub(crate) unsafe fn open(name: *const c_char,
             return Err(0);
         };
         let mut pcm = MaybeUninit::uninit();
-        let ret = (alsa.snd_pcm_open)(pcm.as_mut_ptr(), name, stream, mode as c_int);
+        let ret =
+            (alsa.snd_pcm_open)(pcm.as_mut_ptr(), name, stream, mode as c_int);
         let _: u64 = ret.try_into().map_err(|_| ret)?;
         let pcm = pcm.assume_init();
         Ok(pcm)
