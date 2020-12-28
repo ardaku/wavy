@@ -12,13 +12,10 @@ use std::{
     convert::TryInto,
     future::Future,
     marker::PhantomData,
-    mem::MaybeUninit,
-    os::raw::c_char,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use asound::device_list::SoundDevice;
 use fon::{
     chan::{Ch32, Channel},
     Frame, Stream,
@@ -31,7 +28,7 @@ mod speakers;
 
 // Implementation Expectations:
 pub(crate) use asound::{
-    device_list::{device_list, AudioDst, AudioSrc},
+    device_list::{device_list, AudioDst, AudioSrc, reset_hwp},
     PollFd, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState, SndPcmStream,
 };
 pub(crate) use speakers::{Speakers, SpeakersSink};
@@ -48,72 +45,47 @@ fn flush_buffer(pcm: *mut std::os::raw::c_void) {
 
 #[allow(unsafe_code)]
 fn pcm_hw_params(
-    sound_device: *mut std::os::raw::c_void,
+    pcm: &Pcm,
     channels: u8,
     buffer: &mut Vec<Ch32>,
     sample_rate: &mut Option<f64>,
     period: &mut u8,
 ) -> Option<()> {
     unsafe {
-        let mut hw_params = MaybeUninit::uninit();
-        asound::pcm::hw_params_malloc(hw_params.as_mut_ptr()).ok()?;
-        let hw_params = hw_params.assume_init();
-        // Getting default settings should never fail.
-        asound::pcm::hw_params_any(sound_device, hw_params).ok()?;
+        // Reset hardware parameters to any interleaved native endian float32
+        reset_hwp(pcm.dev.pcm, pcm.dev.hwp)?;
+
         // Set Hz near library target Hz.
         asound::pcm::hw_params_set_rate_near(
-            sound_device,
-            hw_params,
+            pcm.dev.pcm,
+            pcm.dev.hwp,
             &mut crate::consts::SAMPLE_RATE.into(),
             &mut 0,
         )
         .ok()?;
-        // Fon uses interleaved audio, so set device as interleaved.
-        // Kernel should always support RW interleaved mode.
-        asound::pcm::hw_params_set_access(
-            sound_device,
-            hw_params,
-            SndPcmAccess::RwInterleaved,
-        )
-        .ok()?;
-        // Request 32-bit Float.
-        asound::pcm::hw_params_set_format(
-            sound_device,
-            hw_params,
-            if cfg!(target_endian = "little") {
-                SndPcmFormat::FloatLe
-            } else if cfg!(target_endian = "big") {
-                SndPcmFormat::FloatBe
-            } else {
-                unreachable!()
-            },
-        )
-        .ok()?;
         // Set the number of channels.
-        asound::pcm::hw_set_channels(sound_device, hw_params, channels).ok()?;
+        asound::pcm::hw_set_channels(pcm.dev.pcm, pcm.dev.hwp, channels).ok()?;
         // Set period near library target period.
         let mut period_size = crate::consts::PERIOD.into();
         asound::pcm::hw_params_set_period_size_near(
-            sound_device,
-            hw_params,
+            pcm.dev.pcm,
+            pcm.dev.hwp,
             &mut period_size,
             &mut 0,
         )
         .ok()?;
         // Some buffer size should always be available (match period).
         asound::pcm::hw_params_set_buffer_size_near(
-            sound_device,
-            hw_params,
+            pcm.dev.pcm,
+            pcm.dev.hwp,
             &mut period_size,
         )
         .ok()?;
         // Should always be able to apply parameters that succeeded
-        asound::pcm::hw_params(sound_device, hw_params).ok()?;
+        asound::pcm::hw_params(pcm.dev.pcm, pcm.dev.hwp).ok()?;
         // Now that a configuration has been chosen, we can retreive the actual
         // exact sample rate.
-        *sample_rate = Some(asound::pcm::hw_get_rate(hw_params)?);
-        // Free Hardware Parameters
-        asound::pcm::hw_params_free(hw_params);
+        *sample_rate = Some(asound::pcm::hw_get_rate(pcm.dev.hwp)?);
 
         // Set the period of the buffer.
         *period = period_size.try_into().ok()?;
@@ -127,7 +99,7 @@ fn pcm_hw_params(
 
 // Speakers/Microphone Shared Code for ALSA.
 pub(super) struct Pcm {
-    sound_device: *mut std::os::raw::c_void,
+    dev: asound::device_list::AudioDevice,
     fd: smelling_salts::Device,
 }
 
@@ -135,17 +107,11 @@ impl Pcm {
     /// Create a new async PCM.  If it fails return `None`.
     #[allow(unsafe_code)]
     fn new(
-        device_name: *const c_char,
-        direction: SndPcmStream,
+        dev: asound::device_list::AudioDevice,
     ) -> Option<Self> {
-        // Create the ALSA PCM.
-        let sound_device = unsafe {
-            asound::pcm::open(device_name, direction, SndPcmMode::Nonblock)
-                .ok()?
-        };
         // Get file descriptor
         let fd_list =
-            unsafe { asound::pcm::poll_descriptors(sound_device).ok()? };
+            unsafe { asound::pcm::poll_descriptors(dev.pcm).ok()? };
         // FIXME: More?
         assert_eq!(fd_list.len(), 1);
         // Register file descriptor with OS's I/O Event Notifier
@@ -157,7 +123,7 @@ impl Pcm {
             },
         );
 
-        Some(Pcm { sound_device, fd })
+        Some(Pcm { dev, fd })
     }
 }
 
@@ -166,8 +132,6 @@ impl Drop for Pcm {
     fn drop(&mut self) {
         // Unregister async file descriptor before closing the PCM.
         self.fd.old();
-        // Shouldn't fail here
-        let _ = unsafe { asound::pcm::close(self.sound_device) };
     }
 }
 
@@ -185,9 +149,9 @@ pub(crate) struct Microphone {
 }
 
 impl Microphone {
-    pub(crate) fn new(id: &crate::MicrophoneId) -> Option<Self> {
+    pub(crate) fn new(id: crate::MicrophoneId) -> Option<Self> {
         // Create Capture PCM.
-        let pcm = Pcm::new(id.0.desc(), SndPcmStream::Capture)?;
+        let pcm = Pcm::new(id.0.0)?;
         // Return successfully
         Some(Self {
             pcm,
@@ -210,7 +174,7 @@ impl Microphone {
             self.channels = F::CHAN_COUNT as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
-                self.pcm.sound_device,
+                &self.pcm,
                 self.channels,
                 &mut self.buffer,
                 &mut self.sample_rate,
@@ -241,7 +205,7 @@ impl Future for Microphone {
         // Attempt to overwrite the internal microphone buffer.
         let result = unsafe {
             asound::pcm::readi(
-                this.pcm.sound_device,
+                this.pcm.dev.pcm,
                 this.buffer.as_mut_slice().as_mut_ptr(),
                 this.period,
             )
@@ -262,11 +226,11 @@ impl Future for Microphone {
                     unreachable!()
                 }
                 -32 => {
-                    match unsafe { asound::pcm::state(this.pcm.sound_device) } {
+                    match unsafe { asound::pcm::state(this.pcm.dev.pcm) } {
                         SndPcmState::Xrun => {
                             eprintln!("Microphone XRUN: Latency cause?");
                             unsafe {
-                                asound::pcm::prepare(this.pcm.sound_device)
+                                asound::pcm::prepare(this.pcm.dev.pcm)
                                     .unwrap();
                             }
                         }
@@ -285,9 +249,9 @@ impl Future for Microphone {
                         "Stream got suspended, trying to recover… (-ESTRPIPE)"
                     );
                     unsafe {
-                        if asound::pcm::resume(this.pcm.sound_device).is_ok() {
+                        if asound::pcm::resume(this.pcm.dev.pcm).is_ok() {
                             // Prepare, so we keep getting samples.
-                            asound::pcm::prepare(this.pcm.sound_device)
+                            asound::pcm::prepare(this.pcm.dev.pcm)
                                 .unwrap();
                         }
                     }

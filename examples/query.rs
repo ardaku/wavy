@@ -2,8 +2,9 @@ use wavy::{MicrophoneId, SpeakersId};
 
 fn main() {
     for speaker in SpeakersId::query() {
+        let name = format!("{}", speaker);
         if let Some(mut speakers) = speaker.connect() {
-            println!("Found speaker: {}", speaker);
+            println!("Found speaker: {}", name);
             if speakers.avail::<fon::mono::Mono32>() {
                 println!(" - Mono");
             }
@@ -16,8 +17,9 @@ fn main() {
         }
     }
     for microphone in MicrophoneId::query() {
+        let name = format!("{}", microphone);
         if let Some(mut mic) = microphone.connect() {
-            println!("Found microphone: {}", microphone);
+            println!("Found microphone: {}", name);
             if mic.avail::<fon::mono::Mono32>() {
                 println!(" - Mono");
             }

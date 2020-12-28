@@ -138,18 +138,18 @@ pub(crate) unsafe fn hw_params(
     })
 }
 
-pub(crate) unsafe fn hw_params_malloc(
-    params: *mut *mut c_void,
-) -> Result<(), i64> {
+pub(crate) unsafe fn hw_params_malloc() -> Result<*mut c_void, i64> {
     ALSA.with(|alsa| {
         let alsa = if let Some(alsa) = alsa {
             alsa
         } else {
             return Err(0);
         };
-        let ret = (alsa.snd_pcm_hw_params_malloc)(params);
+        let mut hwp = MaybeUninit::uninit();
+        let ret = (alsa.snd_pcm_hw_params_malloc)(hwp.as_mut_ptr());
         let _: u64 = ret.try_into().map_err(|_| ret)?;
-        Ok(())
+        let hwp = hwp.assume_init();
+        Ok(hwp)
     })
 }
 

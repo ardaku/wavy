@@ -10,6 +10,8 @@
 
 use std::fmt::{Display, Error, Formatter};
 
+use fon::Frame;
+
 use crate::{
     ffi::{self, device_list, AudioDst, AudioSrc},
     Microphone, Speakers,
@@ -25,10 +27,17 @@ impl MicrophoneId {
         device_list(Self)
     }
 
+    /// Check if speaker supports a specific audio frame format.
+    pub fn supports<F: Frame>(&self) -> bool {
+        let count = F::CHAN_COUNT;
+        let bit = count - 1;
+        (self.0.channels() & (1 << bit)) != 0
+    }
+
     /// Connect to this microphone.  Returns `None` if the microphone is
     /// unplugged.
-    pub fn connect(&self) -> Option<Microphone> {
-        Some(Microphone(ffi::Microphone::new(&self)?))
+    pub fn connect(self) -> Option<Microphone> {
+        Some(Microphone(ffi::Microphone::new(self)?))
     }
 }
 
@@ -49,9 +58,16 @@ impl SpeakersId {
         device_list(Self)
     }
 
+    /// Check if speaker supports a specific audio frame format.
+    pub fn supports<F: Frame>(&self) -> bool {
+        let count = F::CHAN_COUNT;
+        let bit = count - 1;
+        (self.0.channels() & (1 << bit)) != 0
+    }
+
     /// Connect to this speaker.  Returns `None` if the speaker is unplugged.
-    pub fn connect(&self) -> Option<Speakers> {
-        Some(Speakers(ffi::Speakers::connect(&self)?))
+    pub fn connect(self) -> Option<Speakers> {
+        Some(Speakers(ffi::Speakers::connect(self)?))
     }
 }
 

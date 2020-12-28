@@ -23,11 +23,7 @@ use fon::{
     Frame, Resampler, Sink,
 };
 
-// FIXME?
-use super::SoundDevice;
-use super::{
-    asound, flush_buffer, pcm_hw_params, Pcm, SndPcmState, SndPcmStream,
-};
+use super::{asound, flush_buffer, pcm_hw_params, Pcm, SndPcmState};
 
 /// ALSA Speakers connection.
 pub(crate) struct Speakers {
@@ -49,9 +45,9 @@ pub(crate) struct Speakers {
 
 impl Speakers {
     /// Attempt to connect to a speaker by id.
-    pub(crate) fn connect(id: &crate::SpeakersId) -> Option<Self> {
+    pub(crate) fn connect(id: crate::SpeakersId) -> Option<Self> {
         // Create Playback PCM.
-        let pcm = Pcm::new(id.0.desc(), SndPcmStream::Playback)?;
+        let pcm = Pcm::new(id.0.0)?;
         Some(Self {
             pcm,
             starti: 0,
@@ -75,7 +71,7 @@ impl Speakers {
             self.channels = F::CHAN_COUNT as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
-                self.pcm.sound_device,
+                &self.pcm,
                 self.channels,
                 &mut self.buffer,
                 &mut self.sample_rate,
@@ -97,7 +93,7 @@ impl Speakers {
             .set_channels::<F>()
             .expect("Speaker::play() called with invalid configuration")
         {
-            flush_buffer(self.pcm.sound_device);
+            flush_buffer(self.pcm.dev.pcm);
         }
         // Convert the resampler to the target speaker configuration.
         let resampler = Resampler::<F>::new(
@@ -124,7 +120,7 @@ impl Future for &mut Speakers {
         // Attempt to write remaining internal speaker buffer to the speakers.
         let result = unsafe {
             asound::pcm::writei(
-                this.pcm.sound_device,
+                this.pcm.dev.pcm,
                 this.buffer.as_ptr(),
                 this.period,
             )
@@ -139,17 +135,17 @@ impl Future for &mut Speakers {
                     // page)
                     -11 => { /* Pending */ }
                     -32 => match unsafe {
-                        asound::pcm::state(this.pcm.sound_device)
+                        asound::pcm::state(this.pcm.dev.pcm)
                     } {
                         SndPcmState::Xrun => {
                             // Player samples are not generated fast enough
                             unsafe {
-                                asound::pcm::prepare(this.pcm.sound_device)
+                                asound::pcm::prepare(this.pcm.dev.pcm)
                                     .unwrap();
                             }
                             unsafe {
                                 asound::pcm::writei(
-                                    this.pcm.sound_device,
+                                    this.pcm.dev.pcm,
                                     this.buffer.as_ptr(),
                                     this.period,
                                 )
@@ -178,14 +174,14 @@ impl Future for &mut Speakers {
                              (-ESTRPIPE)"
                         );
                         if unsafe {
-                            asound::pcm::resume(this.pcm.sound_device).is_ok()
+                            asound::pcm::resume(this.pcm.dev.pcm).is_ok()
                         } {
                             // Prepare, so we keep getting samples.
                             unsafe {
-                                asound::pcm::prepare(this.pcm.sound_device)
+                                asound::pcm::prepare(this.pcm.dev.pcm)
                                     .unwrap();
                                 asound::pcm::writei(
-                                    this.pcm.sound_device,
+                                    this.pcm.dev.pcm,
                                     this.buffer.as_ptr(),
                                     this.period,
                                 )
