@@ -60,7 +60,7 @@ impl Speakers {
     }
 
     /// Attempt to configure the speaker for a specific number of channels.
-    pub(crate) fn set_channels<F>(&mut self) -> Option<bool>
+    fn set_channels<F>(&mut self) -> Option<bool>
     where
         F: Frame<Chan = Ch32>,
     {
@@ -102,6 +102,10 @@ impl Speakers {
         );
         // Create a sink that borrows this speaker's buffer mutably.
         SpeakersSink(self, resampler, PhantomData)
+    }
+    
+    pub(crate) fn channels(&self) -> u8 {
+        self.pcm.dev.supported
     }
 }
 

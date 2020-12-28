@@ -28,12 +28,14 @@ impl Debug for Microphone {
 }
 
 impl Microphone {
-    /// Check is speakers are available to use in a specific configuration
+    /// Check is microphone is available to use in a specific configuration
     pub fn avail<F>(&mut self) -> bool
     where
         F: Frame<Chan = Ch32>,
     {
-        self.0.set_channels::<F>().is_some()
+        let count = F::CHAN_COUNT;
+        let bit = count - 1;
+        (self.0.channels() & (1 << bit)) != 0
     }
 
     /// Record audio from connected microphone.  Returns an audio stream, which

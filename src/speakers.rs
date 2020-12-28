@@ -78,7 +78,9 @@ impl Speakers {
     where
         F: Frame<Chan = Ch32>,
     {
-        self.0.set_channels::<F>().is_some()
+        let count = F::CHAN_COUNT;
+        let bit = count - 1;
+        (self.0.channels() & (1 << bit)) != 0
     }
 
     /// Play audio through speakers.  Returns an audio sink, which consumes an
