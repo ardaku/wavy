@@ -14,13 +14,12 @@ use std::{
     task::{Context, Poll},
 };
 
+use fon::{chan::Channel, mono::Mono, Resampler, Stream};
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{
     MediaStream, MediaStreamAudioSourceNode, MediaStreamAudioSourceOptions,
     MediaStreamConstraints,
 };
-
-use fon::{chan::Channel, mono::Mono, Resampler, Stream};
 
 pub(crate) struct Microphone<C: Channel> {
     stream: MicrophoneStream<C>,
@@ -34,11 +33,7 @@ impl<C: Channel> Microphone<C> {
         state.lazy_init();
 
         // Prompt User To Connect Microphone.
-        let md = web_sys::window()
-            .unwrap()
-            .navigator()
-            .media_devices()
-            .ok()?;
+        let md = web_sys::window().unwrap().navigator().media_devices().ok()?;
         let promise = md
             .get_user_media_with_constraints(
                 MediaStreamConstraints::new().audio(&JsValue::TRUE),

@@ -10,14 +10,24 @@
 
 #![allow(unsafe_code)]
 
-use std::{marker::PhantomData, task::{Poll, Context}, pin::Pin, future::Future};
+use std::{
+    future::Future,
+    marker::PhantomData,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use fon::{chan::{Channel, Ch32}, Frame, surround::Surround32, Resampler, Sink};
-
-use super::{Pcm, SndPcmStream, SndPcmState, pcm_hw_params, flush_buffer, asound};
+use fon::{
+    chan::{Ch32, Channel},
+    surround::Surround32,
+    Frame, Resampler, Sink,
+};
 
 // FIXME?
 use super::SoundDevice;
+use super::{
+    asound, flush_buffer, pcm_hw_params, Pcm, SndPcmState, SndPcmStream,
+};
 
 /// ALSA Speakers connection.
 pub(crate) struct Speakers {
@@ -55,7 +65,8 @@ impl Speakers {
 
     /// Attempt to configure the speaker for a specific number of channels.
     pub(crate) fn set_channels<F>(&mut self) -> Option<bool>
-        where F: Frame<Chan = Ch32>
+    where
+        F: Frame<Chan = Ch32>,
     {
         if F::CHAN_COUNT != self.channels.into() {
             if !matches!(F::CHAN_COUNT, 1 | 2 | 6) {
@@ -64,7 +75,7 @@ impl Speakers {
             self.channels = F::CHAN_COUNT as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
-                &self.pcm.sound_device,
+                self.pcm.sound_device,
                 self.channels,
                 &mut self.buffer,
                 &mut self.sample_rate,
@@ -78,13 +89,15 @@ impl Speakers {
 
     /// Generate an audio sink for the user to fill.
     pub(crate) fn play<F>(&mut self) -> SpeakersSink<'_, F>
-        where F: Frame<Chan = Ch32>
+    where
+        F: Frame<Chan = Ch32>,
     {
         // Change number of channels, if different than last call.
-        if self.set_channels::<F>()
+        if self
+            .set_channels::<F>()
             .expect("Speaker::play() called with invalid configuration")
         {
-            flush_buffer(self.pcm.sound_device.0);
+            flush_buffer(self.pcm.sound_device);
         }
         // Convert the resampler to the target speaker configuration.
         let resampler = Resampler::<F>::new(
@@ -111,9 +124,9 @@ impl Future for &mut Speakers {
         // Attempt to write remaining internal speaker buffer to the speakers.
         let result = unsafe {
             asound::pcm::writei(
-                this.pcm.sound_device.0,
+                this.pcm.sound_device,
                 this.buffer.as_ptr(),
-                this.period.into(),
+                this.period,
             )
         };
 
@@ -125,24 +138,19 @@ impl Future for &mut Speakers {
                     // read/write call results in EAGAIN (according to epoll man
                     // page)
                     -11 => { /* Pending */ }
-                    -32 => match this
-                        .pcm
-                        .device
-                        .snd_pcm_state(&this.pcm.sound_device)
+                    -32 => match unsafe { asound::pcm::state(this.pcm.sound_device) }
                     {
                         SndPcmState::Xrun => {
                             // Player samples are not generated fast enough
-                            this.pcm
-                                .device
-                                .snd_pcm_prepare(&this.pcm.sound_device)
-                                .unwrap();
+                            unsafe { asound::pcm::prepare(this.pcm.sound_device)
+                                .unwrap(); }
                             unsafe {
                                 asound::pcm::writei(
-                                        this.pcm.sound_device.0,
-                                        this.buffer.as_ptr(),
-                                        this.period.into(),
-                                    )
-                                    .unwrap();
+                                    this.pcm.sound_device,
+                                    this.buffer.as_ptr(),
+                                    this.period,
+                                )
+                                .unwrap();
                             }
                         }
                         st => {
@@ -164,26 +172,21 @@ impl Future for &mut Speakers {
                     -86 => {
                         eprintln!(
                             "Stream got suspended, trying to recover… \
-                            (-ESTRPIPE)"
+                             (-ESTRPIPE)"
                         );
-                        if this
-                            .pcm
-                            .device
-                            .snd_pcm_resume(&this.pcm.sound_device)
-                            .is_ok()
+                        if unsafe { asound::pcm::resume(this.pcm.sound_device)
+                            .is_ok() }
                         {
                             // Prepare, so we keep getting samples.
-                            this.pcm
-                                .device
-                                .snd_pcm_prepare(&this.pcm.sound_device)
-                                .unwrap();
                             unsafe {
+                            asound::pcm::prepare(this.pcm.sound_device)
+                                .unwrap();
                                 asound::pcm::writei(
-                                        this.pcm.sound_device.0,
-                                        this.buffer.as_ptr(),
-                                        this.period.into(),
-                                    )
-                                    .unwrap();
+                                    this.pcm.sound_device,
+                                    this.buffer.as_ptr(),
+                                    this.period,
+                                )
+                                .unwrap();
                             }
                         }
                     }

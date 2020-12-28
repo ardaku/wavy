@@ -8,11 +8,12 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
+use std::fmt::{Display, Error, Formatter};
+
 use crate::{
     ffi::{self, device_list, AudioDst, AudioSrc},
     Microphone, Speakers,
 };
-use std::fmt::{Display, Error, Formatter};
 
 /// ID of an available microphone, or other audio input.
 #[derive(Debug, Default)]

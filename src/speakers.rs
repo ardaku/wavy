@@ -20,9 +20,10 @@ use crate::ffi;
 /// **note:** This example depends on `twang = "0.5"` to synthesize the sine
 /// wave.
 /// ```no_run
+/// use std::cell::RefCell;
+///
 /// use fon::mono::Mono64;
 /// use pasts::prelude::*;
-/// use std::cell::RefCell;
 /// use twang::Synth;
 /// use wavy::SpeakerId;
 ///
@@ -67,15 +68,18 @@ impl Debug for Speakers {
             fmt,
             "Speakers(rate: {:?}, channels: {})",
             self.0.sample_rate,
-            self.channels()
+            self.0.channels
         )
     }
 }
 
 impl Speakers {
-    /// Get the number of speaker channels.
-    pub fn channels(&self) -> u8 {
-        self.0.channels
+    /// Check is speakers are available to use in a specific configuration
+    pub fn avail<F>(&mut self) -> bool
+    where
+        F: Frame<Chan = Ch32>,
+    {
+        self.0.set_channels::<F>().is_some()
     }
 
     /// Play audio through speakers.  Returns an audio sink, which consumes an

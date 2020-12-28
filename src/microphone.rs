@@ -23,15 +23,18 @@ impl Debug for Microphone {
             fmt,
             "Microphone(rate: {:?}, channels: {})",
             self.0.sample_rate,
-            self.channels()
+            self.0.channels
         )
     }
 }
 
 impl Microphone {
-    /// Get the number of microphone channels.
-    pub fn channels(&self) -> u8 {
-        self.0.channels
+    /// Check is speakers are available to use in a specific configuration
+    pub fn avail<F>(&mut self) -> bool
+    where
+        F: Frame<Chan = Ch32>,
+    {
+        self.0.set_channels::<F>().is_some()
     }
 
     /// Record audio from connected microphone.  Returns an audio stream, which

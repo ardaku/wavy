@@ -1,9 +1,10 @@
 // This example records audio and plays it back in real time as it's being
 // recorded.
 
+use std::cell::RefCell;
+
 use fon::{chan::Ch16, mono::Mono16, ops::Src, Audio, Stream};
 use pasts::prelude::*;
-use std::cell::RefCell;
 use wavy::{Microphone, MicrophoneId, SpeakerId};
 
 /// The program's shared state.

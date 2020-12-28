@@ -10,13 +10,14 @@
 
 #![allow(unsafe_code)]
 
-use super::{free, Alsa};
 use std::{
     ffi::CStr,
     fmt::{Display, Error, Formatter},
     mem::MaybeUninit,
     os::raw::c_char,
 };
+
+use super::{free, Alsa};
 
 const DEFAULT: &[u8] = b"default\0";
 
@@ -91,10 +92,7 @@ pub(crate) struct AudioDevice {
 
 impl Default for AudioDevice {
     fn default() -> Self {
-        Self {
-            name: String::new(),
-            desc: std::ptr::null_mut(),
-        }
+        Self { name: String::new(), desc: std::ptr::null_mut() }
     }
 }
 
@@ -148,9 +146,17 @@ fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(
 
             // Convert description to Rust String
             let desc = match CStr::from_ptr(name).to_str() {
-                Ok("null") => "Null".to_string(),
+                Ok(x) if x.starts_with("sysdefault") => {
+                    n = n.offset(1);
+                    continue;
+                }
+                Ok("null") => {
+                    // Can't use epoll on null.
+                    n = n.offset(1);
+                    continue;
+                },
                 Ok("default") => "Default".to_string(),
-                _ => {
+                _a => {
                     let desc =
                         (alsa.snd_device_name_get_hint)(*n, tdesc.as_ptr());
                     assert_ne!(desc, std::ptr::null_mut());
