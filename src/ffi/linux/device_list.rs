@@ -140,7 +140,7 @@ pub(crate) struct AudioDevice {
 
 impl Default for AudioSrc {
     fn default() -> Self {
-        let (pcm, hwp, supported) = open(DEFAULT.as_ptr().cast(), SndPcmStream::Playback).unwrap();
+        let (pcm, hwp, supported) = open(DEFAULT.as_ptr().cast(), SndPcmStream::Capture).unwrap();
         Self::from(AudioDevice {
             name: "Default".to_string(),
             pcm,
@@ -152,7 +152,7 @@ impl Default for AudioSrc {
 
 impl Default for AudioDst {
     fn default() -> Self {
-        let (pcm, hwp, supported) = open(DEFAULT.as_ptr().cast(), SndPcmStream::Capture).unwrap();
+        let (pcm, hwp, supported) = open(DEFAULT.as_ptr().cast(), SndPcmStream::Playback).unwrap();
         Self::from(AudioDevice {
             name: "Default".to_string(),
             pcm,
