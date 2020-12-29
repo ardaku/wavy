@@ -14,7 +14,7 @@ use std::{marker::PhantomData, task::{Poll, Context}, pin::Pin, future::Future};
 
 use fon::{chan::Ch32, Stream, Frame};
 
-use super::{asound, pcm_hw_params, Pcm, SndPcmState, flush_buffer};
+use super::{asound, pcm_hw_params, Pcm, SndPcmState};
 
 pub(crate) struct Microphone {
     // PCM I/O Handle
@@ -23,6 +23,8 @@ pub(crate) struct Microphone {
     buffer: Vec<Ch32>,
     // The period of the microphone.
     period: u8,
+    // Index to stop reading.
+    endi: usize,
     // Number of channels on the Microphone.
     pub(crate) channels: u8,
     // Sample Rate of The Microphone (src)
@@ -39,6 +41,7 @@ impl Microphone {
             buffer: Vec::new(),
             period: 0,
             channels: 0,
+            endi: 0,
             sample_rate: None,
         })
     }
@@ -71,12 +74,9 @@ impl Microphone {
         &mut self,
     ) -> MicrophoneStream<'_, F> {
         // Change number of channels, if different than last call.
-        if self
+        self
             .set_channels::<F>()
-            .expect("Speaker::play() called with invalid configuration")
-        {
-            flush_buffer(self.pcm.dev.pcm);
-        }
+            .expect("Microphone::record() called with invalid configuration");
     
         // Stream from microphone's buffer.
         MicrophoneStream(self, 0, PhantomData)
@@ -95,9 +95,9 @@ impl Future for Microphone {
         // Get mutable reference to microphone.
         let this = self.get_mut();
 
-        // If microphone is paused, return Pending
+        // If microphone is unconfigured, return Ready to configure and play.
         if this.channels == 0 {
-            return Poll::Pending;
+            return Poll::Ready(());
         }
 
         // Attempt to overwrite the internal microphone buffer.
@@ -110,7 +110,8 @@ impl Future for Microphone {
         };
 
         // Check if it succeeds, then return Ready.
-        if let Err(error) = result {
+        match result {
+            Err(error) => {
             match error {
                 // Edge-triggered epoll should only go into pending mode if
                 // read/write call results in EAGAIN (according to epoll man
@@ -160,9 +161,12 @@ impl Future for Microphone {
             this.pcm.fd.register_waker(cx.waker());
             // Not ready
             Poll::Pending
-        } else {
+        },
+        Ok(len) => {
+            this.endi = len;
             // Ready, audio buffer has been filled!
             Poll::Ready(())
+        }
         }
     }
 }
@@ -177,12 +181,14 @@ impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
     type Item = F;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.1 >= self.0.period.into() {
+        if self.1 >= self.0.endi {
             return None;
         }
-        Some(F::from_channels(
+        let frame = F::from_channels(
             &self.0.buffer[self.1 * self.0.channels as usize..],
-        ))
+        );
+        self.1 += 1;
+        Some(frame)
     }
 }
 
@@ -192,6 +198,6 @@ impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
     }
 
     fn len(&self) -> Option<usize> {
-        Some(self.0.period.into())
+        Some(self.0.endi)
     }
 }

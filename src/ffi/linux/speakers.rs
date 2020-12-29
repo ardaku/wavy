@@ -23,7 +23,7 @@ use fon::{
     Frame, Resampler, Sink,
 };
 
-use super::{asound, flush_buffer, pcm_hw_params, Pcm, SndPcmState};
+use super::{asound, pcm_hw_params, Pcm, SndPcmState};
 
 /// ALSA Speakers connection.
 pub(crate) struct Speakers {
@@ -89,12 +89,9 @@ impl Speakers {
         F: Frame<Chan = Ch32>,
     {
         // Change number of channels, if different than last call.
-        if self
+        self
             .set_channels::<F>()
-            .expect("Speaker::play() called with invalid configuration")
-        {
-            flush_buffer(self.pcm.dev.pcm);
-        }
+            .expect("Speaker::play() called with invalid configuration");
         // Convert the resampler to the target speaker configuration.
         let resampler = Resampler::<F>::new(
             Surround32::from_channels(&self.resampler.0[..]).convert(),

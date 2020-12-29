@@ -29,16 +29,6 @@ pub(crate) use speakers::{Speakers, SpeakersSink};
 pub(crate) use microphone::{Microphone, MicrophoneStream};
 
 #[allow(unsafe_code)]
-fn flush_buffer(pcm: *mut std::os::raw::c_void) {
-    unsafe {
-        // Empty the audio buffer to avoid artifacts on startup.
-        let _ = asound::pcm::drop(pcm);
-        // Once it's empty, it needs to be re-prepared.
-        let _ = asound::pcm::prepare(pcm);
-    }
-}
-
-#[allow(unsafe_code)]
 fn pcm_hw_params(
     pcm: &Pcm,
     channels: u8,
@@ -78,6 +68,7 @@ fn pcm_hw_params(
         .ok()?;
         // Should always be able to apply parameters that succeeded
         asound::pcm::hw_params(pcm.dev.pcm, pcm.dev.hwp).ok()?;
+
         // Now that a configuration has been chosen, we can retreive the actual
         // exact sample rate.
         *sample_rate = Some(asound::pcm::hw_get_rate(pcm.dev.hwp)?);
@@ -87,6 +78,11 @@ fn pcm_hw_params(
 
         // Resize the buffer
         buffer.resize(*period as usize * channels as usize, Ch32::MID);
+        
+        // Empty the audio buffer to avoid artifacts on startup.
+        let _ = asound::pcm::drop(pcm.dev.pcm);
+        // Should always be able to apply parameters that succeeded
+        asound::pcm::prepare(pcm.dev.pcm).ok()?;
     }
 
     Some(())

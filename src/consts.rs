@@ -23,4 +23,4 @@ pub(crate) const SAMPLE_RATE: u16 = 48_000;
 ///
 /// 48 is the minimum period that doesn't create bad-sounding artifacts on ALSA
 /// running on PulseAudio.
-pub(crate) const PERIOD: u16 = 48;
+pub(crate) const PERIOD: u8 = 48;
