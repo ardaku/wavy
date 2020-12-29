@@ -24,65 +24,45 @@
 //! recorded.  (Make sure to wear headphones to avoid feedback):
 //!
 //! ```rust,no_run
-//! use fon::{chan::Ch16, mono::Mono16, Audio, Stream, ops::Src};
-//! use pasts::prelude::*;
-//! use std::cell::RefCell;
-//! use wavy::{Microphone, MicrophoneId, SpeakerId};
-//!
-//! /// The program's shared state.
+//! use fon::{stereo::Stereo32, Sink, Audio};
+//! use pasts::{exec, wait};
+//! use wavy::{SpeakersId, MicrophoneId, SpeakersSink, MicrophoneStream};
+//! 
+//! /// An event handled by the event loop.
+//! enum Event<'a> {
+//!     /// Speaker is ready to play more audio.
+//!     Play(SpeakersSink<'a, Stereo32>),
+//!     /// Microphone has recorded some audio.
+//!     Record(MicrophoneStream<'a, Stereo32>),
+//! }
+//! 
+//! /// Shared state between tasks on the thread.
 //! struct State {
 //!     /// Temporary buffer for holding real-time audio samples.
-//!     buffer: Audio<Mono16>,
+//!     buffer: Audio<Stereo32>,
 //! }
-//!
-//! /// Microphone task (record audio).
-//! async fn microphone_task(state: &RefCell<State>, mut mic: Microphone<Ch16>) {
-//!     loop {
-//!         // 1. Wait for microphone to record some samples.
-//!         let mut stream = mic.record().await;
-//!         // 2. Borrow shared state mutably.
-//!         let mut state = state.borrow_mut();
-//!         // 3. Write samples into buffer.
-//!         state.buffer.extend(&mut stream);
+//! 
+//! impl State {
+//!     /// Event loop.  Return false to stop program.
+//!     fn event(&mut self, event: Event<'_>) -> bool {
+//!         match event {
+//!             Event::Play(mut speakers) => speakers.stream(self.buffer.drain(..)),
+//!             Event::Record(microphone) => self.buffer.extend(microphone),
+//!         }
+//!         true
 //!     }
 //! }
-//!
-//! /// Speakers task (play recorded audio).
-//! async fn speakers_task(state: &RefCell<State>) {
-//!     // Connect to system's speaker(s)
-//!     let mut speakers = SpeakerId::default().connect::<Mono16>().unwrap();
-//!
-//!     loop {
-//!         // 1. Wait for speaker to need more samples.
-//!         let mut sink = speakers.play().await;
-//!         // 2. Borrow shared state mutably
-//!         let mut state = state.borrow_mut();
-//!         // 3. Generate and write samples into speaker buffer.
-//!         state.buffer.drain(..).stream(&mut sink, Src);
-//!     }
-//! }
-//!
+//! 
 //! /// Program start.
-//! async fn start() {
-//!     // Connect to a user-selected microphone.
-//!     let microphone = MicrophoneId::default().connect().unwrap();
-//!     // Get the microphone's sample rate.
-//!     // Initialize shared state.
-//!     let state = RefCell::new(State {
-//!         buffer: Audio::with_silence(microphone.sample_rate(), 0),
-//!     });
-//!     // Create speaker and microphone tasks.
-//!     task! {
-//!         let speakers = speakers_task(&state);
-//!         let microphone = microphone_task(&state, microphone)
-//!     }
-//!     // Wait for first task to complete.
-//!     poll![speakers, microphone].await;
-//! }
-//!
-//! /// Start the async executor.
 //! fn main() {
-//!     exec!(start());
+//!     let mut state = State { buffer: Audio::with_silence(48_000, 0) };
+//!     let mut speakers = SpeakersId::default().connect().unwrap();
+//!     let mut microphone = MicrophoneId::default().connect().unwrap();
+//! 
+//!     exec! { state.event( wait! [
+//!         Event::Record(microphone.record().await),
+//!         Event::Play(speakers.play().await),
+//!     ] .await ) }
 //! }
 //! ```
 

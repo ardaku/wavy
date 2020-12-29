@@ -95,6 +95,11 @@ impl Future for Microphone {
         // Get mutable reference to microphone.
         let this = self.get_mut();
 
+        // If microphone is paused, return Pending
+        if this.channels == 0 {
+            return Poll::Pending;
+        }
+
         // Attempt to overwrite the internal microphone buffer.
         let result = unsafe {
             asound::pcm::readi(

@@ -20,44 +20,45 @@ use crate::ffi;
 /// **note:** This example depends on `twang = "0.5"` to synthesize the sine
 /// wave.
 /// ```no_run
-/// use std::cell::RefCell;
-///
-/// use fon::mono::Mono64;
-/// use pasts::prelude::*;
-/// use twang::Synth;
-/// use wavy::SpeakerId;
-///
-/// /// The program's shared state.
-/// struct State {}
-///
-/// /// Speakers task (play sine wave).
-/// async fn speakers(state: &RefCell<State>) {
-///     // Connect to system's speaker(s)
-///     let mut speakers = SpeakerId::default().connect::<Mono64>().unwrap();
-///     // Create a new synthesizer
-///     let mut synth = Synth::new();
-///
-///     loop {
-///         // 1. Wait for speaker to need more samples.
-///         let audio = speakers.play().await;
-///         // 2. Borrow shared state mutably
-///         let _state = state.borrow_mut();
-///         // 3. Generate and write samples into speaker buffer.
-///         synth.gen(audio, |fc| fc.freq(440.0).sine().gain(0.7));
+/// use fon::{stereo::Stereo32, Sink};
+/// use pasts::{exec, wait};
+/// use twang::{Fc, Signal, Synth};
+/// use wavy::{SpeakersId, SpeakersSink};
+/// 
+/// /// An event handled by the event loop.
+/// enum Event<'a> {
+///     /// Speaker is ready to play more audio.
+///     Play(SpeakersSink<'a, Stereo32>),
+/// }
+/// 
+/// /// Shared state between tasks on the thread.
+/// struct State {
+///     /// A streaming synthesizer using Twang.
+///     synth: Synth<()>,
+/// }
+/// 
+/// impl State {
+///     /// Event loop.  Return false to stop program.
+///     fn event(&mut self, event: Event<'_>) -> bool {
+///         match event {
+///             Event::Play(mut speakers) => speakers.stream(&mut self.synth),
+///         }
+///         true
 ///     }
 /// }
-///
+/// 
 /// /// Program start.
-/// async fn start() {
-///     // Initialize shared state.
-///     let state = RefCell::new(State {});
-///     // Create and wait on speaker task.
-///     speakers(&state).await;
-/// }
-///
-/// /// Start the async executor.
 /// fn main() {
-///     exec!(start());
+///     fn sine(_: (), fc: Fc) -> Signal {
+///         fc.freq(440.0).sine().gain(0.7)
+///     }
+/// 
+///     let mut state = State { synth: Synth::new((), sine) };
+///     let mut speakers = SpeakersId::default().connect().unwrap();
+/// 
+///     exec! { state.event( wait! [
+///         Event::Play(speakers.play().await),
+///     ] .await ) }
 /// }
 /// ```
 pub struct Speakers(pub(super) ffi::Speakers);

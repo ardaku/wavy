@@ -116,7 +116,7 @@ impl Future for &mut Speakers {
         // Get mutable reference to speakers.
         let this = self.get_mut();
 
-        // Check if speakers have been used yet, if not return Ready.
+        // If speaker is unconfigured, return Ready to configure and play.
         if this.channels == 0 {
             return Poll::Ready(());
         }
