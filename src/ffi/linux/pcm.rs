@@ -347,7 +347,7 @@ pub(crate) unsafe fn readi<T>(
     pcm: *mut c_void,
     buffer: *mut T,
     length: u16,
-) -> Result<usize, i64> {
+) -> Result<usize, isize> {
     ALSA.with(|alsa| {
         let alsa = if let Some(alsa) = alsa {
             alsa
@@ -355,7 +355,7 @@ pub(crate) unsafe fn readi<T>(
             return Ok(0);
         };
         let ret = (alsa.snd_pcm_readi)(pcm, buffer.cast(), length.into());
-        Ok(ret.try_into().map_err(|_| -> i64 { ret })?)
+        Ok(ret.try_into().map_err(|_| -> isize { ret as isize })?)
     })
 }
 
@@ -367,7 +367,7 @@ pub(crate) unsafe fn writei<T>(
     pcm: *mut c_void,
     buffer: *const T,
     length: u16,
-) -> Result<usize, i64> {
+) -> Result<usize, isize> {
     ALSA.with(|alsa| {
         let alsa = if let Some(alsa) = alsa {
             alsa
@@ -375,6 +375,6 @@ pub(crate) unsafe fn writei<T>(
             return Ok(0);
         };
         let ret = (alsa.snd_pcm_writei)(pcm, buffer.cast(), length.into());
-        Ok(ret.try_into().map_err(|_| -> i64 { ret })?)
+        Ok(ret.try_into().map_err(|_| -> isize { ret as isize })?)
     })
 }
