@@ -3,7 +3,7 @@
 
 use fon::{mono::Mono32, Audio, Sink};
 use pasts::exec;
-use wavy::{MicrophoneId, MicrophoneStream, SpeakersId, SpeakersSink};
+use wavy::{Microphone, MicrophoneStream, Speakers, SpeakersSink};
 
 /// An event handled by the event loop.
 enum Event<'a> {
@@ -32,8 +32,8 @@ impl State {
 /// Program start.
 fn main() {
     let mut state = State { buffer: Audio::with_silence(48_000, 0) };
-    let mut speakers = SpeakersId::default().connect().unwrap();
-    let mut microphone = MicrophoneId::default().connect().unwrap();
+    let mut speakers = Speakers::default();
+    let mut microphone = Microphone::default();
 
     exec!(state.event(pasts::wait! {
         Event::Play(speakers.play().await),

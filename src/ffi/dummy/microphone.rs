@@ -9,28 +9,36 @@
 // according to those terms.
 
 use std::{
+    fmt::{Display, Error, Formatter},
     future::Future,
     marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use fon::{chan::Ch32, chan::Channel, mono::Mono, Frame, Resampler, Stream};
+use fon::{chan::Ch32, Frame, Stream};
 
-pub(crate) struct Microphone {
-    pub(crate) channels: u8,
-    pub(crate) sample_rate: f64,
+use super::SoundDevice;
+
+pub(crate) struct Microphone();
+
+impl SoundDevice for Microphone {
+    const INPUT: bool = true;
+}
+
+impl Display for Microphone {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_str("Default")
+    }
+}
+
+impl Default for Microphone {
+    fn default() -> Self {
+        Microphone()
+    }
 }
 
 impl Microphone {
-    pub(crate) fn new(_id: crate::MicrophoneId) -> Option<Self> {
-        None
-    }
-
-    pub(crate) fn sample_rate(&self) -> f64 {
-        crate::consts::SAMPLE_RATE.into()
-    }
-
     pub(crate) fn record<F: Frame<Chan = Ch32>>(
         &mut self,
     ) -> MicrophoneStream<'_, F> {
@@ -54,20 +62,20 @@ pub(crate) struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(
     PhantomData<&'a F>,
 );
 
-impl<F: Frame<Chan = Ch32>> Iterator for &mut MicrophoneStream<'_, F> {
+impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
     type Item = F;
 
-    fn next(&mut self) -> Option<F> {
+    fn next(&mut self) -> Option<Self::Item> {
         None
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Stream<F> for &mut MicrophoneStream<'_, F> {
+impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
     fn sample_rate(&self) -> Option<f64> {
         Some(crate::consts::SAMPLE_RATE.into())
     }
 
     fn len(&self) -> Option<usize> {
-        Some(0)
+        Some(crate::consts::PERIOD.into())
     }
 }

@@ -11,10 +11,13 @@
 #![allow(unsafe_code)]
 
 use std::{
+    convert::TryInto,
     ffi::CStr,
     mem::MaybeUninit,
     os::raw::{c_char, c_void},
 };
+
+use fon::chan::{Ch32, Channel};
 
 use super::{
     free, pcm, Alsa, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmStream,
@@ -210,4 +213,64 @@ fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(
         (alsa.snd_device_name_free_hint)(hints);
     }
     devices
+}
+
+#[allow(unsafe_code)]
+pub(crate) fn pcm_hw_params(
+    device: &AudioDevice,
+    channels: u8,
+    buffer: &mut Vec<Ch32>,
+    sample_rate: &mut Option<f64>,
+    period: &mut u16,
+) -> Option<()> {
+    unsafe {
+        // Reset hardware parameters to any interleaved native endian float32
+        reset_hwp(device.pcm, device.hwp)?;
+
+        // Set Hz near library target Hz.
+        pcm::hw_params_set_rate_near(
+            device.pcm,
+            device.hwp,
+            &mut crate::consts::SAMPLE_RATE.into(),
+            &mut 0,
+        )
+        .ok()?;
+        // Set the number of channels.
+        pcm::hw_set_channels(device.pcm, device.hwp, channels).ok()?;
+        // Set period near library target period.
+        let mut period_size = crate::consts::PERIOD.into();
+        pcm::hw_params_set_period_size_near(
+            device.pcm,
+            device.hwp,
+            &mut period_size,
+            &mut 0,
+        )
+        .ok()?;
+        // Some buffer size should always be available (match period).
+        pcm::hw_params_set_buffer_size_near(
+            device.pcm,
+            device.hwp,
+            &mut period_size,
+        )
+        .ok()?;
+        // Should always be able to apply parameters that succeeded
+        pcm::hw_params(device.pcm, device.hwp).ok()?;
+
+        // Now that a configuration has been chosen, we can retreive the actual
+        // exact sample rate.
+        *sample_rate = Some(pcm::hw_get_rate(device.hwp)?);
+
+        // Set the period of the buffer.
+        *period = period_size.try_into().ok()?;
+
+        // Resize the buffer
+        buffer.resize(*period as usize * channels as usize, Ch32::MID);
+
+        // Empty the audio buffer to avoid artifacts on startup.
+        let _ = pcm::drop(device.pcm);
+        // Should always be able to apply parameters that succeeded
+        pcm::prepare(device.pcm).ok()?;
+    }
+
+    Some(())
 }

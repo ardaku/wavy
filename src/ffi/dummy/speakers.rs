@@ -9,24 +9,38 @@
 // according to those terms.
 
 use std::{
+    fmt::{Display, Error, Formatter},
     future::Future,
     marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use fon::{chan::Ch32, surround::Surround32, Audio, Frame, Resampler, Sink};
+use fon::{chan::Ch32, Frame, Resampler, Sink};
+
+use super::SoundDevice;
 
 pub(crate) struct Speakers {
-    pub(crate) channels: u8,
     pub(crate) sample_rate: Option<f64>,
 }
 
-impl Speakers {
-    pub(crate) fn connect(_id: crate::SpeakersId) -> Option<Self> {
-        None
-    }
+impl SoundDevice for Speakers {
+    const INPUT: bool = false;
+}
 
+impl Display for Speakers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_str("Default")
+    }
+}
+
+impl Default for Speakers {
+    fn default() -> Self {
+        Speakers { sample_rate: Some(48_000.0) }
+    }
+}
+
+impl Speakers {
     pub(crate) fn play<F: Frame<Chan = Ch32>>(
         &mut self,
     ) -> SpeakersSink<'_, F> {
