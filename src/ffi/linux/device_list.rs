@@ -17,12 +17,17 @@ use std::{
     os::raw::{c_char, c_void},
 };
 
-use super::{pcm, free, Alsa, SndPcmStream, SndPcmMode, SndPcmFormat, SndPcmAccess};
+use super::{
+    free, pcm, Alsa, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmStream,
+};
 
 const DEFAULT: &[u8] = b"default\0";
 
 /// Reset hardware parameters.
-pub(crate) unsafe fn reset_hwp(pcm: *mut c_void, hwp: *mut c_void) -> Option<()> {
+pub(crate) unsafe fn reset_hwp(
+    pcm: *mut c_void,
+    hwp: *mut c_void,
+) -> Option<()> {
     let format = if cfg!(target_endian = "little") {
         SndPcmFormat::FloatLe
     } else if cfg!(target_endian = "big") {
@@ -37,7 +42,10 @@ pub(crate) unsafe fn reset_hwp(pcm: *mut c_void, hwp: *mut c_void) -> Option<()>
 }
 
 /// Open a PCM Device.
-fn open(name: *const c_char, stream: SndPcmStream) -> Option<(*mut c_void, *mut c_void, u8)> {
+fn open(
+    name: *const c_char,
+    stream: SndPcmStream,
+) -> Option<(*mut c_void, *mut c_void, u8)> {
     unsafe {
         let pcm = pcm::open(name, stream, SndPcmMode::Nonblock).ok()?;
         let hwp = pcm::hw_params_malloc().ok()?;
@@ -68,12 +76,12 @@ impl SoundDevice for AudioSrc {
     fn pcm(&self) -> *mut c_void {
         self.0.pcm
     }
-    
+
     fn hwp(&self) -> *mut c_void {
         self.0.pcm
     }
 }
-    
+
 impl AudioSrc {
     pub(crate) fn channels(&self) -> u8 {
         self.0.supported
@@ -101,7 +109,7 @@ impl SoundDevice for AudioDst {
     fn pcm(&self) -> *mut c_void {
         self.0.pcm
     }
-    
+
     fn hwp(&self) -> *mut c_void {
         self.0.pcm
     }
@@ -140,7 +148,8 @@ pub(crate) struct AudioDevice {
 
 impl Default for AudioSrc {
     fn default() -> Self {
-        let (pcm, hwp, supported) = open(DEFAULT.as_ptr().cast(), SndPcmStream::Capture).unwrap();
+        let (pcm, hwp, supported) =
+            open(DEFAULT.as_ptr().cast(), SndPcmStream::Capture).unwrap();
         Self::from(AudioDevice {
             name: "Default".to_string(),
             pcm,
@@ -152,7 +161,8 @@ impl Default for AudioSrc {
 
 impl Default for AudioDst {
     fn default() -> Self {
-        let (pcm, hwp, supported) = open(DEFAULT.as_ptr().cast(), SndPcmStream::Playback).unwrap();
+        let (pcm, hwp, supported) =
+            open(DEFAULT.as_ptr().cast(), SndPcmStream::Playback).unwrap();
         Self::from(AudioDevice {
             name: "Default".to_string(),
             pcm,
@@ -242,10 +252,15 @@ fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(
             // Right input type?
             if (D::INPUT && is_input) || (!D::INPUT && is_output) {
                 // Try to connect to PCM.
-                let dev = open(pcm_name, if D::INPUT {
-                    SndPcmStream::Capture
-                } else { SndPcmStream::Playback });
-                
+                let dev = open(
+                    pcm_name,
+                    if D::INPUT {
+                        SndPcmStream::Capture
+                    } else {
+                        SndPcmStream::Playback
+                    },
+                );
+
                 if let Some((pcm, hwp, supported)) = dev {
                     // Add device to list of devices.
                     devices.push(abstrakt(D::from(AudioDevice {

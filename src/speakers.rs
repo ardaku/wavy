@@ -24,41 +24,40 @@ use crate::ffi;
 /// use pasts::{exec, wait};
 /// use twang::{Fc, Signal, Synth};
 /// use wavy::{SpeakersId, SpeakersSink};
-/// 
+///
 /// /// An event handled by the event loop.
 /// enum Event<'a> {
 ///     /// Speaker is ready to play more audio.
 ///     Play(SpeakersSink<'a, Stereo32>),
 /// }
-/// 
+///
 /// /// Shared state between tasks on the thread.
 /// struct State {
 ///     /// A streaming synthesizer using Twang.
 ///     synth: Synth<()>,
 /// }
-/// 
+///
 /// impl State {
 ///     /// Event loop.  Return false to stop program.
-///     fn event(&mut self, event: Event<'_>) -> bool {
+///     fn event(&mut self, event: Event<'_>) {
 ///         match event {
 ///             Event::Play(mut speakers) => speakers.stream(&mut self.synth),
 ///         }
-///         true
 ///     }
 /// }
-/// 
+///
 /// /// Program start.
 /// fn main() {
-///     fn sine(_: (), fc: Fc) -> Signal {
+///     fn sine(_: &mut (), fc: Fc) -> Signal {
 ///         fc.freq(440.0).sine().gain(0.7)
 ///     }
-/// 
+///
 ///     let mut state = State { synth: Synth::new((), sine) };
 ///     let mut speakers = SpeakersId::default().connect().unwrap();
-/// 
-///     exec! { state.event( wait! [
+///
+///     exec!(state.event(wait! {
 ///         Event::Play(speakers.play().await),
-///     ] .await ) }
+///     }));
 /// }
 /// ```
 pub struct Speakers(pub(super) ffi::Speakers);

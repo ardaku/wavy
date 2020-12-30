@@ -19,24 +19,23 @@ struct State {
 
 impl State {
     /// Event loop.  Return false to stop program.
-    fn event(&mut self, event: Event<'_>) -> bool {
+    fn event(&mut self, event: Event<'_>) {
         match event {
             Event::Play(mut speakers) => speakers.stream(&mut self.synth),
         }
-        true
     }
 }
 
 /// Program start.
 fn main() {
-    fn sine(_: (), fc: Fc) -> Signal {
+    fn sine(_: &mut (), fc: Fc) -> Signal {
         fc.freq(440.0).sine().gain(0.7)
     }
 
     let mut state = State { synth: Synth::new((), sine) };
     let mut speakers = SpeakersId::default().connect().unwrap();
 
-    exec! { state.event( wait! [
+    exec!(state.event(wait! {
         Event::Play(speakers.play().await),
-    ] .await ) }
+    }));
 }

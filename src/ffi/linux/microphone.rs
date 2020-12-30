@@ -10,9 +10,14 @@
 
 #![allow(unsafe_code)]
 
-use std::{marker::PhantomData, task::{Poll, Context}, pin::Pin, future::Future};
+use std::{
+    future::Future,
+    marker::PhantomData,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use fon::{chan::Ch32, Stream, Frame};
+use fon::{chan::Ch32, Frame, Stream};
 
 use super::{asound, pcm_hw_params, Pcm, SndPcmState};
 
@@ -22,7 +27,7 @@ pub(crate) struct Microphone {
     // Interleaved Audio Buffer.
     buffer: Vec<Ch32>,
     // The period of the microphone.
-    period: u8,
+    period: u16,
     // Index to stop reading.
     endi: usize,
     // Number of channels on the Microphone.
@@ -34,7 +39,7 @@ pub(crate) struct Microphone {
 impl Microphone {
     pub(crate) fn new(id: crate::MicrophoneId) -> Option<Self> {
         // Create Capture PCM.
-        let pcm = Pcm::new(id.0.0)?;
+        let pcm = Pcm::new(id.0 .0)?;
         // Return successfully
         Some(Self {
             pcm,
@@ -74,14 +79,13 @@ impl Microphone {
         &mut self,
     ) -> MicrophoneStream<'_, F> {
         // Change number of channels, if different than last call.
-        self
-            .set_channels::<F>()
+        self.set_channels::<F>()
             .expect("Microphone::record() called with invalid configuration");
-    
+
         // Stream from microphone's buffer.
         MicrophoneStream(self, 0, PhantomData)
     }
-    
+
     pub(crate) fn channels(&self) -> u8 {
         self.pcm.dev.supported
     }
@@ -100,6 +104,11 @@ impl Future for Microphone {
             return Poll::Ready(());
         }
 
+        // Check if not woken, then yield.
+        if this.pcm.fd.should_yield() {
+            return Poll::Pending;
+        }
+
         // Attempt to overwrite the internal microphone buffer.
         let result = unsafe {
             asound::pcm::readi(
@@ -112,61 +121,60 @@ impl Future for Microphone {
         // Check if it succeeds, then return Ready.
         match result {
             Err(error) => {
-            match error {
-                // Edge-triggered epoll should only go into pending mode if
-                // read/write call results in EAGAIN (according to epoll man
-                // page)
-                -11 => { /* Pending */ }
-                -77 => {
-                    eprintln!(
-                        "Incorrect state (-EBADFD): Report Bug to \
+                match error {
+                    // Edge-triggered epoll should only go into pending mode if
+                    // read/write call results in EAGAIN (according to epoll man
+                    // page)
+                    -11 => { /* Pending */ }
+                    -77 => {
+                        eprintln!(
+                            "Incorrect state (-EBADFD): Report Bug to \
                         https://github.com/libcala/wavy/issues/new"
-                    );
-                    unreachable!()
-                }
-                -32 => {
-                    match unsafe { asound::pcm::state(this.pcm.dev.pcm) } {
-                        SndPcmState::Xrun => {
-                            eprintln!("Microphone XRUN: Latency cause?");
-                            unsafe {
-                                asound::pcm::prepare(this.pcm.dev.pcm)
-                                    .unwrap();
+                        );
+                        unreachable!()
+                    }
+                    -32 => {
+                        match unsafe { asound::pcm::state(this.pcm.dev.pcm) } {
+                            SndPcmState::Xrun => {
+                                eprintln!("Microphone XRUN: Latency cause?");
+                                unsafe {
+                                    asound::pcm::prepare(this.pcm.dev.pcm)
+                                        .unwrap();
+                                }
                             }
-                        }
-                        st => {
-                            eprintln!(
+                            st => {
+                                eprintln!(
                                 "Incorrect state = {:?} (XRUN): Report Bug \
                             to https://github.com/libcala/wavy/issues/new",
                                 st
                             );
-                            unreachable!()
+                                unreachable!()
+                            }
                         }
                     }
-                }
-                -86 => {
-                    eprintln!(
+                    -86 => {
+                        eprintln!(
                         "Stream got suspended, trying to recover… (-ESTRPIPE)"
                     );
-                    unsafe {
-                        if asound::pcm::resume(this.pcm.dev.pcm).is_ok() {
-                            // Prepare, so we keep getting samples.
-                            asound::pcm::prepare(this.pcm.dev.pcm)
-                                .unwrap();
+                        unsafe {
+                            if asound::pcm::resume(this.pcm.dev.pcm).is_ok() {
+                                // Prepare, so we keep getting samples.
+                                asound::pcm::prepare(this.pcm.dev.pcm).unwrap();
+                            }
                         }
                     }
+                    _ => unreachable!(),
                 }
-                _ => unreachable!(),
+                // Register waker
+                this.pcm.fd.register_waker(cx.waker());
+                // Not ready
+                Poll::Pending
             }
-            // Register waker
-            this.pcm.fd.register_waker(cx.waker());
-            // Not ready
-            Poll::Pending
-        },
-        Ok(len) => {
-            this.endi = len;
-            // Ready, audio buffer has been filled!
-            Poll::Ready(())
-        }
+            Ok(len) => {
+                this.endi = len;
+                // Ready, audio buffer has been filled!
+                Poll::Ready(())
+            }
         }
     }
 }

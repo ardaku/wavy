@@ -8,25 +8,21 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
-use std::{
-    convert::TryInto,
-};
+use std::convert::TryInto;
 
-use fon::{
-    chan::{Ch32, Channel},
-};
+use fon::chan::{Ch32, Channel};
 
 mod asound;
-mod speakers;
 mod microphone;
+mod speakers;
 
 // Implementation Expectations:
 pub(crate) use asound::{
-    device_list::{device_list, AudioDst, AudioSrc, reset_hwp},
+    device_list::{device_list, reset_hwp, AudioDst, AudioSrc},
     PollFd, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState, SndPcmStream,
 };
-pub(crate) use speakers::{Speakers, SpeakersSink};
 pub(crate) use microphone::{Microphone, MicrophoneStream};
+pub(crate) use speakers::{Speakers, SpeakersSink};
 
 #[allow(unsafe_code)]
 fn pcm_hw_params(
@@ -34,7 +30,7 @@ fn pcm_hw_params(
     channels: u8,
     buffer: &mut Vec<Ch32>,
     sample_rate: &mut Option<f64>,
-    period: &mut u8,
+    period: &mut u16,
 ) -> Option<()> {
     unsafe {
         // Reset hardware parameters to any interleaved native endian float32
@@ -49,7 +45,8 @@ fn pcm_hw_params(
         )
         .ok()?;
         // Set the number of channels.
-        asound::pcm::hw_set_channels(pcm.dev.pcm, pcm.dev.hwp, channels).ok()?;
+        asound::pcm::hw_set_channels(pcm.dev.pcm, pcm.dev.hwp, channels)
+            .ok()?;
         // Set period near library target period.
         let mut period_size = crate::consts::PERIOD.into();
         asound::pcm::hw_params_set_period_size_near(
@@ -78,7 +75,7 @@ fn pcm_hw_params(
 
         // Resize the buffer
         buffer.resize(*period as usize * channels as usize, Ch32::MID);
-        
+
         // Empty the audio buffer to avoid artifacts on startup.
         let _ = asound::pcm::drop(pcm.dev.pcm);
         // Should always be able to apply parameters that succeeded
@@ -97,12 +94,9 @@ pub(super) struct Pcm {
 impl Pcm {
     /// Create a new async PCM.  If it fails return `None`.
     #[allow(unsafe_code)]
-    fn new(
-        dev: asound::device_list::AudioDevice,
-    ) -> Option<Self> {
+    fn new(dev: asound::device_list::AudioDevice) -> Option<Self> {
         // Get file descriptor
-        let fd_list =
-            unsafe { asound::pcm::poll_descriptors(dev.pcm).ok()? };
+        let fd_list = unsafe { asound::pcm::poll_descriptors(dev.pcm).ok()? };
         // FIXME: More?
         assert_eq!(fd_list.len(), 1);
         // Register file descriptor with OS's I/O Event Notifier

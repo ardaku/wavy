@@ -1,9 +1,9 @@
 // This example records audio and plays it back in real time as it's being
 // recorded.
 
-use fon::{mono::Mono32, Sink, Audio};
-use pasts::{exec, wait};
-use wavy::{SpeakersId, MicrophoneId, SpeakersSink, MicrophoneStream};
+use fon::{mono::Mono32, Audio, Sink};
+use pasts::exec;
+use wavy::{MicrophoneId, MicrophoneStream, SpeakersId, SpeakersSink};
 
 /// An event handled by the event loop.
 enum Event<'a> {
@@ -20,19 +20,12 @@ struct State {
 }
 
 impl State {
-    /// Event loop.  Return false to stop program.
-    fn event(&mut self, event: Event<'_>) -> bool {
+    /// Event loop.
+    fn event(&mut self, event: Event<'_>) {
         match event {
-            Event::Play(mut speakers) => {
-                //println!("Playing");
-                speakers.stream(self.buffer.drain())
-            },
-            Event::Record(microphone) => {
-                //println!("Recording");
-                self.buffer.extend(microphone);
-            },
+            Event::Play(mut speakers) => speakers.stream(self.buffer.drain()),
+            Event::Record(microphone) => self.buffer.extend(microphone),
         }
-        true
     }
 }
 
@@ -42,8 +35,8 @@ fn main() {
     let mut speakers = SpeakersId::default().connect().unwrap();
     let mut microphone = MicrophoneId::default().connect().unwrap();
 
-    exec! { state.event( wait! [
-        Event::Record(microphone.record().await),
+    exec!(state.event(pasts::wait! {
         Event::Play(speakers.play().await),
-    ] .await ) }
+        Event::Record(microphone.record().await),
+    }))
 }

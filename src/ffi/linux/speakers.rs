@@ -36,7 +36,7 @@ pub(crate) struct Speakers {
     /// Resampler context for speakers sink.
     resampler: ([Ch32; 6], f64),
     /// The number of frames in the buffer.
-    period: u8,
+    period: u16,
     /// Number of available channels
     pub(crate) channels: u8,
     /// The sample rate of the speakers.
@@ -47,7 +47,7 @@ impl Speakers {
     /// Attempt to connect to a speaker by id.
     pub(crate) fn connect(id: crate::SpeakersId) -> Option<Self> {
         // Create Playback PCM.
-        let pcm = Pcm::new(id.0.0)?;
+        let pcm = Pcm::new(id.0 .0)?;
         Some(Self {
             pcm,
             starti: 0,
@@ -89,8 +89,7 @@ impl Speakers {
         F: Frame<Chan = Ch32>,
     {
         // Change number of channels, if different than last call.
-        self
-            .set_channels::<F>()
+        self.set_channels::<F>()
             .expect("Speaker::play() called with invalid configuration");
         // Convert the resampler to the target speaker configuration.
         let resampler = Resampler::<F>::new(
@@ -100,7 +99,7 @@ impl Speakers {
         // Create a sink that borrows this speaker's buffer mutably.
         SpeakersSink(self, resampler, PhantomData)
     }
-    
+
     pub(crate) fn channels(&self) -> u8 {
         self.pcm.dev.supported
     }
@@ -116,6 +115,11 @@ impl Future for &mut Speakers {
         // If speaker is unconfigured, return Ready to configure and play.
         if this.channels == 0 {
             return Poll::Ready(());
+        }
+
+        // Check if not woken, then yield.
+        if this.pcm.fd.should_yield() {
+            return Poll::Pending;
         }
 
         // Attempt to write remaining internal speaker buffer to the speakers.
@@ -135,33 +139,33 @@ impl Future for &mut Speakers {
                     // read/write call results in EAGAIN (according to epoll man
                     // page)
                     -11 => { /* Pending */ }
-                    -32 => match unsafe {
-                        asound::pcm::state(this.pcm.dev.pcm)
-                    } {
-                        SndPcmState::Xrun => {
-                            // Player samples are not generated fast enough
-                            unsafe {
-                                asound::pcm::prepare(this.pcm.dev.pcm)
+                    -32 => {
+                        match unsafe { asound::pcm::state(this.pcm.dev.pcm) } {
+                            SndPcmState::Xrun => {
+                                // Player samples are not generated fast enough
+                                unsafe {
+                                    asound::pcm::prepare(this.pcm.dev.pcm)
+                                        .unwrap();
+                                }
+                                unsafe {
+                                    asound::pcm::writei(
+                                        this.pcm.dev.pcm,
+                                        this.buffer.as_ptr(),
+                                        this.period,
+                                    )
                                     .unwrap();
+                                }
                             }
-                            unsafe {
-                                asound::pcm::writei(
-                                    this.pcm.dev.pcm,
-                                    this.buffer.as_ptr(),
-                                    this.period,
-                                )
-                                .unwrap();
-                            }
-                        }
-                        st => {
-                            eprintln!(
+                            st => {
+                                eprintln!(
                                 "Incorrect state = {:?} (XRUN): Report Bug to \
                                  https://github.com/libcala/wavy/issues/new",
                                 st
                             );
-                            unreachable!()
+                                unreachable!()
+                            }
                         }
-                    },
+                    }
                     -77 => {
                         eprintln!(
                             "Incorrect state (-EBADFD): Report Bug to \
@@ -179,8 +183,7 @@ impl Future for &mut Speakers {
                         } {
                             // Prepare, so we keep getting samples.
                             unsafe {
-                                asound::pcm::prepare(this.pcm.dev.pcm)
-                                    .unwrap();
+                                asound::pcm::prepare(this.pcm.dev.pcm).unwrap();
                                 asound::pcm::writei(
                                     this.pcm.dev.pcm,
                                     this.buffer.as_ptr(),

@@ -18,18 +18,17 @@ struct State {
 
 impl State {
     /// Event loop.  Return false to stop program.
-    fn event(&mut self, event: Event<'_>) -> bool {
+    fn event(&mut self, event: Event<'_>) {
         match event {
             Event::Record(microphone) => {
                 //println!("Recording");
                 self.buffer.extend(microphone);
                 if self.buffer.len() >= 48_000 * 10 {
                     write_pcm(&self.buffer);
-                    return false;
+                    std::process::exit(0);
                 }
-            },
+            }
         }
-        true
     }
 }
 
@@ -48,7 +47,7 @@ fn main() {
     let mut state = State { buffer: Audio::with_silence(48_000, 0) };
     let mut microphone = MicrophoneId::default().connect().unwrap();
 
-    exec! { state.event( wait! [
+    exec!(state.event(wait! {
         Event::Record(microphone.record().await),
-    ] .await ) }
+    }))
 }

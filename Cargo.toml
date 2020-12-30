@@ -35,7 +35,7 @@ path = "../fon"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
-smelling_salts = { path = "../smelling_salts" } # "0.1"
+smelling_salts = "0.2"
 dl_api = "0.4"
 
 # For Web Assembly
@@ -62,7 +62,7 @@ version = "0.2"
 
 # Examples
 [dev-dependencies]
-pasts = { path = "../pasts" } # "0.6"
+pasts = "0.7"
 twang = { path = "../twang" } # "0.5"
 
 # Uncomment to replace dependencies with experimental versions.
