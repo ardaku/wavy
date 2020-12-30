@@ -10,7 +10,7 @@
 
 [package]
 name = "wavy"
-version = "0.7.1"
+version = "0.8.0"
 authors = ["Jeron Aldaron Lau <jeronlau@plopgrizzly.com>"]
 license = "Apache-2.0 OR BSL-1.0"
 
@@ -20,7 +20,7 @@ Asynchronous cross-platform real-time audio recording & playback.
 repository = "https://github.com/libcala/wavy"
 documentation = "https://docs.rs/wavy"
 homepage = "https://github.com/libcala/wavy/blob/master/CHANGELOG.md"
-include = ["Cargo.toml", "README.md", "LICENSE-ZLIB", "LICENSE-APACHE", "src/*"]
+include = ["Cargo.toml", "README.md", "src/*"]
 categories = [
     "game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"
 ]

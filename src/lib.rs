@@ -15,9 +15,9 @@
 //!
 //! ```toml
 //! [dependencies]
-//! pasts = "0.6"
-//! wavy = "0.5"
-//! fon = "0.2"
+//! pasts = "0.7"
+//! wavy = "0.8"
+//! fon = "0.4"
 //! ```
 //!
 //! This example records audio and plays it back in real time as it's being
