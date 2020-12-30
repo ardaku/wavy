@@ -62,7 +62,7 @@ version = "0.2"
 # Examples
 [dev-dependencies]
 pasts = "0.6"
-twang = "0.5"
+twang = "0.6"
 
 # Default to x86 64-bit Linux
 [package.metadata.docs.rs]
