@@ -59,7 +59,7 @@ impl State {
         if state().context.is_none() {
             state().context = Some(
                 AudioContext::new_with_context_options(
-                    &AudioContextOptions::new(), //.sample_rate(SAMPLE_RATE as f32),
+                    &AudioContextOptions::new().sample_rate(SAMPLE_RATE as f32),
                 )
                 .expect("Couldn't initialize AudioContext"),
             );
@@ -143,6 +143,8 @@ mod device_list;
 mod microphone;
 mod speakers;
 
-pub(crate) use device_list::{device_list, AudioDst, AudioSrc};
-pub(super) use microphone::Microphone;
-pub(super) use speakers::Speakers;
+use device_list::SoundDevice;
+
+pub(crate) use device_list::device_list;
+pub(super) use microphone::{Microphone, MicrophoneStream};
+pub(super) use speakers::{Speakers, SpeakersSink};

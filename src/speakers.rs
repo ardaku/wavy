@@ -8,6 +8,8 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
+#![allow(clippy::needless_doctest_main)]
+
 use std::fmt::{Debug, Display, Formatter, Result};
 
 use fon::{chan::Ch32, Frame, Resampler, Sink};
