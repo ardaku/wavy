@@ -30,7 +30,7 @@ edition = "2018"
 
 # For all platforms
 [dependencies.fon]
-version = "0.3"
+version = "0.4"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
