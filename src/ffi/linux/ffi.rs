@@ -18,7 +18,7 @@ mod speakers;
 
 // Implementation Expectations:
 pub(crate) use asound::{
-    device_list::{device_list, reset_hwp, AudioDst, AudioSrc},
+    device_list::{device_list, reset_hwp, AudioDst, AudioSrc, AudioDevice},
     PollFd, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState, SndPcmStream,
 };
 pub(crate) use microphone::{Microphone, MicrophoneStream};
@@ -26,7 +26,7 @@ pub(crate) use speakers::{Speakers, SpeakersSink};
 
 #[allow(unsafe_code)]
 fn pcm_hw_params(
-    pcm: &Pcm,
+    device: &AudioDevice,
     channels: u8,
     buffer: &mut Vec<Ch32>,
     sample_rate: &mut Option<f64>,
@@ -34,41 +34,41 @@ fn pcm_hw_params(
 ) -> Option<()> {
     unsafe {
         // Reset hardware parameters to any interleaved native endian float32
-        reset_hwp(pcm.dev.pcm, pcm.dev.hwp)?;
+        reset_hwp(device.pcm, device.hwp)?;
 
         // Set Hz near library target Hz.
         asound::pcm::hw_params_set_rate_near(
-            pcm.dev.pcm,
-            pcm.dev.hwp,
+            device.pcm,
+            device.hwp,
             &mut crate::consts::SAMPLE_RATE.into(),
             &mut 0,
         )
         .ok()?;
         // Set the number of channels.
-        asound::pcm::hw_set_channels(pcm.dev.pcm, pcm.dev.hwp, channels)
+        asound::pcm::hw_set_channels(device.pcm, device.hwp, channels)
             .ok()?;
         // Set period near library target period.
         let mut period_size = crate::consts::PERIOD.into();
         asound::pcm::hw_params_set_period_size_near(
-            pcm.dev.pcm,
-            pcm.dev.hwp,
+            device.pcm,
+            device.hwp,
             &mut period_size,
             &mut 0,
         )
         .ok()?;
         // Some buffer size should always be available (match period).
         asound::pcm::hw_params_set_buffer_size_near(
-            pcm.dev.pcm,
-            pcm.dev.hwp,
+            device.pcm,
+            device.hwp,
             &mut period_size,
         )
         .ok()?;
         // Should always be able to apply parameters that succeeded
-        asound::pcm::hw_params(pcm.dev.pcm, pcm.dev.hwp).ok()?;
+        asound::pcm::hw_params(device.pcm, device.hwp).ok()?;
 
         // Now that a configuration has been chosen, we can retreive the actual
         // exact sample rate.
-        *sample_rate = Some(asound::pcm::hw_get_rate(pcm.dev.hwp)?);
+        *sample_rate = Some(asound::pcm::hw_get_rate(device.hwp)?);
 
         // Set the period of the buffer.
         *period = period_size.try_into().ok()?;
@@ -77,45 +77,10 @@ fn pcm_hw_params(
         buffer.resize(*period as usize * channels as usize, Ch32::MID);
 
         // Empty the audio buffer to avoid artifacts on startup.
-        let _ = asound::pcm::drop(pcm.dev.pcm);
+        let _ = asound::pcm::drop(device.pcm);
         // Should always be able to apply parameters that succeeded
-        asound::pcm::prepare(pcm.dev.pcm).ok()?;
+        asound::pcm::prepare(device.pcm).ok()?;
     }
 
     Some(())
-}
-
-// Speakers/Microphone Shared Code for ALSA.
-pub(super) struct Pcm {
-    dev: asound::device_list::AudioDevice,
-    fd: smelling_salts::Device,
-}
-
-impl Pcm {
-    /// Create a new async PCM.  If it fails return `None`.
-    #[allow(unsafe_code)]
-    fn new(dev: asound::device_list::AudioDevice) -> Option<Self> {
-        // Get file descriptor
-        let fd_list = unsafe { asound::pcm::poll_descriptors(dev.pcm).ok()? };
-        // FIXME: More?
-        assert_eq!(fd_list.len(), 1);
-        // Register file descriptor with OS's I/O Event Notifier
-        let fd = smelling_salts::Device::new(
-            fd_list[0].fd,
-            #[allow(unsafe_code)]
-            unsafe {
-                smelling_salts::Watcher::from_raw(fd_list[0].events as u32)
-            },
-        );
-
-        Some(Pcm { dev, fd })
-    }
-}
-
-impl Drop for Pcm {
-    #[allow(unsafe_code)]
-    fn drop(&mut self) {
-        // Unregister async file descriptor before closing the PCM.
-        self.fd.old();
-    }
 }

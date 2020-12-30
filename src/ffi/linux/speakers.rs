@@ -23,12 +23,12 @@ use fon::{
     Frame, Resampler, Sink,
 };
 
-use super::{asound, pcm_hw_params, Pcm, SndPcmState};
+use super::{asound, pcm_hw_params, AudioDevice, SndPcmState};
 
 /// ALSA Speakers connection.
 pub(crate) struct Speakers {
     /// ALSA PCM type for both speakers and microphones.
-    pcm: Pcm,
+    device: AudioDevice,
     /// Index into audio frames to start writing.
     starti: usize,
     /// Raw buffer of audio yet to be played.
@@ -46,10 +46,8 @@ pub(crate) struct Speakers {
 impl Speakers {
     /// Attempt to connect to a speaker by id.
     pub(crate) fn connect(id: crate::SpeakersId) -> Option<Self> {
-        // Create Playback PCM.
-        let pcm = Pcm::new(id.0 .0)?;
         Some(Self {
-            pcm,
+            device: id.0.0,
             starti: 0,
             buffer: Vec::new(),
             sample_rate: None,
@@ -71,7 +69,7 @@ impl Speakers {
             self.channels = F::CHAN_COUNT as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
-                &self.pcm,
+                &self.device,
                 self.channels,
                 &mut self.buffer,
                 &mut self.sample_rate,
@@ -101,7 +99,7 @@ impl Speakers {
     }
 
     pub(crate) fn channels(&self) -> u8 {
-        self.pcm.dev.supported
+        self.device.supported
     }
 }
 
@@ -114,18 +112,26 @@ impl Future for &mut Speakers {
 
         // If speaker is unconfigured, return Ready to configure and play.
         if this.channels == 0 {
+            let _ = this.device.start();
             return Poll::Ready(());
         }
 
         // Check if not woken, then yield.
-        if this.pcm.fd.should_yield() {
+        let mut pending = true;
+        for fd in &this.device.fds {
+            if !fd.should_yield() {
+                pending = false;
+                break;
+            }
+        }
+        if pending {
             return Poll::Pending;
         }
 
         // Attempt to write remaining internal speaker buffer to the speakers.
         let result = unsafe {
             asound::pcm::writei(
-                this.pcm.dev.pcm,
+                this.device.pcm,
                 this.buffer.as_ptr(),
                 this.period,
             )
@@ -140,16 +146,16 @@ impl Future for &mut Speakers {
                     // page)
                     -11 => { /* Pending */ }
                     -32 => {
-                        match unsafe { asound::pcm::state(this.pcm.dev.pcm) } {
+                        match unsafe { asound::pcm::state(this.device.pcm) } {
                             SndPcmState::Xrun => {
                                 // Player samples are not generated fast enough
                                 unsafe {
-                                    asound::pcm::prepare(this.pcm.dev.pcm)
+                                    asound::pcm::prepare(this.device.pcm)
                                         .unwrap();
                                 }
                                 unsafe {
                                     asound::pcm::writei(
-                                        this.pcm.dev.pcm,
+                                        this.device.pcm,
                                         this.buffer.as_ptr(),
                                         this.period,
                                     )
@@ -179,13 +185,13 @@ impl Future for &mut Speakers {
                              (-ESTRPIPE)"
                         );
                         if unsafe {
-                            asound::pcm::resume(this.pcm.dev.pcm).is_ok()
+                            asound::pcm::resume(this.device.pcm).is_ok()
                         } {
                             // Prepare, so we keep getting samples.
                             unsafe {
-                                asound::pcm::prepare(this.pcm.dev.pcm).unwrap();
+                                asound::pcm::prepare(this.device.pcm).unwrap();
                                 asound::pcm::writei(
-                                    this.pcm.dev.pcm,
+                                    this.device.pcm,
                                     this.buffer.as_ptr(),
                                     this.period,
                                 )
@@ -195,8 +201,10 @@ impl Future for &mut Speakers {
                     }
                     _ => unreachable!(),
                 }
-                // Register waker, and then return not ready.
-                this.pcm.fd.register_waker(cx.waker());
+                for fd in &this.device.fds {
+                    // Register waker, and then return not ready.
+                    fd.register_waker(cx.waker());
+                }
                 Poll::Pending
             }
             Ok(len) => {

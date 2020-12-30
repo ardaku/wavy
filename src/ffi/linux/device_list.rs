@@ -144,6 +144,8 @@ pub(crate) struct AudioDevice {
     pub(crate) hwp: *mut c_void,
     /// Bitflags for numbers of channels (which of 1-8 are supported)
     pub(crate) supported: u8,
+    /// File descriptors associated with this device.
+    pub(crate) fds: Vec<smelling_salts::Device>,
 }
 
 impl Default for AudioSrc {
@@ -155,6 +157,7 @@ impl Default for AudioSrc {
             pcm,
             hwp,
             supported,
+            fds: Vec::new(),
         })
     }
 }
@@ -168,12 +171,37 @@ impl Default for AudioDst {
             pcm,
             hwp,
             supported,
+            fds: Vec::new(),
         })
+    }
+}
+
+impl AudioDevice {
+    /// Generate file descriptors.
+    pub(crate) fn start(&mut self) -> Option<()> {
+        assert!(self.fds.is_empty());
+        // Get file descriptor.
+        let fd_list = unsafe { pcm::poll_descriptors(self.pcm).ok()? };
+        // Add to list.
+        for fd in fd_list {
+            self.fds.push(smelling_salts::Device::new(
+                fd.fd,
+                unsafe {
+                    smelling_salts::Watcher::from_raw(fd.events as u32)
+                },
+            ));
+        }
+        Some(())
     }
 }
 
 impl Drop for AudioDevice {
     fn drop(&mut self) {
+        // Unregister async file descriptors before closing the PCM.
+        for fd in &mut self.fds {
+            fd.old();
+        }
+        // Free hardware parameters and close PCM
         unsafe {
             pcm::hw_params_free(self.hwp);
             pcm::close(self.pcm).unwrap();
@@ -268,6 +296,7 @@ fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(
                         pcm,
                         hwp,
                         supported,
+                        fds: Vec::new(),
                     })));
                 }
             }

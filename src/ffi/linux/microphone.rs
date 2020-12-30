@@ -19,11 +19,11 @@ use std::{
 
 use fon::{chan::Ch32, Frame, Stream};
 
-use super::{asound, pcm_hw_params, Pcm, SndPcmState};
+use super::{asound, pcm_hw_params, AudioDevice, SndPcmState};
 
 pub(crate) struct Microphone {
     // PCM I/O Handle
-    pcm: Pcm,
+    device: AudioDevice,
     // Interleaved Audio Buffer.
     buffer: Vec<Ch32>,
     // The period of the microphone.
@@ -38,11 +38,9 @@ pub(crate) struct Microphone {
 
 impl Microphone {
     pub(crate) fn new(id: crate::MicrophoneId) -> Option<Self> {
-        // Create Capture PCM.
-        let pcm = Pcm::new(id.0 .0)?;
         // Return successfully
         Some(Self {
-            pcm,
+            device: id.0.0,
             buffer: Vec::new(),
             period: 0,
             channels: 0,
@@ -63,7 +61,7 @@ impl Microphone {
             self.channels = F::CHAN_COUNT as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
-                &self.pcm,
+                &self.device,
                 self.channels,
                 &mut self.buffer,
                 &mut self.sample_rate,
@@ -87,7 +85,7 @@ impl Microphone {
     }
 
     pub(crate) fn channels(&self) -> u8 {
-        self.pcm.dev.supported
+        self.device.supported
     }
 }
 
@@ -101,18 +99,26 @@ impl Future for Microphone {
 
         // If microphone is unconfigured, return Ready to configure and play.
         if this.channels == 0 {
+            let _ = this.device.start();
             return Poll::Ready(());
         }
 
         // Check if not woken, then yield.
-        if this.pcm.fd.should_yield() {
+        let mut pending = true;
+        for fd in &this.device.fds {
+            if !fd.should_yield() {
+                pending = false;
+                break;
+            }
+        }
+        if pending {
             return Poll::Pending;
         }
 
         // Attempt to overwrite the internal microphone buffer.
         let result = unsafe {
             asound::pcm::readi(
-                this.pcm.dev.pcm,
+                this.device.pcm,
                 this.buffer.as_mut_slice().as_mut_ptr(),
                 this.period,
             )
@@ -134,11 +140,11 @@ impl Future for Microphone {
                         unreachable!()
                     }
                     -32 => {
-                        match unsafe { asound::pcm::state(this.pcm.dev.pcm) } {
+                        match unsafe { asound::pcm::state(this.device.pcm) } {
                             SndPcmState::Xrun => {
                                 eprintln!("Microphone XRUN: Latency cause?");
                                 unsafe {
-                                    asound::pcm::prepare(this.pcm.dev.pcm)
+                                    asound::pcm::prepare(this.device.pcm)
                                         .unwrap();
                                 }
                             }
@@ -157,16 +163,18 @@ impl Future for Microphone {
                         "Stream got suspended, trying to recover… (-ESTRPIPE)"
                     );
                         unsafe {
-                            if asound::pcm::resume(this.pcm.dev.pcm).is_ok() {
+                            if asound::pcm::resume(this.device.pcm).is_ok() {
                                 // Prepare, so we keep getting samples.
-                                asound::pcm::prepare(this.pcm.dev.pcm).unwrap();
+                                asound::pcm::prepare(this.device.pcm).unwrap();
                             }
                         }
                     }
                     _ => unreachable!(),
                 }
-                // Register waker
-                this.pcm.fd.register_waker(cx.waker());
+                for fd in &this.device.fds {
+                    // Register waker
+                    fd.register_waker(cx.waker());
+                }
                 // Not ready
                 Poll::Pending
             }

@@ -13,5 +13,5 @@ mod microphone;
 mod speakers;
 
 pub(crate) use device_list::{device_list, AudioDst, AudioSrc};
-pub(super) use microphone::Microphone;
-pub(super) use speakers::Speakers;
+pub(super) use microphone::{Microphone, MicrophoneStream};
+pub(super) use speakers::{Speakers, SpeakersSink};

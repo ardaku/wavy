@@ -15,30 +15,51 @@ use std::{
     task::{Context, Poll},
 };
 
-use fon::{Audio, Sample};
+use fon::{Audio, Frame, Resampler, Sink, surround::Surround32, chan::Ch32};
 
-pub(crate) struct Speakers<S: Sample> {
-    _phantom: PhantomData<S>,
+pub(crate) struct Speakers {
+    pub(crate) channels: u8,
+    pub(crate) sample_rate: Option<f64>,
 }
 
-impl<S: Sample> Speakers<S> {
-    pub(crate) fn connect(_id: &crate::SpeakerId) -> Option<(Self, f64)> {
-        let _phantom = PhantomData::<S>;
-
-        Some((Self { _phantom }, crate::consts::SAMPLE_RATE.into()))
+impl Speakers {
+    pub(crate) fn connect(_id: crate::SpeakersId) -> Option<Self> {
+        None
     }
 
-    pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize {
-        let _ = audio;
-
-        0 // 0 frames were written.
+    pub(crate) fn play<F: Frame<Chan = Ch32>>(&mut self) -> SpeakersSink<'_, F> {
+        SpeakersSink(self, Resampler::default(), PhantomData)
+    }
+    
+    pub(crate) fn channels(&self) -> u8 {
+        1
     }
 }
 
-impl<S: Sample> Future for &mut Speakers<S> {
+impl Future for &mut Speakers {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Pending
+    }
+}
+
+pub(crate) struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(
+    &'a mut Speakers,
+    Resampler<F>,
+    PhantomData<F>,
+);
+
+impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
+    fn sample_rate(&self) -> f64 {
+        self.0.sample_rate.unwrap()
+    }
+
+    fn resampler(&mut self) -> &mut Resampler<F> {
+        &mut self.1
+    }
+
+    fn buffer(&mut self) -> &mut [F] {
+        &mut []
     }
 }
