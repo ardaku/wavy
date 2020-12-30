@@ -30,8 +30,7 @@ edition = "2018"
 
 # For all platforms
 [dependencies.fon]
-version = "0.3"
-path = "../fon"
+version = "0.4"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
@@ -63,8 +62,4 @@ version = "0.2"
 # Examples
 [dev-dependencies]
 pasts = "0.7"
-twang = { path = "../twang" } # "0.5"
-
-# Uncomment to replace dependencies with experimental versions.
-# [replace]
-# "twang:0.4.0" = { path = "../twang" }
+twang = "0.6"
