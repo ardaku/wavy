@@ -79,6 +79,14 @@ impl Speakers {
     pub(crate) fn play<F: Frame<Chan = Ch32>>(
         &mut self,
     ) -> SpeakersSink<'_, F> {
+        // Adjust buffer size depending on type.
+        if TypeId::of::<F>() == TypeId::of::<Mono32>() {
+            self.buffer.resize(crate::consts::PERIOD.into(), 0.0);
+        } else if TypeId::of::<F>() == TypeId::of::<Stereo32>() {
+            self.buffer.resize(crate::consts::PERIOD as usize * 2, 0.0);
+        } else {
+            panic!("Attempted to use Speakers with invalid frame type");
+        }
         // Convert the resampler to the target speaker configuration.
         let resampler = Resampler::<F>::new(
             Surround32::from_channels(&self.resampler.0[..]).convert(),
@@ -126,7 +134,7 @@ impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
     #[allow(unsafe_code)]
     fn buffer(&mut self) -> &mut [F] {
         let data = self.0.buffer.as_mut_ptr().cast();
-        let count = self.0.buffer.len();
+        let count = crate::consts::PERIOD.into();
         unsafe { &mut std::slice::from_raw_parts_mut(data, count)[..] }
     }
 }
@@ -153,8 +161,9 @@ impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<'_, F> {
                 state.r_buffer[i] = sample[1];
             }
         } else {
-            panic!("Attempted to use Speakers with invalid frame type");
+            unreachable!();
         }
+
         // Store 5.1 surround sample to resampler.
         let frame: Surround32 = self.1.frame().convert();
         self.0.resampler.0 = [
