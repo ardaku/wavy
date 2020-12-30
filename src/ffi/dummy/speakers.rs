@@ -9,39 +9,73 @@
 // according to those terms.
 
 use std::{
+    fmt::{Display, Error, Formatter},
     future::Future,
     marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use fon::{chan::Ch16, Sample, Audio};
+use fon::{chan::Ch32, Frame, Resampler, Sink};
 
-pub(crate) struct Speakers<S: Sample> {
-    _phantom: PhantomData<S>,
+use super::SoundDevice;
+
+pub(crate) struct Speakers {
+    pub(crate) sample_rate: Option<f64>,
 }
 
-impl<S: Sample> Speakers<S> {
-    pub(crate) fn connect(_id: &crate::SpeakerId) -> Option<(Self, u32)> {
-        let _phantom = PhantomData::<S>;
+impl SoundDevice for Speakers {
+    const INPUT: bool = false;
+}
 
-        Some((Self { _phantom }, 48_000))
-    }
-
-    pub(crate) fn play(&mut self, audio: &Audio<S>) -> usize {
-        let _ = audio;
-
-        0 // 0 frames were written.
+impl Display for Speakers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_str("Default")
     }
 }
 
-impl<S: Sample + Unpin> Future for &mut Speakers<S>
-where
-    Ch16: From<S::Chan>,
-{
+impl Default for Speakers {
+    fn default() -> Self {
+        Speakers { sample_rate: Some(48_000.0) }
+    }
+}
+
+impl Speakers {
+    pub(crate) fn play<F: Frame<Chan = Ch32>>(
+        &mut self,
+    ) -> SpeakersSink<'_, F> {
+        SpeakersSink(self, Resampler::default(), PhantomData)
+    }
+
+    pub(crate) fn channels(&self) -> u8 {
+        1
+    }
+}
+
+impl Future for &mut Speakers {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Pending
+    }
+}
+
+pub(crate) struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(
+    &'a mut Speakers,
+    Resampler<F>,
+    PhantomData<F>,
+);
+
+impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
+    fn sample_rate(&self) -> f64 {
+        self.0.sample_rate.unwrap()
+    }
+
+    fn resampler(&mut self) -> &mut Resampler<F> {
+        &mut self.1
+    }
+
+    fn buffer(&mut self) -> &mut [F] {
+        &mut []
     }
 }

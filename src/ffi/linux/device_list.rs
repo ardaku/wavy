@@ -10,100 +10,108 @@
 
 #![allow(unsafe_code)]
 
-use super::{free, Alsa};
 use std::{
+    convert::TryInto,
     ffi::CStr,
-    fmt::{Display, Error, Formatter},
     mem::MaybeUninit,
-    os::raw::c_char,
+    os::raw::{c_char, c_void},
 };
 
-const DEFAULT: &[u8] = b"default\0";
+use fon::chan::{Ch32, Channel};
 
-pub(crate) trait SoundDevice: Display + From<AudioDevice> {
+use super::{
+    free, pcm, Alsa, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmStream,
+};
+
+pub(crate) const DEFAULT: &[u8] = b"default\0";
+
+/// Reset hardware parameters.
+pub(crate) unsafe fn reset_hwp(
+    pcm: *mut c_void,
+    hwp: *mut c_void,
+) -> Option<()> {
+    let format = if cfg!(target_endian = "little") {
+        SndPcmFormat::FloatLe
+    } else if cfg!(target_endian = "big") {
+        SndPcmFormat::FloatBe
+    } else {
+        unreachable!()
+    };
+    pcm::hw_params_any(pcm, hwp).ok()?;
+    pcm::hw_params_set_access(pcm, hwp, SndPcmAccess::RwInterleaved).ok()?;
+    pcm::hw_params_set_format(pcm, hwp, format).ok()?;
+    Some(())
+}
+
+/// Open a PCM Device.
+pub(crate) fn open(
+    name: *const c_char,
+    stream: SndPcmStream,
+) -> Option<(*mut c_void, *mut c_void, u8)> {
+    unsafe {
+        let pcm = pcm::open(name, stream, SndPcmMode::Nonblock).ok()?;
+        let hwp = pcm::hw_params_malloc().ok()?;
+        let mut channels = 0;
+        reset_hwp(pcm, hwp)?;
+        for i in 1..=8 {
+            if pcm::hw_test_channels(pcm, hwp, i).is_ok() {
+                channels |= 1 << (i - 1);
+            }
+        }
+        Some((pcm, hwp, channels))
+    }
+}
+
+pub(crate) trait SoundDevice:
+    std::fmt::Display + From<AudioDevice>
+{
     const INPUT: bool;
 
-    fn desc(&self) -> *const c_char;
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct AudioSrc(AudioDevice);
-
-impl SoundDevice for AudioSrc {
-    const INPUT: bool = true;
-
-    fn desc(&self) -> *const c_char {
-        if self.0.desc.is_null() {
-            DEFAULT.as_ptr().cast()
-        } else {
-            self.0.desc
-        }
-    }
-}
-
-impl From<AudioDevice> for AudioSrc {
-    fn from(device: AudioDevice) -> Self {
-        Self(device)
-    }
-}
-
-impl Display for AudioSrc {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.write_str(self.0.name.as_str())
-    }
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct AudioDst(AudioDevice);
-
-impl SoundDevice for AudioDst {
-    const INPUT: bool = false;
-
-    fn desc(&self) -> *const c_char {
-        if self.0.desc.is_null() {
-            DEFAULT.as_ptr().cast()
-        } else {
-            self.0.desc
-        }
-    }
-}
-
-impl Display for AudioDst {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.write_str(self.0.name.as_str())
-    }
-}
-
-impl From<AudioDevice> for AudioDst {
-    fn from(device: AudioDevice) -> Self {
-        Self(device)
-    }
+    fn pcm(&self) -> *mut c_void;
+    fn hwp(&self) -> *mut c_void;
 }
 
 /// An Audio Device (input or output).
 #[derive(Debug)]
 pub(crate) struct AudioDevice {
-    /// Human readable name for the device.
-    name: String,
-    /// Device descriptor
-    desc: *mut c_char,
+    /// Human-readable name for the device.
+    pub(crate) name: String,
+    /// PCM For Device.
+    pub(crate) pcm: *mut c_void,
+    /// Hardware parameters for device.
+    pub(crate) hwp: *mut c_void,
+    /// Bitflags for numbers of channels (which of 1-8 are supported)
+    pub(crate) supported: u8,
+    /// File descriptors associated with this device.
+    pub(crate) fds: Vec<smelling_salts::Device>,
 }
 
-impl Default for AudioDevice {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            desc: std::ptr::null_mut(),
+impl AudioDevice {
+    /// Generate file descriptors.
+    pub(crate) fn start(&mut self) -> Option<()> {
+        assert!(self.fds.is_empty());
+        // Get file descriptor.
+        let fd_list = unsafe { pcm::poll_descriptors(self.pcm).ok()? };
+        // Add to list.
+        for fd in fd_list {
+            self.fds.push(smelling_salts::Device::new(fd.fd, unsafe {
+                smelling_salts::Watcher::from_raw(fd.events as u32)
+            }));
         }
+        Some(())
     }
 }
 
 impl Drop for AudioDevice {
     fn drop(&mut self) {
-        if self.desc as *const _ != DEFAULT.as_ptr() {
-            unsafe {
-                free(self.desc.cast());
-            }
+        // Unregister async file descriptors before closing the PCM.
+        for fd in &mut self.fds {
+            fd.old();
+        }
+        // Free hardware parameters and close PCM
+        unsafe {
+            pcm::hw_params_free(self.hwp);
+            pcm::close(self.pcm).unwrap();
         }
     }
 }
@@ -142,40 +150,127 @@ fn device_list_internal<D: SoundDevice, F: Fn(D) -> T, T>(
         let mut n = hints;
         while !(*n).is_null() {
             // Allocate 3 C Strings describing device.
-            let name = (alsa.snd_device_name_get_hint)(*n, tname.as_ptr());
+            let pcm_name = (alsa.snd_device_name_get_hint)(*n, tname.as_ptr());
             let io = (alsa.snd_device_name_get_hint)(*n, tioid.as_ptr());
-            assert_ne!(name, std::ptr::null_mut());
+            debug_assert_ne!(pcm_name, std::ptr::null_mut());
 
             // Convert description to Rust String
-            let desc = match CStr::from_ptr(name).to_str() {
-                Ok("null") => "Null".to_string(),
+            let name = match CStr::from_ptr(pcm_name).to_str() {
+                Ok(x) if x.starts_with("sysdefault") => {
+                    n = n.offset(1);
+                    continue;
+                }
+                Ok("null") => {
+                    // Can't use epoll on null.
+                    n = n.offset(1);
+                    continue;
+                }
                 Ok("default") => "Default".to_string(),
-                _ => {
-                    let desc =
+                _a => {
+                    let name =
                         (alsa.snd_device_name_get_hint)(*n, tdesc.as_ptr());
-                    assert_ne!(desc, std::ptr::null_mut());
+                    assert_ne!(name, std::ptr::null_mut());
                     let rust =
-                        CStr::from_ptr(desc).to_string_lossy().to_string();
-                    free(desc.cast());
+                        CStr::from_ptr(name).to_string_lossy().to_string();
+                    free(name.cast());
                     rust.replace("\n", ": ")
                 }
             };
+
             // Check device io direction.
             let is_input = io.is_null() || *(io.cast::<u8>()) == b'I';
             let is_output = io.is_null() || *(io.cast::<u8>()) == b'O';
             if !io.is_null() {
                 free(io.cast());
             }
+
+            // Right input type?
             if (D::INPUT && is_input) || (!D::INPUT && is_output) {
-                // Add device to list of devices.
-                devices.push(abstrakt(D::from(AudioDevice {
-                    name: desc,
-                    desc: name,
-                })));
+                // Try to connect to PCM.
+                let dev = open(
+                    pcm_name,
+                    if D::INPUT {
+                        SndPcmStream::Capture
+                    } else {
+                        SndPcmStream::Playback
+                    },
+                );
+
+                if let Some((pcm, hwp, supported)) = dev {
+                    // Add device to list of devices.
+                    devices.push(abstrakt(D::from(AudioDevice {
+                        name,
+                        pcm,
+                        hwp,
+                        supported,
+                        fds: Vec::new(),
+                    })));
+                }
             }
+            free(pcm_name.cast());
             n = n.offset(1);
         }
         (alsa.snd_device_name_free_hint)(hints);
     }
     devices
+}
+
+#[allow(unsafe_code)]
+pub(crate) fn pcm_hw_params(
+    device: &AudioDevice,
+    channels: u8,
+    buffer: &mut Vec<Ch32>,
+    sample_rate: &mut Option<f64>,
+    period: &mut u16,
+) -> Option<()> {
+    unsafe {
+        // Reset hardware parameters to any interleaved native endian float32
+        reset_hwp(device.pcm, device.hwp)?;
+
+        // Set Hz near library target Hz.
+        pcm::hw_params_set_rate_near(
+            device.pcm,
+            device.hwp,
+            &mut crate::consts::SAMPLE_RATE.into(),
+            &mut 0,
+        )
+        .ok()?;
+        // Set the number of channels.
+        pcm::hw_set_channels(device.pcm, device.hwp, channels).ok()?;
+        // Set period near library target period.
+        let mut period_size = crate::consts::PERIOD.into();
+        pcm::hw_params_set_period_size_near(
+            device.pcm,
+            device.hwp,
+            &mut period_size,
+            &mut 0,
+        )
+        .ok()?;
+        // Some buffer size should always be available (match period).
+        pcm::hw_params_set_buffer_size_near(
+            device.pcm,
+            device.hwp,
+            &mut period_size,
+        )
+        .ok()?;
+        // Should always be able to apply parameters that succeeded
+        pcm::hw_params(device.pcm, device.hwp).ok()?;
+
+        // Now that a configuration has been chosen, we can retreive the actual
+        // exact sample rate.
+        *sample_rate = Some(pcm::hw_get_rate(device.hwp)?);
+
+        // Set the period of the buffer.
+        *period = period_size.try_into().ok()?;
+
+        // Resize the buffer
+        buffer.resize(*period as usize * channels as usize, Ch32::MID);
+
+        // Empty the audio buffer to avoid artifacts on startup.
+        let _ = pcm::drop(device.pcm);
+        // Should always be able to apply parameters that succeeded
+        pcm::prepare(device.pcm).ok()?;
+    }
+
+    Some(())
 }

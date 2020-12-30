@@ -9,36 +9,48 @@
 // according to those terms.
 
 use std::{
+    fmt::{Display, Error, Formatter},
     future::Future,
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use fon::{
-    chan::{Ch16, Channel},
-    mono::Mono,
-    Resampler, Stream,
-};
+use fon::{chan::Ch32, Frame, Stream};
 
-pub(crate) struct Microphone<C: Channel + Unpin> {
-    stream: MicrophoneStream<C>,
+use super::SoundDevice;
+
+pub(crate) struct Microphone();
+
+impl SoundDevice for Microphone {
+    const INPUT: bool = true;
 }
 
-impl<C: Channel + Unpin> Microphone<C> {
-    pub(crate) fn new(_id: &crate::MicrophoneId) -> Option<Self> {
-        None
-    }
-
-    pub(crate) fn sample_rate(&self) -> u32 {
-        self.stream.sample_rate
-    }
-
-    pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C> {
-        &mut self.stream
+impl Display for Microphone {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_str("Default")
     }
 }
 
-impl<C: Channel + Unpin> Future for Microphone<C> {
+impl Default for Microphone {
+    fn default() -> Self {
+        Microphone()
+    }
+}
+
+impl Microphone {
+    pub(crate) fn record<F: Frame<Chan = Ch32>>(
+        &mut self,
+    ) -> MicrophoneStream<'_, F> {
+        MicrophoneStream(PhantomData)
+    }
+
+    pub(crate) fn channels(&self) -> u8 {
+        1
+    }
+}
+
+impl Future for Microphone {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -46,26 +58,24 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
     }
 }
 
-pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
-    // Sample rate of the stream.
-    sample_rate: u32,
-    // Stream's resampler
-    resampler: Resampler<Mono<C>>,
-}
+pub(crate) struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(
+    PhantomData<&'a F>,
+);
 
-impl<C> Stream<Mono<C>> for &mut MicrophoneStream<C>
-where
-    C: Channel + Unpin + From<Ch16>,
-{
-    fn sample_rate(&self) -> u32 {
-        self.sample_rate
-    }
+impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
+    type Item = F;
 
-    fn stream_sample(&mut self) -> Option<Mono<C>> {
+    fn next(&mut self) -> Option<Self::Item> {
         None
     }
+}
 
-    fn resampler(&mut self) -> &mut Resampler<Mono<C>> {
-        &mut self.resampler
+impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
+    fn sample_rate(&self) -> Option<f64> {
+        Some(crate::consts::SAMPLE_RATE.into())
+    }
+
+    fn len(&self) -> Option<usize> {
+        Some(crate::consts::PERIOD.into())
     }
 }

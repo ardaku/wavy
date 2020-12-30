@@ -10,9 +10,9 @@
 
 [package]
 name = "wavy"
-version = "0.7.1"
+version = "0.8.0"
 authors = ["Jeron Aldaron Lau <jeronlau@plopgrizzly.com>"]
-license = "Apache-2.0/Zlib"
+license = "Apache-2.0 OR BSL-1.0"
 
 description = """
 Asynchronous cross-platform real-time audio recording & playback.
@@ -20,7 +20,7 @@ Asynchronous cross-platform real-time audio recording & playback.
 repository = "https://github.com/libcala/wavy"
 documentation = "https://docs.rs/wavy"
 homepage = "https://github.com/libcala/wavy/blob/master/CHANGELOG.md"
-include = ["Cargo.toml", "README.md", "LICENSE-ZLIB", "LICENSE-APACHE", "src/*"]
+include = ["Cargo.toml", "README.md", "src/*"]
 categories = [
     "game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"
 ]
@@ -30,11 +30,11 @@ edition = "2018"
 
 # For all platforms
 [dependencies.fon]
-version = "0.3"
+version = "0.4"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
-smelling_salts = "0.1"
+smelling_salts = "0.2"
 dl_api = "0.4"
 
 # For Web Assembly
@@ -61,14 +61,5 @@ version = "0.2"
 
 # Examples
 [dev-dependencies]
-pasts = "0.6"
-twang = "0.5"
-
-# Default to x86 64-bit Linux
-[package.metadata.docs.rs]
-all-features = true
-default-target = "x86_64-unknown-linux-gnu"
-
-# Uncomment to replace dependencies with experimental versions.
-# [replace]
-# "twang:0.4.0" = { path = "../twang" }
+pasts = "0.7"
+twang = "0.6"

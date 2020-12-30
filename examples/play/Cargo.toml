@@ -27,10 +27,13 @@ console_error_panic_hook = { version = "0.1.6", optional = true }
 wee_alloc = { version = "0.4.5", optional = true }
 
 # To play audio
-fon = "0.2"
-pasts = "0.6"
-twang = "0.4"
+fon = "0.4"
+pasts = "0.7"
+twang = "0.6"
 wavy = { path = "../.." }
+
+# Logging
+devout = "0.2"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"

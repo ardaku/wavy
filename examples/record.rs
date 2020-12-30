@@ -1,63 +1,53 @@
-// This example records audio and plays it back in real time as it's being
-// recorded.
+// This example records audio for 5 seconds and writes to a raw PCM file.
 
-use fon::{chan::Ch16, mono::Mono16, Audio, Stream};
-use pasts::prelude::*;
-use std::cell::RefCell;
-use wavy::{MicrophoneId, Microphone, SpeakerId};
+use fon::{mono::Mono32, Audio, Frame};
+use pasts::{exec, wait};
+use wavy::{Microphone, MicrophoneStream};
 
-/// The program's shared state.
+/// An event handled by the event loop.
+enum Event<'a> {
+    /// Microphone has recorded some audio.
+    Record(MicrophoneStream<'a, Mono32>),
+}
+
+/// Shared state between tasks on the thread.
 struct State {
     /// Temporary buffer for holding real-time audio samples.
-    buffer: Audio<Mono16>,
+    buffer: Audio<Mono32>,
 }
 
-/// Microphone task (record audio).
-async fn microphone_task(state: &RefCell<State>, mut mic: Microphone<Ch16>) {
-    loop {
-        // 1. Wait for microphone to record some samples.
-        let mut stream = mic.record().await;
-        // 2. Borrow shared state mutably.
-        let mut state = state.borrow_mut();
-        // 3. Write samples into buffer.
-        state.buffer.extend(&mut stream);
+impl State {
+    /// Event loop.  Return false to stop program.
+    fn event(&mut self, event: Event<'_>) {
+        match event {
+            Event::Record(microphone) => {
+                //println!("Recording");
+                self.buffer.extend(microphone);
+                if self.buffer.len() >= 48_000 * 10 {
+                    write_pcm(&self.buffer);
+                    std::process::exit(0);
+                }
+            }
+        }
     }
 }
 
-/// Speakers task (play recorded audio).
-async fn speakers_task(state: &RefCell<State>) {
-    // Connect to system's speaker(s)
-    let mut speakers = SpeakerId::default().connect::<Mono16>().unwrap();
-
-    loop {
-        // 1. Wait for speaker to need more samples.
-        let mut sink = speakers.play().await;
-        // 2. Borrow shared state mutably
-        let mut state = state.borrow_mut();
-        // 3. Generate and write samples into speaker buffer.
-        state.buffer.drain(..).stream(&mut sink);
+/// Save a Raw PCM File from an audio buffer.
+fn write_pcm(buffer: &Audio<Mono32>) {
+    let mut pcm: Vec<u8> = Vec::new();
+    for frame in buffer.iter() {
+        let sample: f32 = frame.channels()[0].into();
+        pcm.extend(sample.to_le_bytes().iter());
     }
+    std::fs::write("pcm.raw", pcm.as_slice()).expect("Failed to write file");
 }
 
 /// Program start.
-async fn start() {
-    // Connect to a user-selected microphone.
-    let microphone = MicrophoneId::default().connect().unwrap();
-    // Get the microphone's sample rate.
-    // Initialize shared state.
-    let state = RefCell::new(State {
-        buffer: Audio::with_silence(microphone.sample_rate(), 0),
-    });
-    // Create speaker and microphone tasks.
-    task! {
-        let speakers = speakers_task(&state);
-        let microphone = microphone_task(&state, microphone)
-    }
-    // Wait for first task to complete.
-    poll![speakers, microphone].await;
-}
-
-/// Start the async executor.
 fn main() {
-    exec!(start());
+    let mut state = State { buffer: Audio::with_silence(48_000, 0) };
+    let mut microphone = Microphone::default();
+
+    exec!(state.event(wait! {
+        Event::Record(microphone.record().await),
+    }))
 }

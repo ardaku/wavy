@@ -9,25 +9,36 @@
 // according to those terms.
 
 use std::{
+    fmt::{Display, Error, Formatter},
     future::Future,
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
 
+use fon::{chan::Ch32, Frame, Stream};
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{
     MediaStream, MediaStreamAudioSourceNode, MediaStreamAudioSourceOptions,
     MediaStreamConstraints,
 };
 
-use fon::{chan::Channel, mono::Mono, Resampler, Stream};
+use super::SoundDevice;
 
-pub(crate) struct Microphone<C: Channel + Unpin> {
-    stream: MicrophoneStream<C>,
+pub(crate) struct Microphone();
+
+impl Display for Microphone {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_str("Default")
+    }
 }
 
-impl<C: Channel + Unpin> Microphone<C> {
-    pub(crate) fn new(_id: &crate::MicrophoneId) -> Option<Self> {
+impl SoundDevice for Microphone {
+    const INPUT: bool = true;
+}
+
+impl Default for Microphone {
+    fn default() -> Self {
         let state = super::state();
 
         // Lazily Initialize audio context & processor node.
@@ -38,7 +49,8 @@ impl<C: Channel + Unpin> Microphone<C> {
             .unwrap()
             .navigator()
             .media_devices()
-            .ok()?;
+            .ok()
+            .unwrap();
         let promise = md
             .get_user_media_with_constraints(
                 MediaStreamConstraints::new().audio(&JsValue::TRUE),
@@ -67,38 +79,23 @@ impl<C: Channel + Unpin> Microphone<C> {
         let _ = promise.then(&cb);
         cb.forget();
 
-        Some(Self {
-            stream: MicrophoneStream {
-                audio: vec![0.0; super::PERIOD.into()],
-                index: super::PERIOD.into(),
-                resampler: Resampler::new(),
-            },
-        })
-    }
-
-    pub(crate) fn sample_rate(&self) -> u32 {
-        super::SAMPLE_RATE
-    }
-
-    pub(crate) fn record(&mut self) -> &mut MicrophoneStream<C> {
-        // Grab global state.
-        let state = super::state();
-
-        // Convert to requested audio type.
-        for (i, sample) in state.i_buffer.iter().enumerate() {
-            if i == super::PERIOD.into() {
-                break;
-            }
-            self.stream.audio[i] = *sample;
-        }
-
-        self.stream.index = 0;
-
-        &mut self.stream
+        Self()
     }
 }
 
-impl<C: Channel + Unpin> Future for Microphone<C> {
+impl Microphone {
+    pub(crate) fn record<F: Frame<Chan = Ch32>>(
+        &mut self,
+    ) -> MicrophoneStream<'_, F> {
+        MicrophoneStream { index: 0, _phantom: PhantomData }
+    }
+
+    pub(crate) fn channels(&self) -> u8 {
+        0b0000_0001
+    }
+}
+
+impl Future for Microphone {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -113,33 +110,35 @@ impl<C: Channel + Unpin> Future for Microphone<C> {
     }
 }
 
-pub(crate) struct MicrophoneStream<C: Channel + Unpin> {
-    // Stream's resampler
-    resampler: Resampler<Mono<C>>,
-    // Buffer
-    audio: Vec<f32>,
+pub(crate) struct MicrophoneStream<'a, F: Frame<Chan = Ch32>> {
     // Index into buffer
     index: usize,
+    //
+    _phantom: PhantomData<&'a F>,
 }
 
-impl<C> Stream<Mono<C>> for &mut MicrophoneStream<C>
-where
-    C: Channel + Unpin,
-{
-    fn sample_rate(&self) -> u32 {
-        super::SAMPLE_RATE
-    }
+impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
+    type Item = F;
 
-    fn stream_sample(&mut self) -> Option<Mono<C>> {
-        if self.index == self.audio.len() {
+    fn next(&mut self) -> Option<Self::Item> {
+        // Grab global state.
+        let state = super::state();
+
+        if self.index == state.i_buffer.len() {
             return None;
         }
-        let sample: C = C::from(self.audio[self.index].into());
+        let frame = F::from_channels(&[Ch32::new(state.i_buffer[self.index])]);
         self.index += 1;
-        Some(Mono::new(sample))
+        Some(frame)
+    }
+}
+
+impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
+    fn sample_rate(&self) -> Option<f64> {
+        Some(super::SAMPLE_RATE.into())
     }
 
-    fn resampler(&mut self) -> &mut Resampler<Mono<C>> {
-        &mut self.resampler
+    fn len(&self) -> Option<usize> {
+        Some(crate::consts::PERIOD.into())
     }
 }

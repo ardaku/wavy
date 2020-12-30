@@ -1,40 +1,41 @@
 // Play a 220 Hertz sine wave through the system's speakers.
 
-use fon::mono::Mono64;
-use pasts::prelude::*;
-use std::cell::RefCell;
-use twang::Synth;
-use wavy::SpeakerId;
+use fon::{stereo::Stereo32, Sink};
+use pasts::{exec, wait};
+use twang::{Fc, Signal, Synth};
+use wavy::{Speakers, SpeakersSink};
 
-/// The program's shared state.
-struct State {}
+/// An event handled by the event loop.
+enum Event<'a> {
+    /// Speaker is ready to play more audio.
+    Play(SpeakersSink<'a, Stereo32>),
+}
 
-/// Speakers task (play sine wave).
-async fn speakers(state: &RefCell<State>) {
-    // Connect to system's speaker(s)
-    let mut speakers = SpeakerId::default().connect::<Mono64>().unwrap();
-    // Create a new synthesizer
-    let mut synth = Synth::new();
+/// Shared state between tasks on the thread.
+struct State {
+    /// A streaming synthesizer using Twang.
+    synth: Synth<()>,
+}
 
-    loop {
-        // 1. Wait for speaker to need more samples.
-        let sink = speakers.play().await;
-        // 2. Borrow shared state mutably
-        let _state = state.borrow_mut();
-        // 3. Generate and write samples into speaker buffer.
-        synth.gen(sink, |fc| fc.freq(440.0).sine().gain(0.7));
+impl State {
+    /// Event loop.  Return false to stop program.
+    fn event(&mut self, event: Event<'_>) {
+        match event {
+            Event::Play(mut speakers) => speakers.stream(&mut self.synth),
+        }
     }
 }
 
 /// Program start.
-async fn start() {
-    // Initialize shared state.
-    let state = RefCell::new(State {});
-    // Create and wait on speaker task.
-    speakers(&state).await;
-}
-
-/// Start the async executor.
 fn main() {
-    exec!(start());
+    fn sine(_: &mut (), fc: Fc) -> Signal {
+        fc.freq(440.0).sine().gain(0.7)
+    }
+
+    let mut state = State { synth: Synth::new((), sine) };
+    let mut speakers = Speakers::default();
+
+    exec!(state.event(wait! {
+        Event::Play(speakers.play().await),
+    }));
 }

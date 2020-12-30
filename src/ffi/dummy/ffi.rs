@@ -8,10 +8,12 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
+mod device_list;
 mod microphone;
 mod speakers;
-mod device_list;
 
-pub(super) use microphone::Microphone;
-pub(super) use speakers::Speakers;
-pub(crate) use device_list::{device_list, AudioDst, AudioSrc};
+use device_list::SoundDevice;
+
+pub(crate) use device_list::device_list;
+pub(super) use microphone::{Microphone, MicrophoneStream};
+pub(super) use speakers::{Speakers, SpeakersSink};
