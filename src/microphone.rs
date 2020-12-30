@@ -8,28 +8,36 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
-use std::fmt::{Debug, Formatter, Result};
+use std::fmt::{Debug, Display, Formatter, Result};
 
 use fon::{chan::Ch32, Frame, Stream};
 
 use crate::ffi;
 
 /// Record audio samples from a microphone.
+#[derive(Default)]
 pub struct Microphone(pub(super) ffi::Microphone);
 
+impl Display for Microphone {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        self.0.fmt(f)
+    }
+}
+
 impl Debug for Microphone {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
-        write!(
-            fmt,
-            "Microphone(rate: {:?}, channels: {})",
-            self.0.sample_rate, self.0.channels
-        )
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        <Self as Display>::fmt(self, f)
     }
 }
 
 impl Microphone {
+    /// Query available audio sources.
+    pub fn query() -> Vec<Self> {
+        ffi::device_list(Self)
+    }
+
     /// Check is microphone is available to use in a specific configuration
-    pub fn avail<F>(&mut self) -> bool
+    pub fn supports<F>(&self) -> bool
     where
         F: Frame<Chan = Ch32>,
     {

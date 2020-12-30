@@ -18,7 +18,9 @@ mod speakers;
 
 // Implementation Expectations:
 pub(crate) use asound::{
-    device_list::{device_list, reset_hwp, AudioDst, AudioSrc, AudioDevice},
+    device_list::{
+        device_list, open, reset_hwp, AudioDevice, SoundDevice, DEFAULT,
+    },
     PollFd, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState, SndPcmStream,
 };
 pub(crate) use microphone::{Microphone, MicrophoneStream};
@@ -45,8 +47,7 @@ fn pcm_hw_params(
         )
         .ok()?;
         // Set the number of channels.
-        asound::pcm::hw_set_channels(device.pcm, device.hwp, channels)
-            .ok()?;
+        asound::pcm::hw_set_channels(device.pcm, device.hwp, channels).ok()?;
         // Set period near library target period.
         let mut period_size = crate::consts::PERIOD.into();
         asound::pcm::hw_params_set_period_size_near(

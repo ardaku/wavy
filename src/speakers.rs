@@ -8,7 +8,7 @@
 // at your option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
-use std::fmt::{Debug, Formatter, Result};
+use std::fmt::{Debug, Display, Formatter, Result};
 
 use fon::{chan::Ch32, Frame, Resampler, Sink};
 
@@ -23,7 +23,7 @@ use crate::ffi;
 /// use fon::{stereo::Stereo32, Sink};
 /// use pasts::{exec, wait};
 /// use twang::{Fc, Signal, Synth};
-/// use wavy::{SpeakersId, SpeakersSink};
+/// use wavy::{Speakers, SpeakersSink};
 ///
 /// /// An event handled by the event loop.
 /// enum Event<'a> {
@@ -53,28 +53,36 @@ use crate::ffi;
 ///     }
 ///
 ///     let mut state = State { synth: Synth::new((), sine) };
-///     let mut speakers = SpeakersId::default().connect().unwrap();
+///     let mut speakers = Speakers::default();
 ///
 ///     exec!(state.event(wait! {
 ///         Event::Play(speakers.play().await),
 ///     }));
 /// }
 /// ```
+#[derive(Default)]
 pub struct Speakers(pub(super) ffi::Speakers);
 
+impl Display for Speakers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        self.0.fmt(f)
+    }
+}
+
 impl Debug for Speakers {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
-        write!(
-            fmt,
-            "Speakers(rate: {:?}, channels: {})",
-            self.0.sample_rate, self.0.channels
-        )
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        <Self as Display>::fmt(self, f)
     }
 }
 
 impl Speakers {
+    /// Query available audio destinations.
+    pub fn query() -> Vec<Self> {
+        ffi::device_list(Self)
+    }
+
     /// Check is speakers are available to use in a specific configuration
-    pub fn avail<F>(&mut self) -> bool
+    pub fn supports<F>(&self) -> bool
     where
         F: Frame<Chan = Ch32>,
     {

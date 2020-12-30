@@ -11,15 +11,20 @@
 #![allow(unsafe_code)]
 
 use std::{
+    fmt::{Display, Error, Formatter},
     future::Future,
     marker::PhantomData,
+    os::raw::c_void,
     pin::Pin,
     task::{Context, Poll},
 };
 
 use fon::{chan::Ch32, Frame, Stream};
 
-use super::{asound, pcm_hw_params, AudioDevice, SndPcmState};
+use super::{
+    asound, pcm_hw_params, AudioDevice, SndPcmState, SndPcmStream, SoundDevice,
+    DEFAULT,
+};
 
 pub(crate) struct Microphone {
     // PCM I/O Handle
@@ -36,19 +41,53 @@ pub(crate) struct Microphone {
     pub(crate) sample_rate: Option<f64>,
 }
 
-impl Microphone {
-    pub(crate) fn new(id: crate::MicrophoneId) -> Option<Self> {
-        // Return successfully
-        Some(Self {
-            device: id.0.0,
+impl SoundDevice for Microphone {
+    const INPUT: bool = true;
+
+    fn pcm(&self) -> *mut c_void {
+        self.device.pcm
+    }
+
+    fn hwp(&self) -> *mut c_void {
+        self.device.pcm
+    }
+}
+
+impl From<AudioDevice> for Microphone {
+    fn from(device: AudioDevice) -> Self {
+        Self {
+            device,
             buffer: Vec::new(),
             period: 0,
             channels: 0,
             endi: 0,
             sample_rate: None,
+        }
+    }
+}
+
+impl Display for Microphone {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_str(self.device.name.as_str())
+    }
+}
+
+impl Default for Microphone {
+    fn default() -> Self {
+        let (pcm, hwp, supported) =
+            super::open(DEFAULT.as_ptr().cast(), SndPcmStream::Capture)
+                .unwrap();
+        Self::from(AudioDevice {
+            name: "Default".to_string(),
+            pcm,
+            hwp,
+            supported,
+            fds: Vec::new(),
         })
     }
+}
 
+impl Microphone {
     /// Attempt to configure the microphone for a specific number of channels.
     fn set_channels<F>(&mut self) -> Option<bool>
     where

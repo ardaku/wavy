@@ -10,12 +10,12 @@
 
 use std::{
     future::Future,
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
-    marker::PhantomData,
 };
 
-use fon::{chan::Channel, mono::Mono, chan::Ch32, Resampler, Stream, Frame};
+use fon::{chan::Ch32, chan::Channel, mono::Mono, Frame, Resampler, Stream};
 
 pub(crate) struct Microphone {
     pub(crate) channels: u8,
@@ -31,7 +31,9 @@ impl Microphone {
         crate::consts::SAMPLE_RATE.into()
     }
 
-    pub(crate) fn record<F: Frame<Chan = Ch32>>(&mut self) -> MicrophoneStream<'_, F> {
+    pub(crate) fn record<F: Frame<Chan = Ch32>>(
+        &mut self,
+    ) -> MicrophoneStream<'_, F> {
         MicrophoneStream(PhantomData)
     }
 
@@ -48,11 +50,13 @@ impl Future for Microphone {
     }
 }
 
-pub(crate) struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(PhantomData<&'a F>);
+pub(crate) struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(
+    PhantomData<&'a F>,
+);
 
 impl<F: Frame<Chan = Ch32>> Iterator for &mut MicrophoneStream<'_, F> {
     type Item = F;
-    
+
     fn next(&mut self) -> Option<F> {
         None
     }
@@ -62,7 +66,7 @@ impl<F: Frame<Chan = Ch32>> Stream<F> for &mut MicrophoneStream<'_, F> {
     fn sample_rate(&self) -> Option<f64> {
         Some(crate::consts::SAMPLE_RATE.into())
     }
-    
+
     fn len(&self) -> Option<usize> {
         Some(0)
     }

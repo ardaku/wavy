@@ -2,7 +2,7 @@
 
 use fon::{mono::Mono32, Audio, Frame};
 use pasts::{exec, wait};
-use wavy::{MicrophoneId, MicrophoneStream};
+use wavy::{Microphone, MicrophoneStream};
 
 /// An event handled by the event loop.
 enum Event<'a> {
@@ -45,7 +45,7 @@ fn write_pcm(buffer: &Audio<Mono32>) {
 /// Program start.
 fn main() {
     let mut state = State { buffer: Audio::with_silence(48_000, 0) };
-    let mut microphone = MicrophoneId::default().connect().unwrap();
+    let mut microphone = Microphone::default();
 
     exec!(state.event(wait! {
         Event::Record(microphone.record().await),

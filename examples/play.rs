@@ -3,7 +3,7 @@
 use fon::{stereo::Stereo32, Sink};
 use pasts::{exec, wait};
 use twang::{Fc, Signal, Synth};
-use wavy::{SpeakersId, SpeakersSink};
+use wavy::{Speakers, SpeakersSink};
 
 /// An event handled by the event loop.
 enum Event<'a> {
@@ -33,7 +33,7 @@ fn main() {
     }
 
     let mut state = State { synth: Synth::new((), sine) };
-    let mut speakers = SpeakersId::default().connect().unwrap();
+    let mut speakers = Speakers::default();
 
     exec!(state.event(wait! {
         Event::Play(speakers.play().await),

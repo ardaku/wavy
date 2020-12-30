@@ -26,7 +26,7 @@
 //! ```rust,no_run
 //! use fon::{stereo::Stereo32, Sink, Audio};
 //! use pasts::{exec, wait};
-//! use wavy::{SpeakersId, MicrophoneId, SpeakersSink, MicrophoneStream};
+//! use wavy::{Speakers, Microphone, SpeakersSink, MicrophoneStream};
 //!
 //! /// An event handled by the event loop.
 //! enum Event<'a> {
@@ -55,8 +55,8 @@
 //! /// Program start.
 //! fn main() {
 //!     let mut state = State { buffer: Audio::with_silence(48_000, 0) };
-//!     let mut speakers = SpeakersId::default().connect().unwrap();
-//!     let mut microphone = MicrophoneId::default().connect().unwrap();
+//!     let mut speakers = Speakers::default();
+//!     let mut microphone = Microphone::default();
 //!
 //!     exec!(state.event(wait! {
 //!         Event::Record(microphone.record().await),
@@ -114,9 +114,7 @@ mod ffi;
 
 mod consts;
 mod microphone;
-mod route;
 mod speakers;
 
 pub use microphone::{Microphone, MicrophoneStream};
-pub use route::{MicrophoneId, SpeakersId};
 pub use speakers::{Speakers, SpeakersSink};

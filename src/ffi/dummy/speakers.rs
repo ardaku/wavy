@@ -15,7 +15,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use fon::{Audio, Frame, Resampler, Sink, surround::Surround32, chan::Ch32};
+use fon::{chan::Ch32, surround::Surround32, Audio, Frame, Resampler, Sink};
 
 pub(crate) struct Speakers {
     pub(crate) channels: u8,
@@ -27,10 +27,12 @@ impl Speakers {
         None
     }
 
-    pub(crate) fn play<F: Frame<Chan = Ch32>>(&mut self) -> SpeakersSink<'_, F> {
+    pub(crate) fn play<F: Frame<Chan = Ch32>>(
+        &mut self,
+    ) -> SpeakersSink<'_, F> {
         SpeakersSink(self, Resampler::default(), PhantomData)
     }
-    
+
     pub(crate) fn channels(&self) -> u8 {
         1
     }

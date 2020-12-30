@@ -11,8 +11,10 @@
 #![allow(unsafe_code)]
 
 use std::{
+    fmt::{Display, Error, Formatter},
     future::Future,
     marker::PhantomData,
+    os::raw::c_void,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -23,7 +25,10 @@ use fon::{
     Frame, Resampler, Sink,
 };
 
-use super::{asound, pcm_hw_params, AudioDevice, SndPcmState};
+use super::{
+    asound, pcm_hw_params, AudioDevice, SndPcmState, SndPcmStream, SoundDevice,
+    DEFAULT,
+};
 
 /// ALSA Speakers connection.
 pub(crate) struct Speakers {
@@ -43,20 +48,54 @@ pub(crate) struct Speakers {
     pub(crate) sample_rate: Option<f64>,
 }
 
-impl Speakers {
-    /// Attempt to connect to a speaker by id.
-    pub(crate) fn connect(id: crate::SpeakersId) -> Option<Self> {
-        Some(Self {
-            device: id.0.0,
+impl SoundDevice for Speakers {
+    const INPUT: bool = false;
+
+    fn pcm(&self) -> *mut c_void {
+        self.device.pcm
+    }
+
+    fn hwp(&self) -> *mut c_void {
+        self.device.pcm
+    }
+}
+
+impl Display for Speakers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_str(self.device.name.as_str())
+    }
+}
+
+impl From<AudioDevice> for Speakers {
+    fn from(device: AudioDevice) -> Self {
+        Self {
+            device,
             starti: 0,
             buffer: Vec::new(),
             sample_rate: None,
             channels: 0,
             resampler: ([Ch32::MID; 6], 0.0),
             period: 0,
+        }
+    }
+}
+
+impl Default for Speakers {
+    fn default() -> Self {
+        let (pcm, hwp, supported) =
+            super::open(DEFAULT.as_ptr().cast(), SndPcmStream::Playback)
+                .unwrap();
+        Self::from(AudioDevice {
+            name: "Default".to_string(),
+            pcm,
+            hwp,
+            supported,
+            fds: Vec::new(),
         })
     }
+}
 
+impl Speakers {
     /// Attempt to configure the speaker for a specific number of channels.
     fn set_channels<F>(&mut self) -> Option<bool>
     where

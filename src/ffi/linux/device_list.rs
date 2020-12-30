@@ -12,7 +12,6 @@
 
 use std::{
     ffi::CStr,
-    fmt::{Display, Error, Formatter},
     mem::MaybeUninit,
     os::raw::{c_char, c_void},
 };
@@ -21,7 +20,7 @@ use super::{
     free, pcm, Alsa, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmStream,
 };
 
-const DEFAULT: &[u8] = b"default\0";
+pub(crate) const DEFAULT: &[u8] = b"default\0";
 
 /// Reset hardware parameters.
 pub(crate) unsafe fn reset_hwp(
@@ -42,7 +41,7 @@ pub(crate) unsafe fn reset_hwp(
 }
 
 /// Open a PCM Device.
-fn open(
+pub(crate) fn open(
     name: *const c_char,
     stream: SndPcmStream,
 ) -> Option<(*mut c_void, *mut c_void, u8)> {
@@ -60,77 +59,13 @@ fn open(
     }
 }
 
-pub(crate) trait SoundDevice: Display + From<AudioDevice> {
+pub(crate) trait SoundDevice:
+    std::fmt::Display + From<AudioDevice>
+{
     const INPUT: bool;
 
     fn pcm(&self) -> *mut c_void;
     fn hwp(&self) -> *mut c_void;
-}
-
-#[derive(Debug)]
-pub(crate) struct AudioSrc(pub(in super::super) AudioDevice);
-
-impl SoundDevice for AudioSrc {
-    const INPUT: bool = true;
-
-    fn pcm(&self) -> *mut c_void {
-        self.0.pcm
-    }
-
-    fn hwp(&self) -> *mut c_void {
-        self.0.pcm
-    }
-}
-
-impl AudioSrc {
-    pub(crate) fn channels(&self) -> u8 {
-        self.0.supported
-    }
-}
-
-impl From<AudioDevice> for AudioSrc {
-    fn from(device: AudioDevice) -> Self {
-        Self(device)
-    }
-}
-
-impl Display for AudioSrc {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.write_str(self.0.name.as_str())
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct AudioDst(pub(in super::super) AudioDevice);
-
-impl SoundDevice for AudioDst {
-    const INPUT: bool = false;
-
-    fn pcm(&self) -> *mut c_void {
-        self.0.pcm
-    }
-
-    fn hwp(&self) -> *mut c_void {
-        self.0.pcm
-    }
-}
-
-impl AudioDst {
-    pub(crate) fn channels(&self) -> u8 {
-        self.0.supported
-    }
-}
-
-impl Display for AudioDst {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.write_str(self.0.name.as_str())
-    }
-}
-
-impl From<AudioDevice> for AudioDst {
-    fn from(device: AudioDevice) -> Self {
-        Self(device)
-    }
 }
 
 /// An Audio Device (input or output).
@@ -148,34 +83,6 @@ pub(crate) struct AudioDevice {
     pub(crate) fds: Vec<smelling_salts::Device>,
 }
 
-impl Default for AudioSrc {
-    fn default() -> Self {
-        let (pcm, hwp, supported) =
-            open(DEFAULT.as_ptr().cast(), SndPcmStream::Capture).unwrap();
-        Self::from(AudioDevice {
-            name: "Default".to_string(),
-            pcm,
-            hwp,
-            supported,
-            fds: Vec::new(),
-        })
-    }
-}
-
-impl Default for AudioDst {
-    fn default() -> Self {
-        let (pcm, hwp, supported) =
-            open(DEFAULT.as_ptr().cast(), SndPcmStream::Playback).unwrap();
-        Self::from(AudioDevice {
-            name: "Default".to_string(),
-            pcm,
-            hwp,
-            supported,
-            fds: Vec::new(),
-        })
-    }
-}
-
 impl AudioDevice {
     /// Generate file descriptors.
     pub(crate) fn start(&mut self) -> Option<()> {
@@ -184,12 +91,9 @@ impl AudioDevice {
         let fd_list = unsafe { pcm::poll_descriptors(self.pcm).ok()? };
         // Add to list.
         for fd in fd_list {
-            self.fds.push(smelling_salts::Device::new(
-                fd.fd,
-                unsafe {
-                    smelling_salts::Watcher::from_raw(fd.events as u32)
-                },
-            ));
+            self.fds.push(smelling_salts::Device::new(fd.fd, unsafe {
+                smelling_salts::Watcher::from_raw(fd.events as u32)
+            }));
         }
         Some(())
     }
