@@ -1,12 +1,12 @@
-// Copyright Jeron Aldaron Lau 2019 - 2020.
-// Distributed under either the Apache License, Version 2.0
-//    (See accompanying file LICENSE_APACHE_2_0.txt or copy at
-//          https://apache.org/licenses/LICENSE-2.0),
-// or the Boost Software License, Version 1.0.
-//    (See accompanying file LICENSE_BOOST_1_0.txt or copy at
-//          https://www.boost.org/LICENSE_1_0.txt)
-// at your option. This file may not be copied, modified, or distributed except
-// according to those terms.
+// Wavy
+// Copyright © 2019-2021 Jeron Aldaron Lau.
+//
+// Licensed under any of:
+// - Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+// - MIT License (https://mit-license.org/)
+// - Boost Software License, Version 1.0 (https://www.boost.org/LICENSE_1_0.txt)
+// At your choosing (See accompanying files LICENSE_APACHE_2_0.txt,
+// LICENSE_MIT.txt and LICENSE_BOOST_1_0.txt).
 
 //! Hard-coded constants used throughout the library for dealing with computer
 //! audio.
@@ -22,5 +22,7 @@ pub(crate) const SAMPLE_RATE: u16 = 48_000;
 /// generated at each call to/from microphone or speaker.
 ///
 /// 48 is the minimum period that doesn't create bad-sounding artifacts on ALSA
-/// running on PulseAudio.
-pub(crate) const PERIOD: u16 = 48; // 512;
+/// running on PulseAudio for my testing, bumped up to 64 (1.5 ms) should be
+/// sufficient.  Humans generally can't tell at about 2 ms, which gives .5ms
+/// leeway for processing time.
+pub(crate) const PERIOD: u16 = 64;

@@ -4,6 +4,12 @@ All notable changes to `wavy` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
 
+## [0.8.1] - 2021-01-08
+### Fixed
+ - XRUNS on ALSA stopping playback indefinitely.
+ - Latency improvements on ALSA.
+ - More correct handling of errors for ALSA speaker.
+
 ## [0.8.0] - 2020-12-30
 ### Added
  - Support for stereo audio sources.
