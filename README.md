@@ -46,7 +46,7 @@ email at [aldaronlau@gmail.com][13].
 [0]: https://docs.rs/wavy
 [1]: https://crates.io/crates/wavy
 [2]: https://github.com/libcala/wavy/actions?query=workflow%3Atests
-[3]: https://github.com/libcala/wavy/blob/master/CHANGELOG.md
+[3]: https://github.com/libcala/wavy/blob/main/CHANGELOG.md
 [4]: https://github.com/libcala/wavy/
 [5]: https://docs.rs/wavy#getting-started
 [6]: https://aldaronlau.com/
