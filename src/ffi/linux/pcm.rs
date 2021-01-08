@@ -319,19 +319,6 @@ pub(crate) unsafe fn resume(pcm: *mut c_void) -> Result<(), i64> {
     })
 }
 
-pub(crate) unsafe fn start(pcm: *mut c_void) -> Result<(), i64> {
-    ALSA.with(|alsa| {
-        let alsa = if let Some(alsa) = alsa {
-            alsa
-        } else {
-            return Err(0);
-        };
-        let ret = (alsa.snd_pcm_start)(pcm);
-        let _: u64 = ret.try_into().map_err(|_| ret)?;
-        Ok(())
-    })
-}
-
 pub(crate) unsafe fn prepare(pcm: *mut c_void) -> Result<(), i64> {
     ALSA.with(|alsa| {
         let alsa = if let Some(alsa) = alsa {
@@ -388,34 +375,6 @@ pub(crate) unsafe fn writei<T>(
             return Ok(0);
         };
         let ret = (alsa.snd_pcm_writei)(pcm, buffer.cast(), length as _);
-        Ok(ret.try_into().map_err(|_| -> isize { ret as isize })?)
-    })
-}
-
-pub(crate) unsafe fn avail(
-    pcm: *mut c_void,
-) -> Result<usize, isize> {
-    ALSA.with(|alsa| {
-        let alsa = if let Some(alsa) = alsa {
-            alsa
-        } else {
-            return Ok(0);
-        };
-        let ret = (alsa.snd_pcm_avail_update)(pcm);
-        Ok(ret.try_into().map_err(|_| -> isize { ret as isize })?)
-    })
-}
-
-pub(crate) unsafe fn avail2(
-    pcm: *mut c_void,
-) -> Result<usize, isize> {
-    ALSA.with(|alsa| {
-        let alsa = if let Some(alsa) = alsa {
-            alsa
-        } else {
-            return Ok(0);
-        };
-        let ret = (alsa.snd_pcm_avail)(pcm);
         Ok(ret.try_into().map_err(|_| -> isize { ret as isize })?)
     })
 }

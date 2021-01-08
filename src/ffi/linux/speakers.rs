@@ -199,7 +199,6 @@ impl Future for &mut Speakers {
                         SndPcmState::Xrun => {
                             // Player samples are not generated fast enough
                             unsafe {
-                                println!("XRUN");
                                 asound::pcm::prepare(this.device.pcm).unwrap();
                                 asound::pcm::writei(
                                     this.device.pcm,
