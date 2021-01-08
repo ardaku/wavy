@@ -1,12 +1,12 @@
-// Copyright Jeron Aldaron Lau 2019 - 2020.
-// Distributed under either the Apache License, Version 2.0
-//    (See accompanying file LICENSE_APACHE_2_0.txt or copy at
-//          https://apache.org/licenses/LICENSE-2.0),
-// or the Boost Software License, Version 1.0.
-//    (See accompanying file LICENSE_BOOST_1_0.txt or copy at
-//          https://www.boost.org/LICENSE_1_0.txt)
-// at your option. This file may not be copied, modified, or distributed except
-// according to those terms.
+// Wavy
+// Copyright © 2019-2021 Jeron Aldaron Lau.
+//
+// Licensed under any of:
+// - Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+// - MIT License (https://mit-license.org/)
+// - Boost Software License, Version 1.0 (https://www.boost.org/LICENSE_1_0.txt)
+// At your choosing (See accompanying files LICENSE_APACHE_2_0.txt,
+// LICENSE_MIT.txt and LICENSE_BOOST_1_0.txt).
 
 #![allow(unsafe_code)]
 
@@ -163,101 +163,101 @@ impl Future for &mut Speakers {
                 break;
             }
         }
+
         if pending {
             return Poll::Pending;
         }
 
         // Attempt to write remaining internal speaker buffer to the speakers.
-        let result = unsafe {
-            asound::pcm::writei(
-                this.device.pcm,
-                this.buffer.as_ptr(),
-                this.period,
-            )
-        };
+        let result = 
+            unsafe {
+                asound::pcm::writei(
+                    this.device.pcm,
+                    this.buffer.as_ptr(),
+                    this.period.into(),
+                )
+            };
 
         // Check if it succeeds, then return Ready.
-        match result {
+        let len = match result {
+            Ok(len) => len,
             Err(error) => {
-                match error {
-                    // Edge-triggered epoll should only go into pending mode if
-                    // read/write call results in EAGAIN (according to epoll man
-                    // page)
-                    -11 => { /* Pending */ }
-                    -32 => {
-                        match unsafe { asound::pcm::state(this.device.pcm) } {
-                            SndPcmState::Xrun => {
-                                // Player samples are not generated fast enough
-                                unsafe {
-                                    asound::pcm::prepare(this.device.pcm)
-                                        .unwrap();
-                                }
-                                unsafe {
-                                    asound::pcm::writei(
-                                        this.device.pcm,
-                                        this.buffer.as_ptr(),
-                                        this.period,
-                                    )
-                                    .unwrap();
-                                }
-                            }
-                            st => {
-                                eprintln!(
-                                "Incorrect state = {:?} (XRUN): Report Bug to \
-                                 https://github.com/libcala/wavy/issues/new",
-                                st
-                            );
-                                unreachable!()
-                            }
-                        }
+            match error {
+                // Edge-triggered epoll should only go into pending mode if
+                // read/write call results in EAGAIN (according to epoll man
+                // page)
+                -11 => {
+                    /* Pending */
+                    for fd in &this.device.fds {
+                        // Register waker, and then return not ready.
+                        fd.register_waker(cx.waker());
                     }
-                    -77 => {
-                        eprintln!(
-                            "Incorrect state (-EBADFD): Report Bug to \
-                             https://github.com/libcala/wavy/issues/new"
-                        );
-                        unreachable!()
-                    }
-                    -86 => {
-                        eprintln!(
-                            "Stream got suspended, trying to recover… \
-                             (-ESTRPIPE)"
-                        );
-                        if unsafe {
-                            asound::pcm::resume(this.device.pcm).is_ok()
-                        } {
-                            // Prepare, so we keep getting samples.
+                    return Poll::Pending;
+                }
+                -32 => {
+                    match unsafe { asound::pcm::state(this.device.pcm) } {
+                        SndPcmState::Xrun => {
+                            // Player samples are not generated fast enough
                             unsafe {
                                 asound::pcm::prepare(this.device.pcm).unwrap();
                                 asound::pcm::writei(
                                     this.device.pcm,
                                     this.buffer.as_ptr(),
-                                    this.period,
-                                )
-                                .unwrap();
+                                    this.period.into(),
+                                ).unwrap()
                             }
                         }
+                        st => {
+                            eprintln!(
+                            "Incorrect state = {:?} (XRUN): Report Bug to \
+                             https://github.com/libcala/wavy/issues/new",
+                            st
+                        );
+                            unreachable!()
+                        }
                     }
-                    _ => unreachable!(),
                 }
-                for fd in &this.device.fds {
-                    // Register waker, and then return not ready.
-                    fd.register_waker(cx.waker());
+                -77 => {
+                    eprintln!(
+                        "Incorrect state (-EBADFD): Report Bug to \
+                         https://github.com/libcala/wavy/issues/new"
+                    );
+                    unreachable!()
                 }
-                Poll::Pending
+                -86 => {
+                    eprintln!(
+                        "Stream got suspended, trying to recover… \
+                         (-ESTRPIPE)"
+                    );
+
+                    // Prepare, so we keep getting samples.
+                    unsafe {
+                        // Whether this works or not, we want to prepare.
+                        let _ = asound::pcm::resume(this.device.pcm);
+                        // Prepare
+                        asound::pcm::prepare(this.device.pcm).unwrap();
+                        asound::pcm::writei(
+                            this.device.pcm,
+                            this.buffer.as_ptr(),
+                            this.period.into(),
+                        )
+                        .unwrap()
+                    }
+                }
+                _ => unreachable!(),
             }
-            Ok(len) => {
-                // Shift buffer.
-                this.buffer.drain(..len * this.channels as usize);
-                this.starti = this.buffer.len() / this.channels as usize;
-                this.buffer.resize(
-                    this.period as usize * this.channels as usize,
-                    Ch32::MID,
-                );
-                // Ready for more samples.
-                Poll::Ready(())
             }
-        }
+        };
+        
+        // Shift buffer.
+        this.buffer.drain(..len * this.channels as usize);
+        this.starti = this.buffer.len() / this.channels as usize;
+        this.buffer.resize(
+            this.period as usize * this.channels as usize,
+            Ch32::MID,
+        );
+        // Ready for more samples.
+        Poll::Ready(())
     }
 }
 
