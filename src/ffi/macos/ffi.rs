@@ -13,7 +13,7 @@ mod microphone;
 mod speakers;
 mod audio_queue;
 
-use device_list::SoundDevice;
+use device_list::{AudioDevice, SoundDevice};
 
 pub(crate) use device_list::device_list;
 pub(super) use microphone::{Microphone, MicrophoneStream};

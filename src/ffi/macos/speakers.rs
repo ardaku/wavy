@@ -18,7 +18,7 @@ use std::{
 
 use fon::{chan::Ch32, Frame, Resampler, Sink};
 
-use super::SoundDevice;
+use super::{AudioDevice ,SoundDevice};
 
 pub(crate) struct Speakers {
     pub(crate) sample_rate: Option<f64>,
@@ -37,6 +37,12 @@ impl Display for Speakers {
 impl Default for Speakers {
     fn default() -> Self {
         Speakers { sample_rate: Some(48_000.0) }
+    }
+}
+
+impl From<AudioDevice> for Speakers {
+    fn from(this: AudioDevice) -> Self {
+        Self::default()
     }
 }
 

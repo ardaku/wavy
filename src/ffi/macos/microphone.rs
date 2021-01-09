@@ -18,7 +18,7 @@ use std::{
 
 use fon::{chan::Ch32, Frame, Stream};
 
-use super::SoundDevice;
+use super::{SoundDevice, AudioDevice};
 
 pub(crate) struct Microphone();
 
@@ -55,6 +55,12 @@ impl Future for Microphone {
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Pending
+    }
+}
+
+impl From<AudioDevice> for Microphone {
+    fn from(this: AudioDevice) -> Self {
+        Self::default()
     }
 }
 
