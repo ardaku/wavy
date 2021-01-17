@@ -8,13 +8,17 @@
 // At your choosing (See accompanying files LICENSE_APACHE_2_0.txt,
 // LICENSE_MIT.txt and LICENSE_BOOST_1_0.txt).
 
-mod device_list;
-mod microphone;
-mod speakers;
-mod audio_queue;
+use std::fmt::Display;
 
-use device_list::{AudioDevice, SoundDevice};
+pub(crate) trait SoundDevice: Display + From<AudioDevice> {
+    const INPUT: bool;
+}
 
-pub(crate) use device_list::device_list;
-pub(super) use microphone::{Microphone, MicrophoneStream};
-pub(super) use speakers::{Speakers, SpeakersSink};
+pub(crate) struct AudioDevice();
+
+/// Return a list of available audio devices.
+pub(crate) fn device_list<D: SoundDevice, F: Fn(D) -> T, T>(
+    abstrakt: F,
+) -> Vec<T> {
+    vec![abstrakt(D::from(AudioDevice()))]
+}

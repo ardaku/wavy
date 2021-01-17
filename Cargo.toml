@@ -10,7 +10,7 @@
 
 [package]
 name = "wavy"
-version = "0.8.1"
+version = "0.9.0"
 authors = ["Jeron Aldaron Lau <jeronlau@plopgrizzly.com>"]
 license = "Apache-2.0 OR MIT OR BSL-1.0"
 
@@ -20,7 +20,7 @@ Asynchronous cross-platform real-time audio recording & playback.
 repository = "https://github.com/libcala/wavy"
 documentation = "https://docs.rs/wavy"
 homepage = "https://github.com/libcala/wavy/blob/main/CHANGELOG.md"
-include = ["Cargo.toml", "README.md", "src/*"]
+include = ["Cargo.toml", "src/*"]
 categories = [
     "game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"
 ]
@@ -30,7 +30,7 @@ edition = "2018"
 
 # For all platforms
 [dependencies.fon]
-version = "0.4"
+version = "0.5"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
@@ -62,4 +62,4 @@ version = "0.2"
 # Examples
 [dev-dependencies]
 pasts = "0.7"
-twang = "0.6"
+twang = "0.7"
