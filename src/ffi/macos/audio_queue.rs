@@ -81,7 +81,11 @@ extern "C" {
     fn CFRunLoopRun();
     fn AudioQueueNewOutput(
         in_format: *const AudioStreamBasicDescription,
-        in_callback_proc: extern "C" fn(*mut c_void, *mut c_void, *mut AudioQueueBuffer),
+        in_callback_proc: extern "C" fn(
+            *mut c_void,
+            *mut c_void,
+            *mut AudioQueueBuffer,
+        ),
         in_user_data: *mut c_void,
         in_callback_run_loop: RunLoop,
         in_callback_run_loop_mode: *const c_void,
@@ -90,7 +94,7 @@ extern "C" {
     ) -> OSStatus;
     fn AudioQueueNewInput(
         in_format: *const AudioStreamBasicDescription,
-        in_callback_proc: extern "C" fn( 
+        in_callback_proc: extern "C" fn(
             *mut c_void,
             *mut c_void,
             *mut AudioQueueBuffer,
@@ -108,7 +112,7 @@ extern "C" {
         in_audio_queue: *mut c_void,
         in_buffer: *mut AudioQueueBuffer,
         in_num_packet_descs: u32,
-        in_packet_descs: *const c_void
+        in_packet_descs: *const c_void,
     ) -> OSStatus;
     fn AudioQueueStart(
         in_audio_queue: *mut c_void,
@@ -126,7 +130,10 @@ thread_local!(static RUN_LOOP: RunLoop = initialize());
 
 /// Global initialization, may be called more than once.
 fn initialize() -> RunLoop {
-    let pair = std::sync::Arc::new((std::sync::Mutex::new(None), std::sync::Condvar::new()));
+    let pair = std::sync::Arc::new((
+        std::sync::Mutex::new(None),
+        std::sync::Condvar::new(),
+    ));
     let pair2 = Arc::clone(&pair);
     std::thread::spawn(move || {
         let (lock, cvar) = &*pair2;
@@ -158,7 +165,11 @@ struct SpeakerContext {
 }
 
 // AudioQueue callback for speaker.
-extern "C" fn speaker_callback(user_data: *mut c_void, audio_queue: *mut c_void, audio_buffer: *mut AudioQueueBuffer) {
+extern "C" fn speaker_callback(
+    user_data: *mut c_void,
+    audio_queue: *mut c_void,
+    audio_buffer: *mut AudioQueueBuffer,
+) {
     // Cast user data.
     let user_data: *mut SpeakerContext = user_data.cast();
 
@@ -170,7 +181,8 @@ extern "C" fn speaker_callback(user_data: *mut c_void, audio_queue: *mut c_void,
         // Copy the data
         let inbuf = &mut (*locked).0;
         for i in 0..((*audio_buffer).audio_data_byte_size / 4) {
-            *buffer.offset(i as isize) = inbuf.get(i as usize).cloned().unwrap_or(0.0);
+            *buffer.offset(i as isize) =
+                inbuf.get(i as usize).cloned().unwrap_or(0.0);
         }
         // Clear the written samples
         inbuf.clear();
@@ -182,12 +194,7 @@ extern "C" fn speaker_callback(user_data: *mut c_void, audio_queue: *mut c_void,
 
     // Enqueue buffer to audio queue
     let status = unsafe {
-        AudioQueueEnqueueBuffer(
-            audio_queue,
-            audio_buffer,
-            0,
-            std::ptr::null()
-        )
+        AudioQueueEnqueueBuffer(audio_queue, audio_buffer, 0, std::ptr::null())
     };
     if status != 0 {
         panic!("Failed enqueue {:?}", status);
@@ -203,7 +210,6 @@ extern "C" fn microphone_callback(
     num_packet_descs: u32,
     packet_descs: *const c_void,
 ) {
-
 }
 
 /// A speaker (output) or microphone (input).
@@ -247,7 +253,8 @@ pub(crate) fn speaker(channels: u8) -> Result<AudioQueue, [u8; 4]> {
 
         // Create an empty buffer and enqueue the data.
         let mut audio_buffer = std::mem::MaybeUninit::uninit();
-        let buf_byte_count = basic_desc.bytes_per_frame * crate::consts::PERIOD as u32;
+        let buf_byte_count =
+            basic_desc.bytes_per_frame * crate::consts::PERIOD as u32;
         let status = unsafe {
             AudioQueueAllocateBuffer(
                 audio_queue,
@@ -277,7 +284,7 @@ pub(crate) fn speaker(channels: u8) -> Result<AudioQueue, [u8; 4]> {
                 audio_queue,
                 audio_buffer,
                 0,
-                std::ptr::null()
+                std::ptr::null(),
             )
         };
         if status != 0 {
@@ -285,15 +292,14 @@ pub(crate) fn speaker(channels: u8) -> Result<AudioQueue, [u8; 4]> {
         }
 
         // Now that we've created the audio queue an enqueued a buffer, we can start it.
-        let status = unsafe {
-            AudioQueueStart(audio_queue, std::ptr::null())
-        };
+        let status = unsafe { AudioQueueStart(audio_queue, std::ptr::null()) };
         if status != 0 {
             return Err(status.to_ne_bytes());
         }
 
         Ok(AudioQueue {
-            audio_queue, speaker_cx, 
+            audio_queue,
+            speaker_cx,
         })
     })
 }
@@ -342,7 +348,7 @@ int main (int argc, char *argv[])
   if (status == kAudioFormatUnsupportedDataFormatError) puts ("oops!");
   else printf("NewOutput status: %d\n", status);
 
-    // 
+    //
 
   status = AudioQueueAllocateBuffer (queue, 20000, &buf_ref);
   printf ("Allocate status: %d\n", status);

@@ -44,7 +44,9 @@ fn write_pcm(buffer: &Audio<Mono32>) {
 
 /// Program start.
 fn main() {
-    let mut state = State { buffer: Audio::with_silence(48_000, 0) };
+    let mut state = State {
+        buffer: Audio::with_silence(48_000, 0),
+    };
     let mut microphone = Microphone::default();
 
     exec!(state.event(wait! {

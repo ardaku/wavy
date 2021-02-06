@@ -12,11 +12,11 @@ use std::task::Waker;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    AudioContext, AudioContextOptions, AudioDestinationNode,
-    AudioProcessingEvent, MediaStreamAudioSourceNode, ScriptProcessorNode,
+    AudioContext, AudioDestinationNode, AudioProcessingEvent,
+    MediaStreamAudioSourceNode, ScriptProcessorNode,
 };
 
-use crate::consts::{PERIOD, SAMPLE_RATE};
+use crate::consts::BUFFER_SIZE;
 
 /// Global State of AudioContext.
 ///
@@ -33,11 +33,11 @@ struct State {
     /// Microphones, if any.
     microphone: Vec<MediaStreamAudioSourceNode>,
     /// Input channel buffer.
-    i_buffer: [f32; PERIOD as usize],
+    i_buffer: [f32; BUFFER_SIZE as usize],
     /// Left output channel buffer.
-    l_buffer: [f32; PERIOD as usize],
+    l_buffer: [f32; BUFFER_SIZE as usize],
     /// Right output channel buffer.
-    r_buffer: [f32; PERIOD as usize],
+    r_buffer: [f32; BUFFER_SIZE as usize],
     /// The processor node that wakes and executes futures.  Though this API is
     /// deprecated, the new API does not work on Safari (yet).  This currently
     /// works on all browsers.  Once browser support changes, this should be
@@ -51,18 +51,20 @@ struct State {
     played: bool,
     ///
     recorded: bool,
+    /// Sample rate cached across FFI boundary.
+    sample_rate: Option<f64>,
 }
 
 impl State {
     fn lazy_init(&mut self) {
         // AudioContext
         if state().context.is_none() {
-            state().context = Some(
-                AudioContext::new_with_context_options(
-                    &AudioContextOptions::new().sample_rate(SAMPLE_RATE as f32),
-                )
-                .expect("Couldn't initialize AudioContext"),
-            );
+            let audio_context =
+                AudioContext::new().expect("Couldn't initialize AudioContext");
+
+            state().sample_rate = Some(audio_context.sample_rate().into());
+
+            state().context = Some(audio_context);
         }
 
         // ScriptProcessorNode
@@ -71,7 +73,7 @@ impl State {
                 .context
                 .as_ref()
                 .unwrap()
-                .create_script_processor_with_buffer_size(PERIOD.into())
+                .create_script_processor_with_buffer_size(BUFFER_SIZE.into())
                 .unwrap();
             #[allow(trivial_casts)] // Actually needed here.
             let js_function: Closure<dyn Fn(AudioProcessingEvent)> =
@@ -121,14 +123,15 @@ static mut STATE: State = State {
     context: None,
     speaker: None,
     microphone: Vec::new(),
-    i_buffer: [0.0; PERIOD as usize],
-    l_buffer: [0.0; PERIOD as usize],
-    r_buffer: [0.0; PERIOD as usize],
+    i_buffer: [0.0; BUFFER_SIZE as usize],
+    l_buffer: [0.0; BUFFER_SIZE as usize],
+    r_buffer: [0.0; BUFFER_SIZE as usize],
     proc: None,
     speaker_waker: None,
     mics_waker: None,
     played: false,
     recorded: false,
+    sample_rate: None,
 };
 
 /// Since Web Assembly can only have one thread, accessing our global state is

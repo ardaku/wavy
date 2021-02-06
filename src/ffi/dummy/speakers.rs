@@ -36,7 +36,9 @@ impl Display for Speakers {
 
 impl Default for Speakers {
     fn default() -> Self {
-        Speakers { sample_rate: Some(48_000.0) }
+        Speakers {
+            sample_rate: Some(48_000.0),
+        }
     }
 }
 

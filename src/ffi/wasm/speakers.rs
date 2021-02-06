@@ -69,7 +69,7 @@ impl Default for Speakers {
             .unwrap();
 
         Self {
-            buffer: vec![0.0; crate::consts::PERIOD.into()],
+            buffer: vec![0.0; super::BUFFER_SIZE.into()],
             resampler: ([Ch32::MID; 6], 0.0),
         }
     }
@@ -81,9 +81,9 @@ impl Speakers {
     ) -> SpeakersSink<'_, F> {
         // Adjust buffer size depending on type.
         if TypeId::of::<F>() == TypeId::of::<Mono32>() {
-            self.buffer.resize(crate::consts::PERIOD.into(), 0.0);
+            self.buffer.resize(super::BUFFER_SIZE.into(), 0.0);
         } else if TypeId::of::<F>() == TypeId::of::<Stereo32>() {
-            self.buffer.resize(crate::consts::PERIOD as usize * 2, 0.0);
+            self.buffer.resize(super::BUFFER_SIZE as usize * 2, 0.0);
         } else {
             panic!("Attempted to use Speakers with invalid frame type");
         }
@@ -124,7 +124,7 @@ pub(crate) struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(
 
 impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
     fn sample_rate(&self) -> f64 {
-        crate::consts::SAMPLE_RATE.into()
+        super::state().sample_rate.unwrap()
     }
 
     fn resampler(&mut self) -> &mut Resampler<F> {
@@ -134,7 +134,7 @@ impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
     #[allow(unsafe_code)]
     fn buffer(&mut self) -> &mut [F] {
         let data = self.0.buffer.as_mut_ptr().cast();
-        let count = crate::consts::PERIOD.into();
+        let count = super::BUFFER_SIZE.into();
         unsafe { &mut std::slice::from_raw_parts_mut(data, count)[..] }
     }
 }

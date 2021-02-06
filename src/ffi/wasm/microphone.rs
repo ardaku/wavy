@@ -87,7 +87,10 @@ impl Microphone {
     pub(crate) fn record<F: Frame<Chan = Ch32>>(
         &mut self,
     ) -> MicrophoneStream<'_, F> {
-        MicrophoneStream { index: 0, _phantom: PhantomData }
+        MicrophoneStream {
+            index: 0,
+            _phantom: PhantomData,
+        }
     }
 
     pub(crate) fn channels(&self) -> u8 {
@@ -135,10 +138,10 @@ impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
 
 impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
     fn sample_rate(&self) -> Option<f64> {
-        Some(super::SAMPLE_RATE.into())
+        Some(super::state().sample_rate.unwrap())
     }
 
     fn len(&self) -> Option<usize> {
-        Some(crate::consts::PERIOD.into())
+        Some(super::BUFFER_SIZE.into())
     }
 }

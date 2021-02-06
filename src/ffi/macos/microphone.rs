@@ -18,7 +18,7 @@ use std::{
 
 use fon::{chan::Ch32, Frame, Stream};
 
-use super::{SoundDevice, AudioDevice};
+use super::{AudioDevice, SoundDevice};
 
 pub(crate) struct Microphone();
 

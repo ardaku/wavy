@@ -246,8 +246,9 @@ pub(crate) unsafe fn poll_descriptors(
         } else {
             return Err(0);
         };
-        let size: usize =
-            (alsa.snd_pcm_poll_descriptors_count)(pcm).try_into().unwrap();
+        let size: usize = (alsa.snd_pcm_poll_descriptors_count)(pcm)
+            .try_into()
+            .unwrap();
         let mut poll = Vec::with_capacity(size);
         let ret = (alsa.snd_pcm_poll_descriptors)(
             pcm,

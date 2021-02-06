@@ -16,6 +16,7 @@
 /// [MDN](https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Audio_concepts#Audio_channels_and_frames).
 /// The other being 44.1 KHz.  48 KHz is also the default for the Ogg Opus
 /// audio format, which is the state-of-the-art audio format.
+#[allow(unused)] // For web, let the browser choose the sample rate
 pub(crate) const SAMPLE_RATE: u16 = 48_000;
 
 /// Set latency to be about 1 millisecond.  This is how many samples need to be
@@ -25,4 +26,20 @@ pub(crate) const SAMPLE_RATE: u16 = 48_000;
 /// running on PulseAudio for my testing, bumped up to 64 (1.5 ms) should be
 /// sufficient.  Humans generally can't tell at about 2 ms, which gives .5ms
 /// leeway for processing time.
+#[allow(unused)] // Not used on WASM
 pub(crate) const PERIOD: u16 = 64;
+
+// FIXME: Split "Period" into "Buffer Size" and "Block Size"
+
+/// This is the size of the ring buffer used by the system.
+///
+/// The number 256 is chosen because it's the minimum allowed by the
+/// `createScriptProcessor` API, and wavy targets low latency.
+#[allow(unused)] // FIXME
+pub(crate) const BUFFER_SIZE: u16 = 256;
+
+/// This is the target for how many samples are processed at a time (0.75 ms).
+///
+/// This also means that 8 chunks can be contained in a buffer.
+#[allow(unused)] // Not used on WASM
+pub(crate) const CHUNK_SIZE: u16 = 32;

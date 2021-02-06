@@ -8,10 +8,10 @@
 // At your choosing (See accompanying files LICENSE_APACHE_2_0.txt,
 // LICENSE_MIT.txt and LICENSE_BOOST_1_0.txt).
 
+mod audio_queue;
 mod device_list;
 mod microphone;
 mod speakers;
-mod audio_queue;
 
 use device_list::{AudioDevice, SoundDevice};
 

@@ -32,7 +32,9 @@ fn main() {
         fc.freq(440.0).sine().gain(0.7)
     }
 
-    let mut state = State { synth: Synth::new((), sine) };
+    let mut state = State {
+        synth: Synth::new((), sine),
+    };
     let mut speakers = Speakers::default();
 
     exec!(state.event(wait! {
