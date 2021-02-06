@@ -4,6 +4,10 @@ All notable changes to `wavy` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
 
+## [0.9.1] - 2021-02-06
+### Fixed
+ - Panics in the Web port
+
 ## [0.9.0] - 2021-01-17
 ### Changed
  - Updated to fon 0.5
