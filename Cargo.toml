@@ -34,7 +34,7 @@ version = "0.5"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
-smelling_salts = "0.2"
+smelling_salts = "0.4"
 dl_api = "0.4"
 
 # For Web Assembly
