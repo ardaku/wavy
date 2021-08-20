@@ -1,5 +1,4 @@
-// Wavy
-// Copyright © 2019-2021 Jeron Aldaron Lau.
+// Copyright © 2019-2021 The Wavy Contributors.
 //
 // Licensed under any of:
 // - Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
@@ -8,79 +7,97 @@
 // At your choosing (See accompanying files LICENSE_APACHE_2_0.txt,
 // LICENSE_MIT.txt and LICENSE_BOOST_1_0.txt).
 
+#![allow(unsafe_code)]
+
+use crate::consts::CHUNK_SIZE;
+use crate::raw::{global, Microphone as RawMicrophone};
+use fon::chan::Channel;
+use fon::{Sink, Stream};
 use std::fmt::{Debug, Display, Formatter, Result};
+use std::future::Future;
+use std::pin::Pin;
+use std::rc::{Rc, Weak};
+use std::task::{Context, Poll};
 
-use fon::{chan::Ch32, Frame, Stream};
+//
+#[repr(transparent)] // to safely transmute from `Rc<dyn RawMicrophone>`.
+#[allow(missing_debug_implementations)]
+pub struct MicrophoneFuture<const N: usize>(Rc<dyn RawMicrophone>);
 
-use crate::ffi;
+impl<const N: usize> Future for MicrophoneFuture<N> {
+    type Output = Recorder<N>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Poll::Ready(()) = self.0.poll(cx) {
+            Poll::Ready(Recorder(Rc::downgrade(&self.0)))
+        } else {
+            Poll::Pending
+        }
+    }
+}
 
 /// Record audio samples from a microphone.
-#[derive(Default)]
-pub struct Microphone(pub(super) ffi::Microphone);
+pub struct Microphone(Rc<dyn RawMicrophone>);
+
+impl Microphone {
+    /// Query available audio sources.
+    pub fn query() -> impl Iterator<Item = Self> {
+        global().query_microphones().map(|x| Self(x))
+    }
+
+    /// Record N channels from the microphone.
+    ///
+    /// Returns a [`Future`](core::future::Future) that outputs a
+    /// [`Recorder`](crate::Recorder).
+    pub fn record<'a, const N: usize>(
+        &'a mut self,
+    ) -> &'a mut MicrophoneFuture<N> {
+        // Unsafe is needed here to attach the const generic value to the
+        // internal microphone type.  Since it's repr(transparent) on the same
+        // runtime type and the lifetimes match, this is sound.
+        unsafe { std::mem::transmute(&mut self.0) }
+    }
+}
 
 impl Display for Microphone {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        self.0.fmt(f)
+        write!(f, "{}", self.0)
     }
 }
 
 impl Debug for Microphone {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        <Self as Display>::fmt(self, f)
+        write!(f, "Microphone({})", self)
     }
 }
 
-impl Microphone {
-    /// Query available audio sources.
-    pub fn query() -> Vec<Self> {
-        ffi::device_list(Self)
+impl Default for Microphone {
+    fn default() -> Self {
+        Self::query().next().unwrap()
     }
+}
 
-    /// Check is microphone is available to use in a specific configuration
-    pub fn supports<F>(&self) -> bool
+/// Audio recorder.
+pub struct Recorder<const N: usize>(Weak<dyn RawMicrophone>);
+
+impl<const N: usize> Debug for Recorder<N> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "Recorder({})", self.0.upgrade().unwrap())
+    }
+}
+
+impl<const N: usize> Recorder<N> {
+    /// Record audio to a sink.
+    pub fn record<Chan, S>(&self, stream: &mut Stream<N>, sink: S)
     where
-        F: Frame<Chan = Ch32>,
+        Chan: Channel,
+        S: Sink<Chan, N>,
     {
-        let count = F::CHAN_COUNT;
-        let bit = count - 1;
-        (self.0.channels() & (1 << bit)) != 0
-    }
-
-    /// Record audio from connected microphone.  Returns an audio stream, which
-    /// contains the samples recorded since the previous call.
-    pub async fn record<F: Frame<Chan = Ch32>>(
-        &mut self,
-    ) -> MicrophoneStream<'_, F> {
-        (&mut self.0).await;
-        MicrophoneStream(self.0.record())
-    }
-}
-
-/// A stream of recorded audio samples from a microphone.
-pub struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(
-    ffi::MicrophoneStream<'a, F>,
-);
-
-impl<F: Frame<Chan = Ch32>> Debug for MicrophoneStream<'_, F> {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
-        write!(fmt, "MicrophoneStream(rate: {:?})", self.sample_rate())
-    }
-}
-
-impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
-    type Item = F;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-
-impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
-    fn sample_rate(&self) -> Option<f64> {
-        self.0.sample_rate()
-    }
-
-    fn len(&self) -> Option<usize> {
-        self.0.len()
+        let sample_rate = sink.sample_rate();
+        stream.pipe_raw(
+            CHUNK_SIZE.into(),
+            |audio| self.0.upgrade().unwrap().record(sample_rate, audio),
+            sink,
+        );
     }
 }

@@ -1,5 +1,4 @@
-// Wavy
-// Copyright © 2019-2021 Jeron Aldaron Lau.
+// Copyright © 2019-2021 The Wavy Contributors.
 //
 // Licensed under any of:
 // - Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
@@ -8,7 +7,4 @@
 // At your choosing (See accompanying files LICENSE_APACHE_2_0.txt,
 // LICENSE_MIT.txt and LICENSE_BOOST_1_0.txt).
 
-compile_error!(
-    "Target os not supported, please open an issue at \
-    https://github.com/libcala/wavy/issues"
-);
+include!("linux.rs");

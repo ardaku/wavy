@@ -1,5 +1,4 @@
-// Wavy
-// Copyright © 2019-2021 Jeron Aldaron Lau.
+// Copyright © 2019-2021 The Wavy Contributors.
 //
 // Licensed under any of:
 // - Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
@@ -79,7 +78,6 @@
     nonstandard_style,
     rust_2018_idioms,
     single_use_lifetimes,
-    trivial_casts,
     trivial_numeric_casts,
     unreachable_pub,
     unused_extern_crates,
@@ -87,34 +85,10 @@
     variant_size_differences
 )]
 
-#[cfg_attr(target_arch = "wasm32", path = "ffi/wasm/ffi.rs")]
-#[cfg_attr(
-    not(target_arch = "wasm32"),
-    cfg_attr(target_os = "linux", path = "ffi/linux/ffi.rs"),
-    cfg_attr(target_os = "android", path = "ffi/android/ffi.rs"),
-    cfg_attr(target_os = "macos", path = "ffi/macos/ffi.rs"),
-    cfg_attr(target_os = "ios", path = "ffi/ios/ffi.rs"),
-    cfg_attr(target_os = "windows", path = "ffi/windows/ffi.rs"),
-    cfg_attr(
-        any(
-            target_os = "freebsd",
-            target_os = "dragonfly",
-            target_os = "bitrig",
-            target_os = "openbsd",
-            target_os = "netbsd"
-        ),
-        path = "ffi/bsd/ffi.rs"
-    ),
-    cfg_attr(target_os = "fuchsia", path = "ffi/fuchsia/ffi.rs"),
-    cfg_attr(target_os = "redox", path = "ffi/redox/ffi.rs"),
-    cfg_attr(target_os = "none", path = "ffi/none/ffi.rs"),
-    cfg_attr(target_os = "dummy", path = "ffi/dummy/ffi.rs")
-)]
-mod ffi;
-
 mod consts;
 mod microphone;
+mod raw;
 mod speakers;
 
-pub use microphone::{Microphone, MicrophoneStream};
-pub use speakers::{Speakers, SpeakersSink};
+pub use microphone::{Microphone, Recorder};
+pub use speakers::{Player, Speakers};

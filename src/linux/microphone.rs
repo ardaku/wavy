@@ -89,15 +89,12 @@ impl Default for Microphone {
 
 impl Microphone {
     /// Attempt to configure the microphone for a specific number of channels.
-    fn set_channels<F>(&mut self) -> Option<bool>
-    where
-        F: Frame<Chan = Ch32>,
-    {
-        if F::CHAN_COUNT != self.channels.into() {
-            if !matches!(F::CHAN_COUNT, 1 | 2 | 6) {
+    fn set_channels<const CH: usize>(&mut self) -> Option<bool> {
+        if CH != self.channels.into() {
+            if !matches!(CH, 1 | 2 | 6) {
                 panic!("Unknown speaker configuration")
             }
-            self.channels = F::CHAN_COUNT as u8;
+            self.channels = CH as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
                 &self.device,
@@ -112,11 +109,11 @@ impl Microphone {
         }
     }
 
-    pub(crate) fn record<F: Frame<Chan = Ch32>>(
+    pub(crate) fn record<const CH: usize>(
         &mut self,
     ) -> MicrophoneStream<'_, F> {
         // Change number of channels, if different than last call.
-        self.set_channels::<F>()
+        self.set_channels::<CH>()
             .expect("Microphone::record() called with invalid configuration");
 
         // Stream from microphone's buffer.

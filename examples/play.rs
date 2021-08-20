@@ -1,43 +1,44 @@
 // Play a 220 Hertz sine wave through the system's speakers.
 
-use fon::{stereo::Stereo32, Sink};
-use pasts::{exec, wait};
+use fon::Frame;
+use fon::chan::Ch32;
+use pasts::Loop;
+use std::task::Poll;
 use twang::{Fc, Signal, Synth};
-use wavy::{Speakers, SpeakersSink};
-
-/// An event handled by the event loop.
-enum Event<'a> {
-    /// Speaker is ready to play more audio.
-    Play(SpeakersSink<'a, Stereo32>),
-}
+use wavy::{Speakers, Player};
 
 /// Shared state between tasks on the thread.
 struct State {
     /// A streaming synthesizer using Twang.
     synth: Synth<()>,
+    ///
+    speakers: Speakers,
 }
 
 impl State {
-    /// Event loop.  Return false to stop program.
-    fn event(&mut self, event: Event<'_>) {
-        match event {
-            Event::Play(mut speakers) => speakers.stream(&mut self.synth),
-        }
+    /// Speaker is ready to play more audio.
+    fn play(&mut self, mut speakers: Player) -> Poll<()> {
+        speakers.stream(&mut self.synth);
+        Poll::Pending
     }
 }
 
 /// Program start.
-fn main() {
+async fn run() {
     fn sine(_: &mut (), fc: Fc) -> Signal {
         fc.freq(440.0).sine().gain(0.7)
     }
 
     let mut state = State {
         synth: Synth::new((), sine),
+        speakers: Speakers::default(),
     };
-    let mut speakers = Speakers::default();
 
-    exec!(state.event(wait! {
-        Event::Play(speakers.play().await),
-    }));
+    Loop::new(&mut state)
+        .when(|s| &mut s.speakers, State::play)
+        .await
+}
+
+fn main() {
+    pasts::block_on(run())
 }
