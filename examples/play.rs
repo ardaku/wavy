@@ -1,58 +1,51 @@
 // Play a 220 Hertz sine wave through the system's speakers.
 
-use pasts::{exec, wait};
-use twang::{Synth};
-use twang::osc::Sine;
-use twang::ops::Gain;
-use wavy::{Speakers, SpeakersSink};
-use fon::Frame;
 use fon::chan::Ch32;
+use fon::Frame;
+use pasts::Loop;
+use std::task::Poll::{self, Pending};
+use twang::ops::Gain;
+use twang::osc::Sine;
+use twang::Synth;
+use wavy::{Speakers, SpeakersSink};
 
-/// An event handled by the event loop.
-enum Event<'a> {
-    /// Speaker is ready to play more audio.
-    Play(SpeakersSink<'a, 2>),
-}
-
-// State of the synthesizer.
-struct Processors {
-    sine: Sine,
-}
+type Exit = ();
 
 /// Shared state between tasks on the thread.
 struct State {
-    /// A streaming synthesizer using Twang.
-    synth: Synth<Processors, 2>,
+    /// The chosen set of speakers.
+    speakers: Speakers,
+    /// A streaming sine wave synthesizer using Twang.
+    synth: Synth<Sine, 8>,
 }
 
 impl State {
-    /// Event loop.  Return false to stop program.
-    fn event(&mut self, event: Event<'_>) {
-        match event {
-            Event::Play(speakers) => self.synth.stream(speakers),
-        }
+    // Speaker is ready to play more audio.
+    fn play(&mut self, player: SpeakersSink) -> Poll<Exit> {
+        self.synth.stream(player);
+        Pending
     }
 }
 
-/// Program start.
-fn main() {
-    // Create audio processors
-    let proc = Processors { sine: Sine::new() };
-    // Build synthesis algorithm
-    let synth = Synth::new(proc, |proc, frame: Frame<_, 2>| {
-        // Calculate the next sample for each processor
-        let sine = proc.sine.next(440.0);
-        // Pan the generated audio center
-        frame.pan(Gain.next(sine, Ch32::new(0.7)), 0.0)
-    });
-    // Connect to the default speakers.
-    let mut speakers = Speakers::default();
-    // 
+async fn event_loop() {
     let mut state = State {
-        synth,
+        // Connect to the default speakers
+        speakers: Speakers::default(),
+
+        // Build "sine wave at 70% amplitude" synthesis algorithm using Twang.
+        synth: Synth::new(Sine::new(), |sine, frame: Frame<_, 8>| {
+            // Calculate the next sample for each processor
+            let sine = sine.next(440.0);
+            // Pan the generated audio center
+            frame.pan(Gain.next(sine, Ch32::new(0.7)), 0.0)
+        }),
     };
 
-    exec!(state.event(wait! {
-        Event::Play(speakers.play().await),
-    }));
+    Loop::new(&mut state)
+        .when(|s| &mut s.speakers, State::play)
+        .await;
+}
+
+fn main() {
+    pasts::block_on(event_loop());
 }

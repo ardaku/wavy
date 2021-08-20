@@ -20,7 +20,9 @@ use std::{
 
 use fon::{
     chan::{Ch32, Channel},
-    Frame};
+    pos::{BackL, BackR, Front, FrontL, FrontR, Left, Lfe, Right},
+    Frame,
+};
 
 use super::{
     asound, pcm_hw_params, AudioDevice, SndPcmState, SndPcmStream, SoundDevice,
@@ -93,9 +95,6 @@ impl Speakers {
     /// Attempt to configure the speaker for a specific number of channels.
     fn set_channels<const CH: usize>(&mut self) -> Option<bool> {
         if CH != self.channels.into() {
-            if !matches!(CH, 1 | 2 | 6) {
-                panic!("Unknown speaker configuration")
-            }
             self.channels = CH as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
@@ -112,7 +111,7 @@ impl Speakers {
     }
 
     /// Generate an audio sink for the user to fill.
-    pub(crate) fn play<const CH: usize>(&mut self) -> SpeakersSink<'_, CH> {
+    pub(crate) fn play<const CH: usize>(&mut self) -> SpeakersSink<CH> {
         // Change number of channels, if different than last call.
         self.set_channels::<CH>()
             .expect("Speaker::play() called with invalid configuration");
@@ -243,24 +242,42 @@ impl Future for &mut Speakers {
     }
 }
 
-pub(crate) struct SpeakersSink<'a, const CH: usize>(
-    &'a mut Speakers,
-);
+pub(crate) struct SpeakersSink<const CH: usize>(*mut Speakers);
 
-impl<const CH: usize> SpeakersSink<'_, CH> {
+impl<const CH: usize> SpeakersSink<CH> {
     pub(crate) fn sample_rate(&self) -> u32 {
-        self.0.sample_rate.unwrap()
+        unsafe { (*self.0).sample_rate.unwrap() }
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.0.period.into()
+        unsafe { (*self.0).period.into() }
     }
 
-    pub(crate) fn buffer(&mut self) -> &mut [Frame<Ch32, CH>] {
-        let data = self.0.buffer.as_mut_ptr().cast();
-        let count = self.0.period.into();
-        unsafe {
-            &mut std::slice::from_raw_parts_mut(data, count)[self.0.starti..]
+    pub(crate) fn sink<I: Iterator<Item = Frame<Ch32, 8>>>(&mut self, iter: I) {
+        // Swap from SMPTE 7.1 to Linux 7.1 Channel Order:
+        //  0. Front Left
+        //  1. Front Right
+        //  2. Surround Left
+        //  3. Surround Right
+        //  4. Front Center
+        //  5. LFE
+        //  6. Side Left
+        //  7. Side Right
+        for (channels, frame) in unsafe {
+            (*self.0)
+                .buffer
+                .chunks_mut(8)
+                .skip((*self.0).starti)
+                .zip(iter)
+        } {
+            channels[0] = frame[FrontL];
+            channels[1] = frame[FrontR];
+            channels[2] = frame[Left];
+            channels[3] = frame[Right];
+            channels[4] = frame[Front];
+            channels[5] = frame[Lfe];
+            channels[6] = frame[BackL];
+            channels[7] = frame[BackR];
         }
     }
 }

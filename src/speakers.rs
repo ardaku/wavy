@@ -11,7 +11,11 @@
 #![allow(clippy::needless_doctest_main)]
 
 use std::fmt::{Debug, Display, Formatter, Result};
+use std::future::Future;
 use std::num::NonZeroU32;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll::{self, Pending, Ready};
 
 use fon::{chan::Ch32, Frame, Sink};
 
@@ -90,26 +94,31 @@ impl Speakers {
         let bit = count - 1;
         (self.0.channels() & (1 << bit)) != 0
     }
+}
 
-    /// Play audio through speakers.  Returns an audio sink, which consumes an
-    /// audio stream of played samples.  If you don't write to the sink, it will
-    /// keep playing whatever was last streamed into it.
-    pub async fn play<const CH: usize>(&mut self) -> SpeakersSink<'_, CH> {
-        (&mut self.0).await;
-        SpeakersSink(self.0.play())
+impl<'a> Future for Speakers {
+    type Output = SpeakersSink;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        if let Ready(()) = Pin::new(&mut &mut this.0).poll(cx) {
+            Ready(SpeakersSink(this.0.play()))
+        } else {
+            Pending
+        }
     }
 }
 
 /// A sink that consumes audio samples and plays them through the speakers.
-pub struct SpeakersSink<'a, const CH: usize>(ffi::SpeakersSink<'a, CH>);
+pub struct SpeakersSink(ffi::SpeakersSink<8>);
 
-impl<const CH: usize> Debug for SpeakersSink<'_, CH> {
+impl Debug for SpeakersSink {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
         write!(fmt, "SpeakersSink(rate: {})", self.sample_rate())
     }
 }
 
-impl<const CH: usize> Sink<Ch32, CH> for SpeakersSink<'_, CH> {
+impl Sink<Ch32, 8> for SpeakersSink {
     fn sample_rate(&self) -> NonZeroU32 {
         NonZeroU32::new(self.0.sample_rate()).unwrap()
     }
@@ -118,9 +127,7 @@ impl<const CH: usize> Sink<Ch32, CH> for SpeakersSink<'_, CH> {
         self.0.len()
     }
 
-    fn sink_with<I: Iterator<Item = Frame<Ch32, CH>>>(&mut self, iter: I) {
-        for (frame, input) in self.0.buffer().iter_mut().zip(iter) {
-            *frame = input.to();
-        }
+    fn sink_with<I: Iterator<Item = Frame<Ch32, 8>>>(&mut self, iter: I) {
+        self.0.sink(iter);
     }
 }

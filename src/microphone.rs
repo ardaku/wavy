@@ -54,9 +54,7 @@ impl Microphone {
 }
 
 /// A stream of recorded audio samples from a microphone.
-pub struct MicrophoneStream<'a, const CH: usize>(
-    ffi::MicrophoneStream<'a, CH>,
-);
+pub struct MicrophoneStream<'a, const CH: usize>(ffi::MicrophoneStream<'a, CH>);
 
 impl<const CH: usize> Debug for MicrophoneStream<'_, CH> {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
