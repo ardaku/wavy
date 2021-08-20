@@ -106,7 +106,7 @@ impl Drop for AudioDevice {
     fn drop(&mut self) {
         // Unregister async file descriptors before closing the PCM.
         for fd in &mut self.fds {
-            fd.old();
+            fd.stop();
         }
         // Free hardware parameters and close PCM
         unsafe {

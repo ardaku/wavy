@@ -145,7 +145,7 @@ impl Future for Microphone {
         // Check if not woken, then yield.
         let mut pending = true;
         for fd in &this.device.fds {
-            if !fd.should_yield() {
+            if !fd.pending() {
                 pending = false;
                 break;
             }
@@ -210,12 +210,13 @@ impl Future for Microphone {
                     }
                     _ => unreachable!(),
                 }
-                for fd in &this.device.fds {
+                // Not Ready
+                let mut pending = Poll::Pending;
+                for fd in &mut this.device.fds {
                     // Register waker
-                    fd.register_waker(cx.waker());
+                    pending = fd.sleep(cx);
                 }
-                // Not ready
-                Poll::Pending
+                pending
             }
             Ok(len) => {
                 this.endi = len;

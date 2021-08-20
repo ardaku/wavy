@@ -158,7 +158,7 @@ impl Future for &mut Speakers {
         // Check if not woken, then yield.
         let mut pending = true;
         for fd in &this.device.fds {
-            if !fd.should_yield() {
+            if !fd.pending() {
                 pending = false;
                 break;
             }
@@ -186,12 +186,12 @@ impl Future for &mut Speakers {
                     // read/write call results in EAGAIN (according to epoll man
                     // page)
                     -11 => {
-                        /* Pending */
-                        for fd in &this.device.fds {
+                        let mut pending = Poll::Pending;
+                        for fd in &mut this.device.fds {
                             // Register waker, and then return not ready.
-                            fd.register_waker(cx.waker());
+                            pending = fd.sleep(cx);
                         }
-                        return Poll::Pending;
+                        return pending;
                     }
                     -32 => {
                         match unsafe { asound::pcm::state(this.device.pcm) } {
