@@ -216,7 +216,7 @@ pub(crate) unsafe fn hw_set_channels(
 /// Get the exact configured sample rate from the speaker/microphone.
 ///
 /// Marked unsafe because requires that one configuration is chosen.
-pub(crate) unsafe fn hw_get_rate(hw_params: *mut c_void) -> Option<f64> {
+pub(crate) unsafe fn hw_get_rate(hw_params: *mut c_void) -> Option<u32> {
     ALSA.with(|alsa| {
         let alsa = if let Some(alsa) = alsa {
             alsa
@@ -233,7 +233,8 @@ pub(crate) unsafe fn hw_get_rate(hw_params: *mut c_void) -> Option<f64> {
         let _err: usize = ret.try_into().ok()?;
         let num = num.assume_init();
         let den = den.assume_init();
-        Some(num as f64 / den as f64)
+        assert_eq!(den, 1);
+        Some(num)
     })
 }
 

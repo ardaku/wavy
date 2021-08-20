@@ -13,13 +13,12 @@
 use std::{
     fmt::{Display, Error, Formatter},
     future::Future,
-    marker::PhantomData,
     os::raw::c_void,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use fon::{chan::Ch32, Frame, Stream};
+use fon::{chan::Ch32, Frame};
 
 use super::{
     asound, pcm_hw_params, AudioDevice, SndPcmState, SndPcmStream, SoundDevice,
@@ -38,7 +37,7 @@ pub(crate) struct Microphone {
     // Number of channels on the Microphone.
     pub(crate) channels: u8,
     // Sample Rate of The Microphone (src)
-    pub(crate) sample_rate: Option<f64>,
+    pub(crate) sample_rate: Option<u32>,
 }
 
 impl SoundDevice for Microphone {
@@ -89,15 +88,12 @@ impl Default for Microphone {
 
 impl Microphone {
     /// Attempt to configure the microphone for a specific number of channels.
-    fn set_channels<F>(&mut self) -> Option<bool>
-    where
-        F: Frame<Chan = Ch32>,
-    {
-        if F::CHAN_COUNT != self.channels.into() {
-            if !matches!(F::CHAN_COUNT, 1 | 2 | 6) {
+    fn set_channels<const CH: usize>(&mut self) -> Option<bool> {
+        if CH != self.channels.into() {
+            if !matches!(CH, 1 | 2 | 6) {
                 panic!("Unknown speaker configuration")
             }
-            self.channels = F::CHAN_COUNT as u8;
+            self.channels = CH as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
                 &self.device,
@@ -112,15 +108,15 @@ impl Microphone {
         }
     }
 
-    pub(crate) fn record<F: Frame<Chan = Ch32>>(
+    pub(crate) fn record<const CH: usize>(
         &mut self,
-    ) -> MicrophoneStream<'_, F> {
+    ) -> MicrophoneStream<'_, CH> {
         // Change number of channels, if different than last call.
-        self.set_channels::<F>()
+        self.set_channels::<CH>()
             .expect("Microphone::record() called with invalid configuration");
 
         // Stream from microphone's buffer.
-        MicrophoneStream(self, 0, PhantomData)
+        MicrophoneStream(self, 0)
     }
 
     pub(crate) fn channels(&self) -> u8 {
@@ -227,33 +223,33 @@ impl Future for Microphone {
     }
 }
 
-pub(crate) struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(
+pub(crate) struct MicrophoneStream<'a, const CH: usize>(
     &'a mut Microphone,
     usize,
-    PhantomData<F>,
 );
 
-impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
-    type Item = F;
+impl<const CH: usize> Iterator for MicrophoneStream<'_, CH> {
+    type Item = Frame<Ch32, CH>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.1 >= self.0.endi {
             return None;
         }
-        let frame = F::from_channels(
-            &self.0.buffer[self.1 * self.0.channels as usize..],
-        );
+        let mut frame = Self::Item::default();
+        for (i, chan) in frame.channels_mut().iter_mut().enumerate() {
+            *chan = self.0.buffer[self.1 * self.0.channels as usize + i];
+        }
         self.1 += 1;
         Some(frame)
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
-    fn sample_rate(&self) -> Option<f64> {
+impl<const CH: usize> MicrophoneStream<'_, CH> {
+    pub(crate) fn sample_rate(&self) -> Option<u32> {
         self.0.sample_rate
     }
 
-    fn len(&self) -> Option<usize> {
+    pub(crate) fn len(&self) -> Option<usize> {
         Some(self.0.endi)
     }
 }

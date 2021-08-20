@@ -220,7 +220,7 @@ pub(crate) fn pcm_hw_params(
     device: &AudioDevice,
     channels: u8,
     buffer: &mut Vec<Ch32>,
-    sample_rate: &mut Option<f64>,
+    sample_rate: &mut Option<u32>,
     period: &mut u16,
 ) -> Option<()> {
     unsafe {

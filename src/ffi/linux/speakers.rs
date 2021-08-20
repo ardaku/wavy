@@ -13,7 +13,6 @@
 use std::{
     fmt::{Display, Error, Formatter},
     future::Future,
-    marker::PhantomData,
     os::raw::c_void,
     pin::Pin,
     task::{Context, Poll},
@@ -21,9 +20,7 @@ use std::{
 
 use fon::{
     chan::{Ch32, Channel},
-    surround::Surround32,
-    Frame, Resampler, Sink,
-};
+    Frame};
 
 use super::{
     asound, pcm_hw_params, AudioDevice, SndPcmState, SndPcmStream, SoundDevice,
@@ -38,14 +35,12 @@ pub(crate) struct Speakers {
     starti: usize,
     /// Raw buffer of audio yet to be played.
     buffer: Vec<Ch32>,
-    /// Resampler context for speakers sink.
-    resampler: ([Ch32; 6], f64),
     /// The number of frames in the buffer.
     period: u16,
     /// Number of available channels
     pub(crate) channels: u8,
     /// The sample rate of the speakers.
-    pub(crate) sample_rate: Option<f64>,
+    pub(crate) sample_rate: Option<u32>,
 }
 
 impl SoundDevice for Speakers {
@@ -74,7 +69,6 @@ impl From<AudioDevice> for Speakers {
             buffer: Vec::new(),
             sample_rate: None,
             channels: 0,
-            resampler: ([Ch32::MID; 6], 0.0),
             period: 0,
         }
     }
@@ -97,15 +91,12 @@ impl Default for Speakers {
 
 impl Speakers {
     /// Attempt to configure the speaker for a specific number of channels.
-    fn set_channels<F>(&mut self) -> Option<bool>
-    where
-        F: Frame<Chan = Ch32>,
-    {
-        if F::CHAN_COUNT != self.channels.into() {
-            if !matches!(F::CHAN_COUNT, 1 | 2 | 6) {
+    fn set_channels<const CH: usize>(&mut self) -> Option<bool> {
+        if CH != self.channels.into() {
+            if !matches!(CH, 1 | 2 | 6) {
                 panic!("Unknown speaker configuration")
             }
-            self.channels = F::CHAN_COUNT as u8;
+            self.channels = CH as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
                 &self.device,
@@ -121,20 +112,12 @@ impl Speakers {
     }
 
     /// Generate an audio sink for the user to fill.
-    pub(crate) fn play<F>(&mut self) -> SpeakersSink<'_, F>
-    where
-        F: Frame<Chan = Ch32>,
-    {
+    pub(crate) fn play<const CH: usize>(&mut self) -> SpeakersSink<'_, CH> {
         // Change number of channels, if different than last call.
-        self.set_channels::<F>()
+        self.set_channels::<CH>()
             .expect("Speaker::play() called with invalid configuration");
-        // Convert the resampler to the target speaker configuration.
-        let resampler = Resampler::<F>::new(
-            Surround32::from_channels(&self.resampler.0[..]).convert(),
-            self.resampler.1,
-        );
         // Create a sink that borrows this speaker's buffer mutably.
-        SpeakersSink(self, resampler, PhantomData)
+        SpeakersSink(self)
     }
 
     pub(crate) fn channels(&self) -> u8 {
@@ -260,43 +243,24 @@ impl Future for &mut Speakers {
     }
 }
 
-pub(crate) struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(
+pub(crate) struct SpeakersSink<'a, const CH: usize>(
     &'a mut Speakers,
-    Resampler<F>,
-    PhantomData<F>,
 );
 
-impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
-    fn sample_rate(&self) -> f64 {
+impl<const CH: usize> SpeakersSink<'_, CH> {
+    pub(crate) fn sample_rate(&self) -> u32 {
         self.0.sample_rate.unwrap()
     }
 
-    fn resampler(&mut self) -> &mut Resampler<F> {
-        &mut self.1
+    pub(crate) fn len(&self) -> usize {
+        self.0.period.into()
     }
 
-    fn buffer(&mut self) -> &mut [F] {
+    pub(crate) fn buffer(&mut self) -> &mut [Frame<Ch32, CH>] {
         let data = self.0.buffer.as_mut_ptr().cast();
         let count = self.0.period.into();
         unsafe {
             &mut std::slice::from_raw_parts_mut(data, count)[self.0.starti..]
         }
-    }
-}
-
-impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<'_, F> {
-    fn drop(&mut self) {
-        // Store 5.1 surround sample to resampler.
-        let frame: Surround32 = self.1.frame().convert();
-        self.0.resampler.0 = [
-            frame.channels()[0],
-            frame.channels()[1],
-            frame.channels()[2],
-            frame.channels()[3],
-            frame.channels()[4],
-            frame.channels()[5],
-        ];
-        // Store partial index from resampler.
-        self.0.resampler.1 = self.1.index() % 1.0;
     }
 }

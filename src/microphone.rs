@@ -10,7 +10,7 @@
 
 use std::fmt::{Debug, Display, Formatter, Result};
 
-use fon::{chan::Ch32, Frame, Stream};
+use fon::{chan::Ch32, Frame};
 
 use crate::ffi;
 
@@ -37,50 +37,49 @@ impl Microphone {
     }
 
     /// Check is microphone is available to use in a specific configuration
-    pub fn supports<F>(&self) -> bool
-    where
-        F: Frame<Chan = Ch32>,
-    {
-        let count = F::CHAN_COUNT;
+    pub fn supports<const CH: usize>(&self) -> bool {
+        let count = CH;
         let bit = count - 1;
         (self.0.channels() & (1 << bit)) != 0
     }
 
     /// Record audio from connected microphone.  Returns an audio stream, which
     /// contains the samples recorded since the previous call.
-    pub async fn record<F: Frame<Chan = Ch32>>(
+    pub async fn record<const CH: usize>(
         &mut self,
-    ) -> MicrophoneStream<'_, F> {
+    ) -> MicrophoneStream<'_, CH> {
         (&mut self.0).await;
         MicrophoneStream(self.0.record())
     }
 }
 
 /// A stream of recorded audio samples from a microphone.
-pub struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(
-    ffi::MicrophoneStream<'a, F>,
+pub struct MicrophoneStream<'a, const CH: usize>(
+    ffi::MicrophoneStream<'a, CH>,
 );
 
-impl<F: Frame<Chan = Ch32>> Debug for MicrophoneStream<'_, F> {
+impl<const CH: usize> Debug for MicrophoneStream<'_, CH> {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
         write!(fmt, "MicrophoneStream(rate: {:?})", self.sample_rate())
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
-    type Item = F;
+impl<const CH: usize> Iterator for MicrophoneStream<'_, CH> {
+    type Item = Frame<Ch32, CH>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
-    fn sample_rate(&self) -> Option<f64> {
+impl<const CH: usize> MicrophoneStream<'_, CH> {
+    /// Get the sample rate of the stream.
+    pub fn sample_rate(&self) -> Option<u32> {
         self.0.sample_rate()
     }
 
-    fn len(&self) -> Option<usize> {
+    /// Get the length of the stream in samples/frames.
+    pub fn len(&self) -> Option<usize> {
         self.0.len()
     }
 }
