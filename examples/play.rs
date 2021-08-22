@@ -7,7 +7,7 @@ use std::task::Poll::{self, Pending};
 use twang::ops::Gain;
 use twang::osc::Sine;
 use twang::Synth;
-use wavy::{Speakers, SpeakersSink};
+use wavy::{Player, Speakers};
 
 type Exit = ();
 
@@ -21,7 +21,7 @@ struct State {
 
 impl State {
     // Speaker is ready to play more audio.
-    fn play(&mut self, player: SpeakersSink) -> Poll<Exit> {
+    fn play(&mut self, player: Player) -> Poll<Exit> {
         self.synth.stream(player);
         Pending
     }

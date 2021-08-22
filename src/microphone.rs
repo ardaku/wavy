@@ -1,5 +1,4 @@
-// Wavy
-// Copyright © 2019-2021 Jeron Aldaron Lau.
+// Copyright © 2019-2021 The Wavy Contributors.
 //
 // Licensed under any of:
 // - Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
@@ -8,15 +7,30 @@
 // At your choosing (See accompanying files LICENSE_APACHE_2_0.txt,
 // LICENSE_MIT.txt and LICENSE_BOOST_1_0.txt).
 
+use crate::env::Recording;
+use flume::Receiver;
+use fon::chan::Channel;
+use fon::{Frame, Sink};
 use std::fmt::{Debug, Display, Formatter, Result};
-
-use fon::{chan::Ch32, Frame};
-
-use crate::ffi;
+use std::future::Future;
+use std::num::NonZeroU32;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 /// Record audio samples from a microphone.
-#[derive(Default)]
-pub struct Microphone(pub(super) ffi::Microphone);
+///
+/// Microphones are always implemented with support for 7.1 surround sound.  The
+/// channel order is compatible with 5.1 surround and 2.0 stereo.  This is
+/// usually unnecessary, but can be useful for virtual microphones (that
+/// capture audio from speakers, or some other source).  For most microphones,
+/// all audio will be placed in the [`FrontL`](fon::pos::FrontL) channel.
+pub struct Microphone(Receiver<Recording>);
+
+impl Default for Microphone {
+    fn default() -> Self {
+        crate::env::query_microphones().recv().unwrap()
+    }
+}
 
 impl Display for Microphone {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
@@ -30,54 +44,53 @@ impl Debug for Microphone {
     }
 }
 
-impl Microphone {
-    /// Query available audio sources.
-    pub fn query() -> Vec<Self> {
-        ffi::device_list(Self)
-    }
+impl<'a> Future for Microphone {
+    type Output = Recorder;
 
-    /// Check is microphone is available to use in a specific configuration
-    pub fn supports<const CH: usize>(&self) -> bool {
-        let count = CH;
-        let bit = count - 1;
-        (self.0.channels() & (1 << bit)) != 0
-    }
-
-    /// Record audio from connected microphone.  Returns an audio stream, which
-    /// contains the samples recorded since the previous call.
-    pub async fn record<const CH: usize>(
-        &mut self,
-    ) -> MicrophoneStream<'_, CH> {
-        (&mut self.0).await;
-        MicrophoneStream(self.0.record())
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.0.recv_async())
+            .poll(cx)
+            .map(|x| Recorder(x.unwrap()))
     }
 }
 
 /// A stream of recorded audio samples from a microphone.
-pub struct MicrophoneStream<'a, const CH: usize>(ffi::MicrophoneStream<'a, CH>);
+pub struct Recorder(Recording);
 
-impl<const CH: usize> Debug for MicrophoneStream<'_, CH> {
+impl Debug for Recorder {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
-        write!(fmt, "MicrophoneStream(rate: {:?})", self.sample_rate())
+        write!(fmt, "Recorder(rate: {:?})", self.sample_rate())
     }
 }
 
-impl<const CH: usize> Iterator for MicrophoneStream<'_, CH> {
-    type Item = Frame<Ch32, CH>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-
-impl<const CH: usize> MicrophoneStream<'_, CH> {
+impl Recorder {
     /// Get the sample rate of the stream.
-    pub fn sample_rate(&self) -> Option<u32> {
+    pub fn sample_rate(&self) -> NonZeroU32 {
         self.0.sample_rate()
     }
 
-    /// Get the length of the stream in samples/frames.
-    pub fn len(&self) -> Option<usize> {
-        self.0.len()
+    /// Pipe audio from microphone through stream resampler into sink.
+    pub fn pipe<S, Chan, const CH: usize>(&self, mut sink: S)
+    where
+        S: Sink<Chan, CH>,
+        Chan: Channel,
+    {
+        // Make sure sink is at the correct sample rate.
+        assert_eq!(self.sample_rate(), sink.sample_rate());
+
+        // Get environment-dependent frame iterator.
+        self.0.record(&mut |frame_iter| {
+            sink.sink_with(frame_iter.map(|in_frame| {
+                let mut out_frame = Frame::<Chan, CH>::default();
+                for (in_, out) in in_frame
+                    .channels()
+                    .iter()
+                    .zip(out_frame.channels_mut().iter_mut())
+                {
+                    *out = Chan::from(in_.to_f32());
+                }
+                out_frame
+            }));
+        });
     }
 }

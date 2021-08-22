@@ -1,5 +1,4 @@
-// Wavy
-// Copyright © 2019-2021 Jeron Aldaron Lau.
+// Copyright © 2019-2021 The Wavy Contributors.
 //
 // Licensed under any of:
 // - Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
@@ -10,18 +9,21 @@
 
 #![allow(clippy::needless_doctest_main)]
 
+use crate::env::Playback;
+use flume::Receiver;
+use fon::{chan::Ch32, Frame, Sink};
 use std::fmt::{Debug, Display, Formatter, Result};
 use std::future::Future;
 use std::num::NonZeroU32;
 use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll::{self, Pending, Ready};
-
-use fon::{chan::Ch32, Frame, Sink};
-
-use crate::ffi;
+use std::task::{Context, Poll};
 
 /// Play audio samples through a speaker.
+///
+/// Speakers are always implemented with support for 7.1 surround sound.  The
+/// channel order is compatible with 5.1 surround and 2.0 stereo.  If the host
+/// environment needs to convert, the audio will be mixed down in a way that
+/// doesn't reduce amplitude.
 ///
 /// # 440 HZ Sine Wave Example
 /// **note:** This example depends on `twang = "0.5"` to synthesize the sine
@@ -67,8 +69,13 @@ use crate::ffi;
 ///     }));
 /// }
 /// ```
-#[derive(Default)]
-pub struct Speakers(pub(super) ffi::Speakers);
+pub struct Speakers(Receiver<Player>);
+
+impl Default for Speakers {
+    fn default() -> Self {
+        crate::env::query_speakers().recv().unwrap()
+    }
+}
 
 impl Display for Speakers {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
@@ -82,52 +89,35 @@ impl Debug for Speakers {
     }
 }
 
-impl Speakers {
-    /// Query available audio destinations.
-    pub fn query() -> Vec<Self> {
-        ffi::device_list(Self)
-    }
-
-    /// Check is speakers are available to use in a specific configuration
-    pub fn supports<const CH: usize>(&self) -> bool {
-        let count = CH;
-        let bit = count - 1;
-        (self.0.channels() & (1 << bit)) != 0
-    }
-}
-
 impl<'a> Future for Speakers {
-    type Output = SpeakersSink;
+    type Output = Player;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-        if let Ready(()) = Pin::new(&mut &mut this.0).poll(cx) {
-            Ready(SpeakersSink(this.0.play()))
-        } else {
-            Pending
-        }
+        Pin::new(&mut self.0.recv_async())
+            .poll(cx)
+            .map(|x| x.unwrap())
     }
 }
 
 /// A sink that consumes audio samples and plays them through the speakers.
-pub struct SpeakersSink(ffi::SpeakersSink<8>);
+pub struct Player(Playback);
 
-impl Debug for SpeakersSink {
+impl Debug for Player {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
-        write!(fmt, "SpeakersSink(rate: {})", self.sample_rate())
+        write!(fmt, "Player(rate: {})", self.sample_rate())
     }
 }
 
-impl Sink<Ch32, 8> for SpeakersSink {
+impl Sink<Ch32, 8> for Player {
     fn sample_rate(&self) -> NonZeroU32 {
-        NonZeroU32::new(self.0.sample_rate()).unwrap()
+        self.0.sample_rate()
     }
 
     fn len(&self) -> usize {
-        self.0.len()
+        crate::consts::CHUNK_SIZE.into()
     }
 
-    fn sink_with<I: Iterator<Item = Frame<Ch32, 8>>>(&mut self, iter: I) {
-        self.0.sink(iter);
+    fn sink_with<I: Iterator<Item = Frame<Ch32, 8>>>(&mut self, mut iter: I) {
+        self.0.play(&mut iter);
     }
 }
