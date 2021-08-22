@@ -59,40 +59,6 @@ pub(crate) unsafe fn hw_params_set_buffer_size_near(
     })
 }
 
-pub(crate) unsafe fn hw_params_set_format(
-    pcm: *mut c_void,
-    params: *mut c_void,
-    access: SndPcmFormat,
-) -> Result<(), i64> {
-    ALSA.with(|alsa| {
-        let alsa = if let Some(alsa) = alsa {
-            alsa
-        } else {
-            return Err(0);
-        };
-        let ret = (alsa.snd_pcm_hw_params_set_format)(pcm, params, access);
-        let _: u64 = ret.try_into().map_err(|_| ret)?;
-        Ok(())
-    })
-}
-
-pub(crate) unsafe fn hw_params_set_access(
-    pcm: *mut c_void,
-    params: *mut c_void,
-    access: SndPcmAccess,
-) -> Result<(), i64> {
-    ALSA.with(|alsa| {
-        let alsa = if let Some(alsa) = alsa {
-            alsa
-        } else {
-            return Err(0);
-        };
-        let ret = (alsa.snd_pcm_hw_params_set_access)(pcm, params, access);
-        let _: u64 = ret.try_into().map_err(|_| ret)?;
-        Ok(())
-    })
-}
-
 pub(crate) unsafe fn hw_params_set_rate_near(
     pcm: *mut c_void,
     params: *mut c_void,
@@ -133,37 +99,6 @@ pub(crate) unsafe fn hw_params(
             return Err(0);
         };
         let ret = (alsa.snd_pcm_hw_params)(pcm, params);
-        let _: u64 = ret.try_into().map_err(|_| ret)?;
-        Ok(())
-    })
-}
-
-pub(crate) unsafe fn hw_params_malloc() -> Result<*mut c_void, i64> {
-    ALSA.with(|alsa| {
-        let alsa = if let Some(alsa) = alsa {
-            alsa
-        } else {
-            return Err(0);
-        };
-        let mut hwp = MaybeUninit::uninit();
-        let ret = (alsa.snd_pcm_hw_params_malloc)(hwp.as_mut_ptr());
-        let _: u64 = ret.try_into().map_err(|_| ret)?;
-        let hwp = hwp.assume_init();
-        Ok(hwp)
-    })
-}
-
-pub(crate) unsafe fn hw_params_any(
-    pcm: *mut c_void,
-    params: *mut c_void,
-) -> Result<(), i64> {
-    ALSA.with(|alsa| {
-        let alsa = if let Some(alsa) = alsa {
-            alsa
-        } else {
-            return Err(0);
-        };
-        let ret = (alsa.snd_pcm_hw_params_any)(pcm, params);
         let _: u64 = ret.try_into().map_err(|_| ret)?;
         Ok(())
     })
@@ -259,26 +194,6 @@ pub(crate) unsafe fn poll_descriptors(
         poll.set_len(size);
         let _: u64 = ret.try_into().map_err(|_| ret)?;
         Ok(poll)
-    })
-}
-
-pub(crate) unsafe fn open(
-    name: *const c_char,
-    stream: SndPcmStream,
-    mode: SndPcmMode,
-) -> Result<*mut c_void, i64> {
-    ALSA.with(|alsa| {
-        let alsa = if let Some(alsa) = alsa {
-            alsa
-        } else {
-            return Err(0);
-        };
-        let mut pcm = MaybeUninit::uninit();
-        let ret =
-            (alsa.snd_pcm_open)(pcm.as_mut_ptr(), name, stream, mode as c_int);
-        let _: u64 = ret.try_into().map_err(|_| ret)?;
-        let pcm = pcm.assume_init();
-        Ok(pcm)
     })
 }
 

@@ -15,6 +15,7 @@ use std::os::raw::{c_int, c_long, c_uint, c_char, c_ulong, c_void};
 use std::time::Duration;
 use std::ffi::CStr;
 use std::collections::HashSet;
+use std::convert::TryInto;
 
 #[repr(C)]
 struct TimeSpec {
@@ -480,10 +481,14 @@ impl Reactor for Listener {
                     // Right input type?
                     if let Some(name) = name {
                         if is_input {
-                            println!("INPUT: {}", name);
+                            if let Some(pcm) = open(alsa, pcm_name, SndPcmStream::Capture) {
+                                println!("INPUT: {}", name);
+                            }
                         }
                         if is_output {
-                            println!("OUTPUT: {}", name);
+                            if let Some(pcm) = open(alsa, pcm_name, SndPcmStream::Playback) {
+                                println!("OUTPUT: {}", name);
+                            }
                         }
                     }
 
@@ -591,22 +596,30 @@ pub(super) fn start(
     });
 }
 
-// FIXME
-/*/// Open a PCM Device.
-pub(crate) fn open(
+// Safe-ish open wrapper for non-blocking PCMs.
+unsafe fn open(
+    alsa: &Alsa,
     name: *const c_char,
     stream: SndPcmStream,
-) -> Option<(*mut c_void, *mut c_void, u8)> {
-    unsafe {
-        let pcm = pcm::open(name, stream, SndPcmMode::Nonblock).ok()?;
-        let hwp = pcm::hw_params_malloc().ok()?;
-        let mut channels = 0;
-        reset_hwp(pcm, hwp)?;
-        for i in 1..=8 {
-            if pcm::hw_test_channels(pcm, hwp, i).is_ok() {
-                channels |= 1 << (i - 1);
-            }
-        }
-        Some((pcm, hwp, channels))
-    }
-}*/
+) -> Option<*mut c_void> {
+    // Create the PCM.
+    let mut pcm = MaybeUninit::uninit();
+    let _: u64 = (alsa.snd_pcm_open)(pcm.as_mut_ptr(), name, stream, SndPcmMode::Nonblock as c_int).try_into().ok()?;
+    let pcm = pcm.assume_init();
+
+    // Allocate Hardware Parameters To Configure the PCM with.
+    let mut hwp = MaybeUninit::uninit();
+    let _: u64 = (alsa.snd_pcm_hw_params_malloc)(hwp.as_mut_ptr()).try_into().ok()?;
+    let hwp = hwp.assume_init();
+
+    // Let the Linux kernel choose default settings.
+    let _: u64 = (alsa.snd_pcm_hw_params_any)(pcm, hwp).try_into().ok()?;
+
+    // Set the audio format (i16 - LE), and access (mmap interleaved).  This is
+    // necessary to support as many devices as possible.
+    let _: u64 = (alsa.snd_pcm_hw_params_set_access)(pcm, hwp, SndPcmAccess::MmapInterleaved).try_into().ok()?;
+    let _: u64 = (alsa.snd_pcm_hw_params_set_format)(pcm, hwp, SndPcmFormat::S16Le).try_into().ok()?;
+
+    // Return the pcm
+    Some(pcm)
+}

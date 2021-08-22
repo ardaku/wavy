@@ -30,16 +30,7 @@ pub(crate) unsafe fn reset_hwp(
     pcm: *mut c_void,
     hwp: *mut c_void,
 ) -> Option<()> {
-    let format = if cfg!(target_endian = "little") {
-        SndPcmFormat::FloatLe
-    } else if cfg!(target_endian = "big") {
-        SndPcmFormat::FloatBe
-    } else {
-        unreachable!()
-    };
-    pcm::hw_params_any(pcm, hwp).ok()?;
-    pcm::hw_params_set_access(pcm, hwp, SndPcmAccess::RwInterleaved).ok()?;
-    pcm::hw_params_set_format(pcm, hwp, format).ok()?;
+
     Some(())
 }
 
