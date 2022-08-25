@@ -1,5 +1,4 @@
-// Wavy
-// Copyright © 2019-2021 Jeron Aldaron Lau.
+// Copyright © 2019-2021 The Wavy Contributors.
 //
 // Licensed under any of:
 // - Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
@@ -12,6 +11,8 @@
 //!
 //! # Getting Started
 //! Add the following to your *Cargo.toml*:
+//!
+//! FIXME: Update example.
 //!
 //! ```toml
 //! [dependencies]
@@ -87,12 +88,137 @@
     variant_size_differences
 )]
 
-mod consts;
-mod env;
-mod listener;
-mod microphone;
-mod speakers;
+// mod consts;
+// mod env;
+// mod listener;
+// mod microphone;
+// mod speakers;
 
-pub use listener::Listener;
-pub use microphone::{Microphone, Recorder};
-pub use speakers::{Player, Speakers};
+// pub use listener::Listener;
+// pub use microphone::{Microphone, Recorder};
+// pub use speakers::{Player, Speakers};
+
+pub use connector::Connector;
+pub use microphone::Microphone;
+pub use speakers::Speakers;
+
+mod speakers {
+    use std::fmt::{Debug, Display, Formatter, Result};
+    use crate::platform::{PlatformSpeakers, Platform, Support};
+
+    /// Speakers future - plays audio.
+    pub struct Speakers(pub(crate) PlatformSpeakers);
+
+    impl Display for Speakers {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+            <Self as Debug>::fmt(self, f)
+        }
+    }
+
+    impl Debug for Speakers {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+            write!(f, "{}", Platform.speakers_name(&self.0))
+        }
+    }
+}
+
+mod microphone {
+    use std::fmt::{Debug, Display, Formatter, Result};
+    use crate::platform::{PlatformMicrophone, Platform, Support};
+
+    /// Microphone future - records audio.
+    pub struct Microphone(pub(crate) PlatformMicrophone);
+
+    impl Display for Microphone {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+            <Self as Debug>::fmt(self, f)
+        }
+    }
+
+    impl Debug for Microphone {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+            write!(f, "{}", Platform.microphone_name(&self.0))
+        }
+    }
+}
+
+mod connector {
+    use std::fmt::{Debug, Formatter, Result};
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+
+    use crate::platform::{Platform, Support};
+    use crate::Microphone;
+    use crate::Speakers;
+
+    pub trait Connectable {
+        fn connect() -> Pin<Box<dyn Future<Output = Self>>>;
+    }
+
+    impl Connectable for Microphone {
+        fn connect() -> Pin<Box<dyn Future<Output = Self>>> {
+            Box::pin(Platform.query_microphones())
+        }
+    }
+
+    impl Connectable for Speakers {
+        fn connect() -> Pin<Box<dyn Future<Output = Self>>> {
+            Box::pin(Platform.query_speakers())
+        }
+    }
+
+    /// Connector for speakers and microphones.
+    pub struct Connector<C: Connectable>(Pin<Box<dyn Future<Output = C>>>);
+
+    impl Debug for Connector<Microphone> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+            write!(f, "MicrophoneConnector")
+        }
+    }
+    
+    impl Debug for Connector<Speakers> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+            write!(f, "SpeakersConnector")
+        }
+    }
+
+    impl<C: Connectable> Connector<C> {
+        /// Create a new future to connect to either new speakers or new
+        /// microphones.
+        pub fn new() -> Self {
+            Self(C::connect())
+        }
+    }
+
+    impl<C: Connectable> Future for Connector<C> {
+        type Output = C;
+
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<C> {
+            Pin::new(&mut self.get_mut().0).poll(cx)
+        }
+    }
+
+    impl<C: Connectable> Default for Connector<C> {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+}
+
+mod platform {
+    #[path = "../linux/linux.rs"]
+    mod linux;
+
+    pub(crate) use linux::{
+        Platform, PlatformMicrophone, PlatformMicrophoneQuery,
+        PlatformSpeakersQuery, PlatformSpeakers,
+    };
+
+    pub(crate) trait Support {
+        fn query_speakers(self) -> PlatformSpeakersQuery;
+        fn query_microphones(self) -> PlatformMicrophoneQuery;
+        fn speakers_name(self, speakers: &PlatformSpeakers) -> &str;
+        fn microphone_name(self, microphone: &PlatformMicrophone) -> &str;
+    }
+}

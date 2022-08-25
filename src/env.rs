@@ -33,7 +33,6 @@
 
 #![allow(unsafe_code)]
 
-use flume::Receiver;
 use fon::chan::Ch32;
 use fon::Frame;
 use std::mem::MaybeUninit;

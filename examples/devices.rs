@@ -1,14 +1,14 @@
-//! Listen for when `Speakers` and `Microphones` are connected.
+//! List `Speakers` and `Microphone` devices as they are connected.
 
 use pasts::Loop;
 use std::task::Poll::{self, Pending};
-use wavy::{Listener, Microphone, Speakers};
+use wavy::{Connector, Microphone, Speakers};
 
 type Exit = ();
 
 struct State {
-    speakers_listener: Listener<Speakers>,
-    microphone_listener: Listener<Microphone>,
+    speakers_connector: Connector<Speakers>,
+    microphone_connector: Connector<Microphone>,
 }
 
 impl State {
@@ -25,13 +25,13 @@ impl State {
 
 async fn event_loop() {
     let mut state = State {
-        speakers_listener: Listener::new(),
-        microphone_listener: Listener::new(),
+        speakers_connector: Connector::new(),
+        microphone_connector: Connector::new(),
     };
 
     Loop::new(&mut state)
-        .when(|s| &mut s.speakers_listener, State::speaker)
-        .when(|s| &mut s.microphone_listener, State::microphone)
+        .when(|s| &mut s.speakers_connector, State::speaker)
+        .when(|s| &mut s.microphone_connector, State::microphone)
         .await;
 }
 

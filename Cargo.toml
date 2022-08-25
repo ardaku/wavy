@@ -26,21 +26,19 @@ categories = [
 ]
 keywords = ["audio", "realtime", "cross-platform", "record", "play"]
 readme = "README.md"
-edition = "2018"
+edition = "2021"
 
 # For all platforms
 [dependencies.fon]
 path = "../../AldaronLau/fon"
 # version = "0.5"
 
-[dependencies.flume]
-version = "0.10"
-default-features = false
-features = ["async"]
+[dependencies.lookit]
+version = "0.1"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
-smelling_salts = { path = "../../AldaronLau/smelling_salts" } # "0.4"
+smelling_salts = "0.6"
 dl_api = "0.4"
 
 # For Web Assembly
