@@ -15,6 +15,7 @@ use std::{
     marker::PhantomData,
     os::raw::c_void,
     pin::Pin,
+    sync::atomic::{AtomicBool, Ordering::SeqCst},
     task::{Context, Poll},
 };
 
@@ -45,6 +46,8 @@ pub(crate) struct Speakers {
     pub(crate) channels: u8,
     /// The sample rate of the speakers.
     pub(crate) sample_rate: Option<f64>,
+    /// Speakers are locked
+    locked: AtomicBool,
 }
 
 impl SoundDevice for Speakers {
@@ -75,6 +78,7 @@ impl From<AudioDevice> for Speakers {
             channels: 0,
             resampler: ([Ch32::MID; 6], 0.0),
             period: 0,
+            locked: AtomicBool::new(false),
         }
     }
 }
@@ -120,7 +124,7 @@ impl Speakers {
     }
 
     /// Generate an audio sink for the user to fill.
-    pub(crate) fn play<F>(&mut self) -> SpeakersSink<'_, F>
+    pub(crate) fn play<F>(&mut self) -> SpeakersSink<F>
     where
         F: Frame<Chan = Ch32>,
     {
@@ -141,16 +145,23 @@ impl Speakers {
     }
 }
 
-impl Future for &mut Speakers {
+impl Future for Speakers {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // Get mutable reference to speakers.
         let this = self.get_mut();
 
+        // Safety
+        if this.locked.load(SeqCst) {
+            eprintln!("Tried to poll speakers before dropping sink");
+            std::process::exit(1);
+        }
+
         // If speaker is unconfigured, return Ready to configure and play.
         if this.channels == 0 {
             let _ = this.device.start();
+            this.locked.store(true, SeqCst);
             return Poll::Ready(());
         }
 
@@ -255,19 +266,21 @@ impl Future for &mut Speakers {
         this.buffer
             .resize(this.period as usize * this.channels as usize, Ch32::MID);
         // Ready for more samples.
+        this.locked.store(true, SeqCst);
         Poll::Ready(())
     }
 }
 
-pub(crate) struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(
-    &'a mut Speakers,
+pub(crate) struct SpeakersSink<F: Frame<Chan = Ch32>>(
+    *mut Speakers,
     Resampler<F>,
     PhantomData<F>,
 );
 
-impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
+impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<F> {
     fn sample_rate(&self) -> f64 {
-        self.0.sample_rate.unwrap()
+        let speakers = unsafe { self.0.as_mut().unwrap() };
+        speakers.sample_rate.unwrap()
     }
 
     fn resampler(&mut self) -> &mut Resampler<F> {
@@ -275,19 +288,22 @@ impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
     }
 
     fn buffer(&mut self) -> &mut [F] {
-        let data = self.0.buffer.as_mut_ptr().cast();
-        let count = self.0.period.into();
+        let speakers = unsafe { self.0.as_mut().unwrap() };
+        let data = speakers.buffer.as_mut_ptr().cast();
+        let count = speakers.period.into();
         unsafe {
-            &mut std::slice::from_raw_parts_mut(data, count)[self.0.starti..]
+            &mut std::slice::from_raw_parts_mut(data, count)[speakers.starti..]
         }
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<'_, F> {
+impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<F> {
     fn drop(&mut self) {
+        //
+        let speakers = unsafe { self.0.as_mut().unwrap() };
         // Store 5.1 surround sample to resampler.
         let frame: Surround32 = self.1.frame().convert();
-        self.0.resampler.0 = [
+        speakers.resampler.0 = [
             frame.channels()[0],
             frame.channels()[1],
             frame.channels()[2],
@@ -296,6 +312,8 @@ impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<'_, F> {
             frame.channels()[5],
         ];
         // Store partial index from resampler.
-        self.0.resampler.1 = self.1.index() % 1.0;
+        speakers.resampler.1 = self.1.index() % 1.0;
+        // Unlock
+        speakers.locked.store(false, SeqCst);
     }
 }
