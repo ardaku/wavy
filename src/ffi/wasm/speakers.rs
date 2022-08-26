@@ -13,6 +13,7 @@ use std::{
     future::Future,
     marker::PhantomData,
     pin::Pin,
+    sync::atomic::{AtomicBool, Ordering::SeqCst},
     task::{Context, Poll},
 };
 
@@ -31,6 +32,8 @@ pub(crate) struct Speakers {
     buffer: Vec<f32>,
     /// State of resampler.
     resampler: ([Ch32; 6], f64),
+    ///
+    locked: AtomicBool,
 }
 
 impl SoundDevice for Speakers {
@@ -70,14 +73,13 @@ impl Default for Speakers {
         Self {
             buffer: vec![0.0; super::BUFFER_SIZE.into()],
             resampler: ([Ch32::MID; 6], 0.0),
+            locked: AtomicBool::new(false),
         }
     }
 }
 
 impl Speakers {
-    pub(crate) fn play<F: Frame<Chan = Ch32>>(
-        &mut self,
-    ) -> SpeakersSink<'_, F> {
+    pub(crate) fn play<F: Frame<Chan = Ch32>>(&mut self) -> SpeakersSink<F> {
         // Adjust buffer size depending on type.
         if TypeId::of::<F>() == TypeId::of::<Mono32>() {
             self.buffer.resize(super::BUFFER_SIZE.into(), 0.0);
@@ -100,13 +102,20 @@ impl Speakers {
     }
 }
 
-impl Future for &mut Speakers {
+impl Future for Speakers {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Safety
+        if self.locked.load(SeqCst) {
+            eprintln!("Tried to poll speakers before dropping sink");
+            std::process::exit(1);
+        }
+
         let state = super::state();
         if state.played {
             state.played = false;
+            self.locked.store(true, SeqCst);
             Poll::Ready(())
         } else {
             state.speaker_waker = Some(cx.waker().clone());
@@ -115,13 +124,13 @@ impl Future for &mut Speakers {
     }
 }
 
-pub(crate) struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(
-    &'a mut Speakers,
+pub(crate) struct SpeakersSink<F: Frame<Chan = Ch32>>(
+    *mut Speakers,
     Resampler<F>,
     PhantomData<F>,
 );
 
-impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
+impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<F> {
     fn sample_rate(&self) -> f64 {
         super::state().sample_rate.unwrap()
     }
@@ -132,21 +141,26 @@ impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
 
     #[allow(unsafe_code)]
     fn buffer(&mut self) -> &mut [F] {
-        let data = self.0.buffer.as_mut_ptr().cast();
+        let speakers = unsafe { self.0.as_mut().unwrap() };
+
+        let data = speakers.buffer.as_mut_ptr().cast();
         let count = super::BUFFER_SIZE.into();
         unsafe { &mut std::slice::from_raw_parts_mut(data, count)[..] }
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<'_, F> {
+#[allow(unsafe_code)]
+impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<F> {
     fn drop(&mut self) {
+        let speakers = unsafe { self.0.as_mut().unwrap() };
+
         // De-interleave.
         if TypeId::of::<F>() == TypeId::of::<Mono32>() {
             // Grab global state.
             let state = super::state();
 
             // Convert to speaker's native type.
-            for (i, sample) in self.0.buffer.iter().cloned().enumerate() {
+            for (i, sample) in speakers.buffer.iter().cloned().enumerate() {
                 state.l_buffer[i] = sample;
                 state.r_buffer[i] = sample;
             }
@@ -155,7 +169,7 @@ impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<'_, F> {
             let state = super::state();
 
             // Convert to speaker's native type.
-            for (i, sample) in self.0.buffer.chunks(2).enumerate() {
+            for (i, sample) in speakers.buffer.chunks(2).enumerate() {
                 state.l_buffer[i] = sample[0];
                 state.r_buffer[i] = sample[1];
             }
@@ -165,7 +179,7 @@ impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<'_, F> {
 
         // Store 5.1 surround sample to resampler.
         let frame: Surround32 = self.1.frame().convert();
-        self.0.resampler.0 = [
+        speakers.resampler.0 = [
             frame.channels()[0],
             frame.channels()[1],
             frame.channels()[2],
@@ -174,6 +188,8 @@ impl<F: Frame<Chan = Ch32>> Drop for SpeakersSink<'_, F> {
             frame.channels()[5],
         ];
         // Store partial index from resampler.
-        self.0.resampler.1 = self.1.index() % 1.0;
+        speakers.resampler.1 = self.1.index() % 1.0;
+        // Unlock
+        speakers.locked.store(false, SeqCst);
     }
 }

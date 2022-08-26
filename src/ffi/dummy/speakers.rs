@@ -42,9 +42,7 @@ impl Default for Speakers {
 }
 
 impl Speakers {
-    pub(crate) fn play<F: Frame<Chan = Ch32>>(
-        &mut self,
-    ) -> SpeakersSink<'_, F> {
+    pub(crate) fn play<F: Frame<Chan = Ch32>>(&mut self) -> SpeakersSink<F> {
         SpeakersSink(self, Resampler::default(), PhantomData)
     }
 
@@ -53,7 +51,7 @@ impl Speakers {
     }
 }
 
-impl Future for &mut Speakers {
+impl Future for Speakers {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -61,15 +59,17 @@ impl Future for &mut Speakers {
     }
 }
 
-pub(crate) struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(
-    &'a mut Speakers,
+pub(crate) struct SpeakersSink<F: Frame<Chan = Ch32>>(
+    *mut Speakers,
     Resampler<F>,
     PhantomData<F>,
 );
 
-impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
+#[allow(unsafe_code)]
+impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<F> {
     fn sample_rate(&self) -> f64 {
-        self.0.sample_rate.unwrap()
+        let speakers = unsafe { self.0.as_mut().unwrap() };
+        speakers.sample_rate.unwrap()
     }
 
     fn resampler(&mut self) -> &mut Resampler<F> {

@@ -12,6 +12,7 @@ use std::{
     future::Future,
     marker::PhantomData,
     pin::Pin,
+    sync::atomic::{AtomicBool, Ordering::SeqCst},
     task::{Context, Poll},
 };
 
@@ -24,7 +25,7 @@ use web_sys::{
 
 use super::SoundDevice;
 
-pub(crate) struct Microphone();
+pub(crate) struct Microphone(AtomicBool);
 
 impl Display for Microphone {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
@@ -78,15 +79,16 @@ impl Default for Microphone {
         let _ = promise.then(&cb);
         cb.forget();
 
-        Self()
+        Self(AtomicBool::new(false))
     }
 }
 
 impl Microphone {
     pub(crate) fn record<F: Frame<Chan = Ch32>>(
         &mut self,
-    ) -> MicrophoneStream<'_, F> {
+    ) -> MicrophoneStream<F> {
         MicrophoneStream {
+            microphone: self,
             index: 0,
             _phantom: PhantomData,
         }
@@ -101,9 +103,16 @@ impl Future for Microphone {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Safety
+        if self.0.load(SeqCst) {
+            eprintln!("Tried to poll microphone before dropping stream");
+            std::process::exit(1);
+        }
+
         let state = super::state();
         if state.recorded {
             state.recorded = false;
+            self.0.store(true, SeqCst);
             Poll::Ready(())
         } else {
             state.mics_waker = Some(cx.waker().clone());
@@ -112,14 +121,16 @@ impl Future for Microphone {
     }
 }
 
-pub(crate) struct MicrophoneStream<'a, F: Frame<Chan = Ch32>> {
+pub(crate) struct MicrophoneStream<F: Frame<Chan = Ch32>> {
+    //
+    microphone: *mut Microphone,
     // Index into buffer
     index: usize,
     //
-    _phantom: PhantomData<&'a F>,
+    _phantom: PhantomData<&'static F>,
 }
 
-impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
+impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<F> {
     type Item = F;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -135,12 +146,21 @@ impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
+impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<F> {
     fn sample_rate(&self) -> Option<f64> {
         Some(super::state().sample_rate.unwrap())
     }
 
     fn len(&self) -> Option<usize> {
         Some(super::BUFFER_SIZE.into())
+    }
+}
+
+#[allow(unsafe_code)]
+impl<F: Frame<Chan = Ch32>> Drop for MicrophoneStream<F> {
+    fn drop(&mut self) {
+        let mic = unsafe { self.microphone.as_mut().unwrap() };
+        // Unlock
+        mic.0.store(false, SeqCst);
     }
 }
