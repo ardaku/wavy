@@ -73,12 +73,14 @@ impl<const N: usize> Debug for Speakers<N> {
     }
 }
 
-impl<const N: usize> Speakers<N> {
+impl Speakers<0> {
     /// Query available audio destinations.
     pub fn query() -> Vec<Self> {
         ffi::device_list(Self)
     }
+}
 
+impl<const N: usize> Speakers<N> {
     /// Try a reconfiguration of speakers.
     pub fn config<const C: usize>(
         self,

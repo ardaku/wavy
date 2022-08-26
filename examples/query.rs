@@ -1,7 +1,7 @@
 use wavy::{Microphone, Speakers};
 
 fn main() {
-    for speakers in Speakers::<0>::query() {
+    for speakers in Speakers::query() {
         println!("Found speaker: {}", speakers);
 
         // FIXME
@@ -16,7 +16,7 @@ fn main() {
         }*/
     }
 
-    for microphone in Microphone::<0>::query() {
+    for microphone in Microphone::query() {
         println!("Found microphone: {}", microphone);
 
         // FIXME

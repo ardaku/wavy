@@ -31,12 +31,14 @@ impl<const N: usize> Debug for Microphone<N> {
     }
 }
 
-impl<const N: usize> Microphone<N> {
+impl Microphone<0> {
     /// Query available audio sources.
     pub fn query() -> Vec<Self> {
         ffi::device_list(Self)
     }
+}
 
+impl<const N: usize> Microphone<N> {
     /// Try a reconfiguration of microphone.
     pub fn config<const C: usize>(
         self,
