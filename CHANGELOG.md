@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
 ### Changed
  - Update to pasts 0.12.0
  - Replace `supports()` with `config()`
+ - Bumped to 2021 edition
 
 ### Removed
  - `Speakers::play()` - use `Notifier` impl on `Speakers` instead

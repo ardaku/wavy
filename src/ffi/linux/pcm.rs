@@ -15,10 +15,13 @@ use std::{
     os::raw::{c_char, c_int, c_uint, c_void},
 };
 
-use super::super::{
-    PollFd, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState, SndPcmStream,
+use super::{
+    super::{
+        PollFd, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState,
+        SndPcmStream,
+    },
+    ALSA,
 };
-use super::ALSA;
 
 pub(crate) unsafe fn hw_params_set_period_size_near(
     pcm: *mut c_void,

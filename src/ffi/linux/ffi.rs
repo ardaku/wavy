@@ -12,11 +12,10 @@ mod microphone;
 mod speakers;
 
 // Implementation Expectations:
+pub(crate) use asound::device_list::device_list;
 use asound::{
     device_list::{open, pcm_hw_params, AudioDevice, SoundDevice, DEFAULT},
     PollFd, SndPcmAccess, SndPcmFormat, SndPcmMode, SndPcmState, SndPcmStream,
 };
-
-pub(crate) use asound::device_list::device_list;
 pub(crate) use microphone::{Microphone, MicrophoneStream};
 pub(crate) use speakers::{Speakers, SpeakersSink};

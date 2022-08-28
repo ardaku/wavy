@@ -9,22 +9,22 @@
 
 [package]
 name = "wavy"
-version = "0.9.1"
+version = "0.10.0"
 license = "Apache-2.0 OR BSL-1.0 OR MIT"
 
 description = """
 Asynchronous cross-platform real-time audio recording & playback.
 """
-repository = "https://github.com/libcala/wavy"
+repository = "https://github.com/ardaku/wavy"
 documentation = "https://docs.rs/wavy"
-homepage = "https://github.com/libcala/wavy/blob/main/CHANGELOG.md"
+homepage = "https://github.com/ardaku/wavy/blob/stable/CHANGELOG.md"
 include = ["Cargo.toml", "src/*"]
 categories = [
     "game-engines", "hardware-support", "multimedia", "multimedia::audio", "os"
 ]
 keywords = ["audio", "realtime", "cross-platform", "record", "play"]
 readme = "README.md"
-edition = "2018"
+edition = "2021"
 
 # For all platforms
 [dependencies.fon]

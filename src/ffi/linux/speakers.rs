@@ -256,7 +256,7 @@ impl Future for Speakers {
                             st => {
                                 eprintln!(
                             "Incorrect state = {:?} (XRUN): Report Bug to \
-                             https://github.com/libcala/wavy/issues/new",
+                             https://github.com/ardaku/wavy/issues/new",
                             st
                         );
                                 unreachable!()
@@ -266,7 +266,7 @@ impl Future for Speakers {
                     -77 => {
                         eprintln!(
                             "Incorrect state (-EBADFD): Report Bug to \
-                         https://github.com/libcala/wavy/issues/new"
+                         https://github.com/ardaku/wavy/issues/new"
                         );
                         unreachable!()
                     }

@@ -220,7 +220,7 @@ impl Future for Microphone {
                     -77 => {
                         eprintln!(
                             "Incorrect state (-EBADFD): Report Bug to \
-                        https://github.com/libcala/wavy/issues/new"
+                        https://github.com/ardaku/wavy/issues/new"
                         );
                         unreachable!()
                     }
@@ -236,7 +236,7 @@ impl Future for Microphone {
                             st => {
                                 eprintln!(
                                 "Incorrect state = {:?} (XRUN): Report Bug \
-                            to https://github.com/libcala/wavy/issues/new",
+                            to https://github.com/ardaku/wavy/issues/new",
                                 st
                             );
                                 unreachable!()
