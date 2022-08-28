@@ -4,6 +4,19 @@ All notable changes to `wavy` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://jeronlau.tk/semver/).
 
+## [0.10.0] - Unreleased
+### Added
+ - Impl `Notifier<Event = SpeakersSink>` for `Speakers`
+ - Impl `Notifier<Event = MicrophoneStream>` for `Microphone`
+
+### Changed
+ - Update to pasts 0.12.0
+ - Replace `supports()` with `config()`
+
+### Removed
+ - `Speakers::play()` - use `Notifier` impl on `Speakers` instead
+ - `Microphone::record()` - use `Notifier` impl on `Microphone` instead
+
 ## [0.9.1] - 2021-02-06
 ### Fixed
  - Panics in the Web port

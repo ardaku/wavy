@@ -14,53 +14,58 @@
 //!
 //! ```toml
 //! [dependencies]
-//! pasts = "0.7"
-//! wavy = "0.8"
-//! fon = "0.4"
+//! pasts = "0.12"
+//! wavy = "0.10"
+//! fon = "0.5"
 //! ```
 //!
 //! This example records audio and plays it back in real time as it's being
 //! recorded.  (Make sure to wear headphones to avoid feedback):
 //!
-//! ```rust,no_run
-//! use fon::{stereo::Stereo32, Sink, Audio};
-//! use pasts::{exec, wait};
-//! use wavy::{Speakers, Microphone, SpeakersSink, MicrophoneStream};
-//!
-//! /// An event handled by the event loop.
-//! enum Event<'a> {
-//!     /// Speaker is ready to play more audio.
-//!     Play(SpeakersSink<'a, Stereo32>),
-//!     /// Microphone has recorded some audio.
-//!     Record(MicrophoneStream<'a, Stereo32>),
-//! }
+//! ```rust
+//! use fon::{mono::Mono32, Audio, Sink};
+//! use pasts::{prelude::*, Join};
+//! use wavy::{Microphone, MicrophoneStream, Speakers, SpeakersSink};
 //!
 //! /// Shared state between tasks on the thread.
-//! struct State {
+//! struct App<'a> {
+//!     /// Handle to speakers
+//!     speakers: &'a mut Speakers<1>,
+//!     /// Handle to the microphone
+//!     microphone: &'a mut Microphone<1>,
 //!     /// Temporary buffer for holding real-time audio samples.
-//!     buffer: Audio<Stereo32>,
+//!     buffer: Audio<Mono32>,
 //! }
 //!
-//! impl State {
-//!     /// Event loop.  Return false to stop program.
-//!     fn event(&mut self, event: Event<'_>) {
-//!         match event {
-//!             Event::Play(mut speakers) => speakers.stream(self.buffer.drain()),
-//!             Event::Record(microphone) => self.buffer.extend(microphone),
-//!         }
+//! impl App<'_> {
+//!     /// Speaker is ready to play more audio.
+//!     fn play(&mut self, mut sink: SpeakersSink<Mono32>) -> Poll<()> {
+//!         sink.stream(self.buffer.drain());
+//!         Pending
 //!     }
-//! }
 //!
-//! /// Program start.
-//! fn main() {
-//!     let mut state = State { buffer: Audio::with_silence(48_000, 0) };
-//!     let mut speakers = Speakers::default();
-//!     let mut microphone = Microphone::default();
+//!     /// Microphone has recorded some audio.
+//!     fn record(&mut self, stream: MicrophoneStream<Mono32>) -> Poll<()> {
+//!         self.buffer.extend(stream);
+//!         Pending
+//!     }
 //!
-//!     exec!(state.event(wait! {
-//!         Event::Record(microphone.record().await),
-//!         Event::Play(speakers.play().await),
-//!     }));
+//!     /// Program start.
+//!     async fn main(_executor: Executor) {
+//!         let speakers = &mut Speakers::default();
+//!         let microphone = &mut Microphone::default();
+//!         let buffer = Audio::with_silence(48_000, 0);
+//!         let mut app = App {
+//!             speakers,
+//!             microphone,
+//!             buffer,
+//!         };
+//!
+//!         Join::new(&mut app)
+//!             .on(|s| s.speakers, App::play)
+//!             .on(|s| s.microphone, App::record)
+//!             .await
+//!     }
 //! }
 //! ```
 

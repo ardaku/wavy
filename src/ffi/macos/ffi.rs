@@ -7,12 +7,11 @@
 // At your choosing (See accompanying files LICENSE_APACHE_2_0.txt,
 // LICENSE_MIT.txt and LICENSE_BOOST_1_0.txt).
 
-mod audio_queue;
 mod device_list;
 mod microphone;
 mod speakers;
 
-use device_list::{AudioDevice, SoundDevice};
+use device_list::SoundDevice;
 
 pub(crate) use device_list::device_list;
 pub(super) use microphone::{Microphone, MicrophoneStream};

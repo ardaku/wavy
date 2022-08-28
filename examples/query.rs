@@ -4,21 +4,23 @@ fn main() {
     for speakers in Speakers::query() {
         println!("Found speaker: {}", speakers);
 
-        if speakers.supports::<fon::mono::Mono32>() {
+        // FIXME
+        /*if speakers.config::<fon::mono::Mono32>() {
             println!(" - Mono");
         }
-        if speakers.supports::<fon::stereo::Stereo32>() {
+        if speakers.config::<fon::stereo::Stereo32>() {
             println!(" - Stereo");
         }
-        if speakers.supports::<fon::surround::Surround32>() {
+        if speakers.config::<fon::surround::Surround32>() {
             println!(" - Surround");
-        }
+        }*/
     }
 
     for microphone in Microphone::query() {
         println!("Found microphone: {}", microphone);
 
-        if microphone.supports::<fon::mono::Mono32>() {
+        // FIXME
+        /*if microphone.supports::<fon::mono::Mono32>() {
             println!(" - Mono");
         }
         if microphone.supports::<fon::stereo::Stereo32>() {
@@ -26,6 +28,6 @@ fn main() {
         }
         if microphone.supports::<fon::surround::Surround32>() {
             println!(" - Surround");
-        }
+        }*/
     }
 }

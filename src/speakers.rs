@@ -12,105 +12,133 @@
 use std::fmt::{Debug, Display, Formatter, Result};
 
 use fon::{chan::Ch32, Frame, Resampler, Sink};
+use pasts::prelude::*;
 
 use crate::ffi;
 
-/// Play audio samples through a speaker.
+/// Play audio through speakers.  Notifier produces an audio sink, which
+/// consumes an audio stream of played samples.  If you don't write to the sink,
+/// it will keep playing whatever was last streamed into it.
 ///
 /// # 440 HZ Sine Wave Example
 /// **note:** This example depends on `twang = "0.5"` to synthesize the sine
 /// wave.
-/// ```no_run
+/// ```
 /// use fon::{stereo::Stereo32, Sink};
-/// use pasts::{exec, wait};
+/// use pasts::{prelude::*, Join};
 /// use twang::{Fc, Signal, Synth};
 /// use wavy::{Speakers, SpeakersSink};
 ///
-/// /// An event handled by the event loop.
-/// enum Event<'a> {
-///     /// Speaker is ready to play more audio.
-///     Play(SpeakersSink<'a, Stereo32>),
-/// }
-///
 /// /// Shared state between tasks on the thread.
-/// struct State {
+/// struct App<'a> {
+///     /// Handle to stereo speakers
+///     speakers: &'a mut Speakers<2>,
 ///     /// A streaming synthesizer using Twang.
 ///     synth: Synth<()>,
 /// }
 ///
-/// impl State {
-///     /// Event loop.  Return false to stop program.
-///     fn event(&mut self, event: Event<'_>) {
-///         match event {
-///             Event::Play(mut speakers) => speakers.stream(&mut self.synth),
+/// impl App<'_> {
+///     /// Speaker is ready to play more audio.
+///     fn play(&mut self, mut sink: SpeakersSink<Stereo32>) -> Poll<()> {
+///         sink.stream(&mut self.synth);
+///         Pending
+///     }
+///
+///     /// Program start.
+///     async fn main(_executor: Executor) {
+///         fn sine(_: &mut (), fc: Fc) -> Signal {
+///             fc.freq(440.0).sine().gain(0.7)
 ///         }
+///
+///         let speakers = &mut Speakers::default();
+///         let synth = Synth::new((), sine);
+///         let mut app = App { speakers, synth };
+///
+///         Join::new(&mut app).on(|s| s.speakers, App::play).await;
 ///     }
-/// }
-///
-/// /// Program start.
-/// fn main() {
-///     fn sine(_: &mut (), fc: Fc) -> Signal {
-///         fc.freq(440.0).sine().gain(0.7)
-///     }
-///
-///     let mut state = State { synth: Synth::new((), sine) };
-///     let mut speakers = Speakers::default();
-///
-///     exec!(state.event(wait! {
-///         Event::Play(speakers.play().await),
-///     }));
 /// }
 /// ```
 #[derive(Default)]
-pub struct Speakers(pub(super) ffi::Speakers);
+pub struct Speakers<const N: usize>(pub(super) ffi::Speakers);
 
-impl Display for Speakers {
+impl<const N: usize> Display for Speakers<N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         self.0.fmt(f)
     }
 }
 
-impl Debug for Speakers {
+impl<const N: usize> Debug for Speakers<N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         <Self as Display>::fmt(self, f)
     }
 }
 
-impl Speakers {
+impl Speakers<0> {
     /// Query available audio destinations.
     pub fn query() -> Vec<Self> {
         ffi::device_list(Self)
     }
+}
 
-    /// Check is speakers are available to use in a specific configuration
-    pub fn supports<F>(&self) -> bool
+impl<const N: usize> Speakers<N> {
+    /// Try a reconfiguration of speakers.
+    pub fn config<const C: usize>(
+        self,
+    ) -> std::result::Result<Speakers<C>, Self>
     where
-        F: Frame<Chan = Ch32>,
+        Speakers<C>: SpeakersProperties,
     {
-        let count = F::CHAN_COUNT;
-        let bit = count - 1;
-        (self.0.channels() & (1 << bit)) != 0
+        let bit = C - 1;
+        if (self.0.channels() & (1 << bit)) != 0 {
+            Ok(Speakers(self.0))
+        } else {
+            Err(self)
+        }
     }
+}
 
-    /// Play audio through speakers.  Returns an audio sink, which consumes an
-    /// audio stream of played samples.  If you don't write to the sink, it will
-    /// keep playing whatever was last streamed into it.
-    pub async fn play<F: Frame<Chan = Ch32>>(&mut self) -> SpeakersSink<'_, F> {
-        (&mut self.0).await;
-        SpeakersSink(self.0.play())
+pub trait SpeakersProperties {
+    type Sample: Frame<Chan = Ch32>;
+}
+
+impl SpeakersProperties for Speakers<1> {
+    type Sample = fon::mono::Mono32;
+}
+
+impl SpeakersProperties for Speakers<2> {
+    type Sample = fon::stereo::Stereo32;
+}
+
+impl SpeakersProperties for Speakers<6> {
+    type Sample = fon::surround::Surround32;
+}
+
+impl<const N: usize> Notifier for Speakers<N>
+where
+    Speakers<N>: SpeakersProperties,
+{
+    type Event = SpeakersSink<<Self as SpeakersProperties>::Sample>;
+
+    fn poll_next(self: Pin<&mut Self>, e: &mut Exec<'_>) -> Poll<Self::Event> {
+        let this = self.get_mut();
+        if let Ready(()) = Pin::new(&mut this.0).poll(e) {
+            Ready(SpeakersSink(this.0.play()))
+        } else {
+            Pending
+        }
     }
 }
 
 /// A sink that consumes audio samples and plays them through the speakers.
-pub struct SpeakersSink<'a, F: Frame<Chan = Ch32>>(ffi::SpeakersSink<'a, F>);
+pub struct SpeakersSink<F: Frame<Chan = Ch32>>(ffi::SpeakersSink<F>);
 
-impl<F: Frame<Chan = Ch32>> Debug for SpeakersSink<'_, F> {
+impl<F: Frame<Chan = Ch32>> Debug for SpeakersSink<F> {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result {
         write!(fmt, "SpeakersSink(rate: {})", self.sample_rate())
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<'_, F> {
+impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<F> {
     fn sample_rate(&self) -> f64 {
         self.0.sample_rate()
     }

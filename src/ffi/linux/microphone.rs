@@ -15,6 +15,7 @@ use std::{
     marker::PhantomData,
     os::raw::c_void,
     pin::Pin,
+    sync::atomic::{AtomicBool, Ordering::SeqCst},
     task::{Context, Poll},
 };
 
@@ -25,7 +26,7 @@ use super::{
     DEFAULT,
 };
 
-pub(crate) struct Microphone {
+struct MicrophoneInner {
     // PCM I/O Handle
     device: AudioDevice,
     // Interleaved Audio Buffer.
@@ -34,40 +35,68 @@ pub(crate) struct Microphone {
     period: u16,
     // Index to stop reading.
     endi: usize,
+    /// Microphone are locked
+    locked: AtomicBool,
+}
+
+pub(crate) struct Microphone {
     // Number of channels on the Microphone.
     pub(crate) channels: u8,
     // Sample Rate of The Microphone (src)
     pub(crate) sample_rate: Option<f64>,
+    /// Leaked shared box
+    inner: *mut MicrophoneInner,
+}
+
+impl Drop for Microphone {
+    fn drop(&mut self) {
+        // Safety
+        if unsafe { (*self.inner).locked.load(SeqCst) } {
+            eprintln!("Microphone dropped before dropping stream");
+            std::process::exit(1);
+        }
+
+        unsafe { drop(Box::from_raw(self.inner)) };
+    }
 }
 
 impl SoundDevice for Microphone {
     const INPUT: bool = true;
 
     fn pcm(&self) -> *mut c_void {
-        self.device.pcm
+        unsafe { (*self.inner).device.pcm }
     }
 
     fn hwp(&self) -> *mut c_void {
-        self.device.pcm
+        unsafe { (*self.inner).device.pcm }
+    }
+}
+
+impl Display for Microphone {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        // Safety
+        if unsafe { (*self.inner).locked.load(SeqCst) } {
+            eprintln!("Tried to display speakers before dropping sink");
+            std::process::exit(1);
+        }
+
+        unsafe { f.write_str((*self.inner).device.name.as_str()) }
     }
 }
 
 impl From<AudioDevice> for Microphone {
     fn from(device: AudioDevice) -> Self {
         Self {
-            device,
-            buffer: Vec::new(),
-            period: 0,
             channels: 0,
-            endi: 0,
             sample_rate: None,
+            inner: Box::leak(Box::new(MicrophoneInner {
+                device,
+                buffer: Vec::new(),
+                period: 0,
+                endi: 0,
+                locked: AtomicBool::new(false),
+            })),
         }
-    }
-}
-
-impl Display for Microphone {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.write_str(self.device.name.as_str())
     }
 }
 
@@ -88,7 +117,7 @@ impl Default for Microphone {
 
 impl Microphone {
     /// Attempt to configure the microphone for a specific number of channels.
-    fn set_channels<F>(&mut self) -> Option<bool>
+    fn set_channels<F>(&mut self, inner: &mut MicrophoneInner) -> Option<bool>
     where
         F: Frame<Chan = Ch32>,
     {
@@ -99,11 +128,11 @@ impl Microphone {
             self.channels = F::CHAN_COUNT as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
-                &self.device,
+                &inner.device,
                 self.channels,
-                &mut self.buffer,
+                &mut inner.buffer,
                 &mut self.sample_rate,
-                &mut self.period,
+                &mut inner.period,
             )?;
             Some(true)
         } else {
@@ -113,17 +142,26 @@ impl Microphone {
 
     pub(crate) fn record<F: Frame<Chan = Ch32>>(
         &mut self,
-    ) -> MicrophoneStream<'_, F> {
+    ) -> MicrophoneStream<F> {
+        // Always called after ready, so should be safe
+        let inner = unsafe { self.inner.as_mut().unwrap() };
+        
         // Change number of channels, if different than last call.
-        self.set_channels::<F>()
+        self.set_channels::<F>(inner)
             .expect("Microphone::record() called with invalid configuration");
 
         // Stream from microphone's buffer.
-        MicrophoneStream(self, 0, PhantomData)
+        MicrophoneStream(inner, 0, PhantomData, self.sample_rate, self.channels)
     }
 
     pub(crate) fn channels(&self) -> u8 {
-        self.device.supported
+        // Safety
+        if unsafe { (*self.inner).locked.load(SeqCst) } {
+            eprintln!("Tried to poll speakers before dropping sink");
+            std::process::exit(1);
+        }
+
+        unsafe { (*self.inner).device.supported }
     }
 }
 
@@ -135,15 +173,24 @@ impl Future for Microphone {
         // Get mutable reference to microphone.
         let this = self.get_mut();
 
+        // Safety
+        if unsafe { (*this.inner).locked.load(SeqCst) } {
+            eprintln!("Tried to poll microphone before dropping stream");
+            std::process::exit(1);
+        }
+        //
+        let inner = unsafe { this.inner.as_mut().unwrap() };
+
         // If microphone is unconfigured, return Ready to configure and play.
         if this.channels == 0 {
-            let _ = this.device.start();
+            let _ = inner.device.start();
+            inner.locked.store(true, SeqCst);
             return Poll::Ready(());
         }
 
         // Check if not woken, then yield.
         let mut pending = true;
-        for fd in &this.device.fds {
+        for fd in &inner.device.fds {
             if !fd.should_yield() {
                 pending = false;
                 break;
@@ -156,9 +203,9 @@ impl Future for Microphone {
         // Attempt to overwrite the internal microphone buffer.
         let result = unsafe {
             asound::pcm::readi(
-                this.device.pcm,
-                this.buffer.as_mut_slice().as_mut_ptr(),
-                this.period,
+                inner.device.pcm,
+                inner.buffer.as_mut_slice().as_mut_ptr(),
+                inner.period,
             )
         };
 
@@ -178,11 +225,11 @@ impl Future for Microphone {
                         unreachable!()
                     }
                     -32 => {
-                        match unsafe { asound::pcm::state(this.device.pcm) } {
+                        match unsafe { asound::pcm::state(inner.device.pcm) } {
                             SndPcmState::Xrun => {
                                 eprintln!("Microphone XRUN: Latency cause?");
                                 unsafe {
-                                    asound::pcm::prepare(this.device.pcm)
+                                    asound::pcm::prepare(inner.device.pcm)
                                         .unwrap();
                                 }
                             }
@@ -201,15 +248,15 @@ impl Future for Microphone {
                         "Stream got suspended, trying to recover… (-ESTRPIPE)"
                     );
                         unsafe {
-                            if asound::pcm::resume(this.device.pcm).is_ok() {
+                            if asound::pcm::resume(inner.device.pcm).is_ok() {
                                 // Prepare, so we keep getting samples.
-                                asound::pcm::prepare(this.device.pcm).unwrap();
+                                asound::pcm::prepare(inner.device.pcm).unwrap();
                             }
                         }
                     }
                     _ => unreachable!(),
                 }
-                for fd in &this.device.fds {
+                for fd in &inner.device.fds {
                     // Register waker
                     fd.register_waker(cx.waker());
                 }
@@ -217,41 +264,53 @@ impl Future for Microphone {
                 Poll::Pending
             }
             Ok(len) => {
-                this.endi = len;
+                inner.endi = len;
                 // Ready, audio buffer has been filled!
+                inner.locked.store(true, SeqCst);
                 Poll::Ready(())
             }
         }
     }
 }
 
-pub(crate) struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(
-    &'a mut Microphone,
+pub(crate) struct MicrophoneStream<F: Frame<Chan = Ch32>>(
+    *mut MicrophoneInner,
     usize,
     PhantomData<F>,
+    Option<f64>,
+    u8,
 );
 
-impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
+impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<F> {
     type Item = F;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.1 >= self.0.endi {
+        let mic = unsafe { self.0.as_mut().unwrap() };
+        if self.1 >= mic.endi {
             return None;
         }
-        let frame = F::from_channels(
-            &self.0.buffer[self.1 * self.0.channels as usize..],
-        );
+        let frame =
+            F::from_channels(&mic.buffer[self.1 * self.4 as usize..]);
         self.1 += 1;
         Some(frame)
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
+impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<F> {
     fn sample_rate(&self) -> Option<f64> {
-        self.0.sample_rate
+        self.3
     }
 
     fn len(&self) -> Option<usize> {
-        Some(self.0.endi)
+        let mic = unsafe { self.0.as_mut().unwrap() };
+        Some(mic.endi)
+    }
+}
+
+impl<F: Frame<Chan = Ch32>> Drop for MicrophoneStream<F> {
+    fn drop(&mut self) {
+        let mic = unsafe { self.0.as_mut().unwrap() };
+        // Unlock
+        mic.locked.store(false, SeqCst);
     }
 }

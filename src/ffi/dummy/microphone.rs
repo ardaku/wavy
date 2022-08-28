@@ -40,7 +40,7 @@ impl Default for Microphone {
 impl Microphone {
     pub(crate) fn record<F: Frame<Chan = Ch32>>(
         &mut self,
-    ) -> MicrophoneStream<'_, F> {
+    ) -> MicrophoneStream<F> {
         MicrophoneStream(PhantomData)
     }
 
@@ -57,11 +57,11 @@ impl Future for Microphone {
     }
 }
 
-pub(crate) struct MicrophoneStream<'a, F: Frame<Chan = Ch32>>(
-    PhantomData<&'a F>,
+pub(crate) struct MicrophoneStream<F: Frame<Chan = Ch32>>(
+    PhantomData<&'static F>,
 );
 
-impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
+impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<F> {
     type Item = F;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -69,7 +69,7 @@ impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<'_, F> {
     }
 }
 
-impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<'_, F> {
+impl<F: Frame<Chan = Ch32>> Stream<F> for MicrophoneStream<F> {
     fn sample_rate(&self) -> Option<f64> {
         Some(crate::consts::SAMPLE_RATE.into())
     }

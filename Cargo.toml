@@ -30,6 +30,9 @@ edition = "2018"
 [dependencies.fon]
 version = "0.5"
 
+[dependencies.pasts]
+version = "0.12"
+
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
 smelling_salts = "0.2"
@@ -59,5 +62,4 @@ version = "0.2"
 
 # Examples
 [dev-dependencies]
-pasts = "0.7"
 twang = "0.7"
