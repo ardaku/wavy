@@ -28,7 +28,7 @@ edition = "2021"
 
 # For all platforms
 [dependencies.fon]
-version = "0.5"
+version = "0.6"
 
 [dependencies.pasts]
 version = "0.12"
