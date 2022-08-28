@@ -30,8 +30,7 @@ use super::{
     DEFAULT,
 };
 
-/// ALSA Speakers connection.
-pub(crate) struct Speakers {
+struct SpeakersInner {
     /// ALSA PCM type for both speakers and microphones.
     device: AudioDevice,
     /// Index into audio frames to start writing.
@@ -42,43 +41,69 @@ pub(crate) struct Speakers {
     resampler: ([Ch32; 6], f64),
     /// The number of frames in the buffer.
     period: u16,
+    /// Speakers are locked
+    locked: AtomicBool,
+}
+
+/// ALSA Speakers connection.
+pub(crate) struct Speakers {
     /// Number of available channels
     pub(crate) channels: u8,
     /// The sample rate of the speakers.
     pub(crate) sample_rate: Option<f64>,
-    /// Speakers are locked
-    locked: AtomicBool,
+    /// Leaked shared box
+    inner: *mut SpeakersInner,
+}
+
+impl Drop for Speakers {
+    fn drop(&mut self) {
+        // Safety
+        if unsafe { (*self.inner).locked.load(SeqCst) } {
+            eprintln!("Speakers dropped before dropping sink");
+            std::process::exit(1);
+        }
+
+        unsafe { drop(Box::from_raw(self.inner)) };
+    }
 }
 
 impl SoundDevice for Speakers {
     const INPUT: bool = false;
 
     fn pcm(&self) -> *mut c_void {
-        self.device.pcm
+        unsafe { (*self.inner).device.pcm }
     }
 
     fn hwp(&self) -> *mut c_void {
-        self.device.pcm
+        unsafe { (*self.inner).device.pcm }
     }
 }
 
 impl Display for Speakers {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.write_str(self.device.name.as_str())
+        // Safety
+        if unsafe { (*self.inner).locked.load(SeqCst) } {
+            eprintln!("Tried to display speakers before dropping sink");
+            std::process::exit(1);
+        }
+
+        unsafe { f.write_str((*self.inner).device.name.as_str()) }
     }
 }
 
 impl From<AudioDevice> for Speakers {
     fn from(device: AudioDevice) -> Self {
         Self {
-            device,
-            starti: 0,
-            buffer: Vec::new(),
             sample_rate: None,
             channels: 0,
-            resampler: ([Ch32::MID; 6], 0.0),
-            period: 0,
-            locked: AtomicBool::new(false),
+            inner: Box::leak(Box::new(SpeakersInner {
+                device,
+                starti: 0,
+                buffer: Vec::new(),
+                resampler: ([Ch32::MID; 6], 0.0),
+                period: 0,
+                locked: AtomicBool::new(false),
+            })),
         }
     }
 }
@@ -100,7 +125,7 @@ impl Default for Speakers {
 
 impl Speakers {
     /// Attempt to configure the speaker for a specific number of channels.
-    fn set_channels<F>(&mut self) -> Option<bool>
+    fn set_channels<F>(&mut self, inner: &mut SpeakersInner) -> Option<bool>
     where
         F: Frame<Chan = Ch32>,
     {
@@ -111,11 +136,11 @@ impl Speakers {
             self.channels = F::CHAN_COUNT as u8;
             // Configure Hardware Parameters
             pcm_hw_params(
-                &self.device,
+                &inner.device,
                 self.channels,
-                &mut self.buffer,
+                &mut inner.buffer,
                 &mut self.sample_rate,
-                &mut self.period,
+                &mut inner.period,
             )?;
             Some(true)
         } else {
@@ -128,20 +153,28 @@ impl Speakers {
     where
         F: Frame<Chan = Ch32>,
     {
+        // Always called after ready, so should be safe
+        let inner = unsafe { self.inner.as_mut().unwrap() };
         // Change number of channels, if different than last call.
-        self.set_channels::<F>()
+        self.set_channels::<F>(inner)
             .expect("Speaker::play() called with invalid configuration");
         // Convert the resampler to the target speaker configuration.
         let resampler = Resampler::<F>::new(
-            Surround32::from_channels(&self.resampler.0[..]).convert(),
-            self.resampler.1,
+            Surround32::from_channels(&inner.resampler.0[..]).convert(),
+            inner.resampler.1,
         );
         // Create a sink that borrows this speaker's buffer mutably.
-        SpeakersSink(self, resampler, PhantomData)
+        SpeakersSink(inner, resampler, PhantomData, self.sample_rate.unwrap())
     }
 
     pub(crate) fn channels(&self) -> u8 {
-        self.device.supported
+        // Safety
+        if unsafe { (*self.inner).locked.load(SeqCst) } {
+            eprintln!("Tried to poll speakers before dropping sink");
+            std::process::exit(1);
+        }
+
+        unsafe { (*self.inner).device.supported }
     }
 }
 
@@ -153,21 +186,23 @@ impl Future for Speakers {
         let this = self.get_mut();
 
         // Safety
-        if this.locked.load(SeqCst) {
+        if unsafe { (*this.inner).locked.load(SeqCst) } {
             eprintln!("Tried to poll speakers before dropping sink");
             std::process::exit(1);
         }
+        //
+        let inner = unsafe { this.inner.as_mut().unwrap() };
 
         // If speaker is unconfigured, return Ready to configure and play.
         if this.channels == 0 {
-            let _ = this.device.start();
-            this.locked.store(true, SeqCst);
+            let _ = inner.device.start();
+            inner.locked.store(true, SeqCst);
             return Poll::Ready(());
         }
 
         // Check if not woken, then yield.
         let mut pending = true;
-        for fd in &this.device.fds {
+        for fd in &inner.device.fds {
             if !fd.should_yield() {
                 pending = false;
                 break;
@@ -181,9 +216,9 @@ impl Future for Speakers {
         // Attempt to write remaining internal speaker buffer to the speakers.
         let result = unsafe {
             asound::pcm::writei(
-                this.device.pcm,
-                this.buffer.as_ptr(),
-                this.period.into(),
+                inner.device.pcm,
+                inner.buffer.as_ptr(),
+                inner.period.into(),
             )
         };
 
@@ -197,23 +232,23 @@ impl Future for Speakers {
                     // page)
                     -11 => {
                         /* Pending */
-                        for fd in &this.device.fds {
+                        for fd in &inner.device.fds {
                             // Register waker, and then return not ready.
                             fd.register_waker(cx.waker());
                         }
                         return Poll::Pending;
                     }
                     -32 => {
-                        match unsafe { asound::pcm::state(this.device.pcm) } {
+                        match unsafe { asound::pcm::state(inner.device.pcm) } {
                             SndPcmState::Xrun => {
                                 // Player samples are not generated fast enough
                                 unsafe {
-                                    asound::pcm::prepare(this.device.pcm)
+                                    asound::pcm::prepare(inner.device.pcm)
                                         .unwrap();
                                     asound::pcm::writei(
-                                        this.device.pcm,
-                                        this.buffer.as_ptr(),
-                                        this.period.into(),
+                                        inner.device.pcm,
+                                        inner.buffer.as_ptr(),
+                                        inner.period.into(),
                                     )
                                     .unwrap()
                                 }
@@ -244,13 +279,13 @@ impl Future for Speakers {
                         // Prepare, so we keep getting samples.
                         unsafe {
                             // Whether this works or not, we want to prepare.
-                            let _ = asound::pcm::resume(this.device.pcm);
+                            let _ = asound::pcm::resume(inner.device.pcm);
                             // Prepare
-                            asound::pcm::prepare(this.device.pcm).unwrap();
+                            asound::pcm::prepare(inner.device.pcm).unwrap();
                             asound::pcm::writei(
-                                this.device.pcm,
-                                this.buffer.as_ptr(),
-                                this.period.into(),
+                                inner.device.pcm,
+                                inner.buffer.as_ptr(),
+                                inner.period.into(),
                             )
                             .unwrap()
                         }
@@ -261,26 +296,27 @@ impl Future for Speakers {
         };
 
         // Shift buffer.
-        this.buffer.drain(..len * this.channels as usize);
-        this.starti = this.buffer.len() / this.channels as usize;
-        this.buffer
-            .resize(this.period as usize * this.channels as usize, Ch32::MID);
+        inner.buffer.drain(..len * this.channels as usize);
+        inner.starti = inner.buffer.len() / this.channels as usize;
+        inner
+            .buffer
+            .resize(inner.period as usize * this.channels as usize, Ch32::MID);
         // Ready for more samples.
-        this.locked.store(true, SeqCst);
+        inner.locked.store(true, SeqCst);
         Poll::Ready(())
     }
 }
 
 pub(crate) struct SpeakersSink<F: Frame<Chan = Ch32>>(
-    *mut Speakers,
+    *mut SpeakersInner,
     Resampler<F>,
     PhantomData<F>,
+    f64,
 );
 
 impl<F: Frame<Chan = Ch32>> Sink<F> for SpeakersSink<F> {
     fn sample_rate(&self) -> f64 {
-        let speakers = unsafe { self.0.as_mut().unwrap() };
-        speakers.sample_rate.unwrap()
+        self.3
     }
 
     fn resampler(&mut self) -> &mut Resampler<F> {

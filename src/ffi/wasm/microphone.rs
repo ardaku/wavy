@@ -25,7 +25,20 @@ use web_sys::{
 
 use super::SoundDevice;
 
-pub(crate) struct Microphone(AtomicBool);
+pub(crate) struct Microphone(*mut AtomicBool);
+
+#[allow(unsafe_code)]
+impl Drop for Microphone {
+    fn drop(&mut self) {
+        // Safety
+        if unsafe { (*self.0).load(SeqCst) } {
+            eprintln!("Microphone dropped before dropping stream");
+            std::process::exit(1);
+        }
+
+        unsafe { drop(Box::from_raw(self.0)) };
+    }
+}
 
 impl Display for Microphone {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
@@ -79,7 +92,7 @@ impl Default for Microphone {
         let _ = promise.then(&cb);
         cb.forget();
 
-        Self(AtomicBool::new(false))
+        Self(Box::leak(Box::new(AtomicBool::new(false))))
     }
 }
 
@@ -88,7 +101,7 @@ impl Microphone {
         &mut self,
     ) -> MicrophoneStream<F> {
         MicrophoneStream {
-            microphone: self,
+            microphone: self.0,
             index: 0,
             _phantom: PhantomData,
         }
@@ -102,17 +115,19 @@ impl Microphone {
 impl Future for Microphone {
     type Output = ();
 
+    #[allow(unsafe_code)]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // Safety
-        if self.0.load(SeqCst) {
+        if unsafe { (*self.0).load(SeqCst) } {
             eprintln!("Tried to poll microphone before dropping stream");
             std::process::exit(1);
         }
+        let inner = unsafe { self.0.as_mut().unwrap() };
 
         let state = super::state();
         if state.recorded {
             state.recorded = false;
-            self.0.store(true, SeqCst);
+            inner.store(true, SeqCst);
             Poll::Ready(())
         } else {
             state.mics_waker = Some(cx.waker().clone());
@@ -123,7 +138,7 @@ impl Future for Microphone {
 
 pub(crate) struct MicrophoneStream<F: Frame<Chan = Ch32>> {
     //
-    microphone: *mut Microphone,
+    microphone: *mut AtomicBool,
     // Index into buffer
     index: usize,
     //
@@ -161,6 +176,6 @@ impl<F: Frame<Chan = Ch32>> Drop for MicrophoneStream<F> {
     fn drop(&mut self) {
         let mic = unsafe { self.microphone.as_mut().unwrap() };
         // Unlock
-        mic.0.store(false, SeqCst);
+        mic.store(false, SeqCst);
     }
 }

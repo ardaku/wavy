@@ -3,11 +3,15 @@
     <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
   </head>
   <body>
+    <script>
+      var start_main = null;
+    </script>
     <script type="module">
         import init, {wasm_start_main} from './gen/record.js';
         init().then(function(wasm) {
-            wasm_start_main();
+            start_main = wasm_start_main;
         });
     </script>
+    <button onclick="start_main()">Start</button>
   </body>
 </html>

@@ -27,13 +27,30 @@ use fon::{
 
 use super::SoundDevice;
 
-pub(crate) struct Speakers {
+struct SpeakersInner {
     /// Interleaved buffer (must be de-interleaved for the web).
     buffer: Vec<f32>,
     /// State of resampler.
     resampler: ([Ch32; 6], f64),
     ///
     locked: AtomicBool,
+}
+
+pub(crate) struct Speakers {
+    inner: *mut SpeakersInner,
+}
+
+#[allow(unsafe_code)]
+impl Drop for Speakers {
+    fn drop(&mut self) {
+        // Safety
+        if unsafe { (*self.inner).locked.load(SeqCst) } {
+            eprintln!("Speakers dropped before dropping sink");
+            std::process::exit(1);
+        }
+
+        unsafe { drop(Box::from_raw(self.inner)) };
+    }
 }
 
 impl SoundDevice for Speakers {
@@ -71,30 +88,36 @@ impl Default for Speakers {
             .unwrap();
 
         Self {
-            buffer: vec![0.0; super::BUFFER_SIZE.into()],
-            resampler: ([Ch32::MID; 6], 0.0),
-            locked: AtomicBool::new(false),
+            inner: Box::leak(Box::new(SpeakersInner {
+                buffer: vec![0.0; super::BUFFER_SIZE.into()],
+                resampler: ([Ch32::MID; 6], 0.0),
+                locked: AtomicBool::new(false),
+            })),
         }
     }
 }
 
 impl Speakers {
+    #[allow(unsafe_code)]
     pub(crate) fn play<F: Frame<Chan = Ch32>>(&mut self) -> SpeakersSink<F> {
+        // Always called after ready, so should be safe
+        let inner = unsafe { self.inner.as_mut().unwrap() };
+        
         // Adjust buffer size depending on type.
         if TypeId::of::<F>() == TypeId::of::<Mono32>() {
-            self.buffer.resize(super::BUFFER_SIZE.into(), 0.0);
+            inner.buffer.resize(super::BUFFER_SIZE.into(), 0.0);
         } else if TypeId::of::<F>() == TypeId::of::<Stereo32>() {
-            self.buffer.resize(super::BUFFER_SIZE as usize * 2, 0.0);
+            inner.buffer.resize(super::BUFFER_SIZE as usize * 2, 0.0);
         } else {
             panic!("Attempted to use Speakers with invalid frame type");
         }
         // Convert the resampler to the target speaker configuration.
         let resampler = Resampler::<F>::new(
-            Surround32::from_channels(&self.resampler.0[..]).convert(),
-            self.resampler.1,
+            Surround32::from_channels(&inner.resampler.0[..]).convert(),
+            inner.resampler.1,
         );
         //
-        SpeakersSink(self, resampler, PhantomData)
+        SpeakersSink(inner, resampler, PhantomData)
     }
 
     pub(crate) fn channels(&self) -> u8 {
@@ -105,17 +128,19 @@ impl Speakers {
 impl Future for Speakers {
     type Output = ();
 
+    #[allow(unsafe_code)]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // Safety
-        if self.locked.load(SeqCst) {
+        if unsafe { (*self.inner).locked.load(SeqCst) } {
             eprintln!("Tried to poll speakers before dropping sink");
             std::process::exit(1);
         }
+        let inner = unsafe { self.inner.as_mut().unwrap() };
 
         let state = super::state();
         if state.played {
             state.played = false;
-            self.locked.store(true, SeqCst);
+            inner.locked.store(true, SeqCst);
             Poll::Ready(())
         } else {
             state.speaker_waker = Some(cx.waker().clone());
@@ -125,7 +150,7 @@ impl Future for Speakers {
 }
 
 pub(crate) struct SpeakersSink<F: Frame<Chan = Ch32>>(
-    *mut Speakers,
+    *mut SpeakersInner,
     Resampler<F>,
     PhantomData<F>,
 );
