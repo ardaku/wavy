@@ -28,16 +28,16 @@
 //! use wavy::{Microphone, MicrophoneStream, Speakers, SpeakersSink};
 //!
 //! /// Shared state between tasks on the thread.
-//! struct App<'a> {
+//! struct App {
 //!     /// Handle to speakers
-//!     speakers: &'a mut Speakers<1>,
+//!     speakers: Speakers<1>,
 //!     /// Handle to the microphone
-//!     microphone: &'a mut Microphone<1>,
+//!     microphone: Microphone<1>,
 //!     /// Temporary buffer for holding real-time audio samples.
 //!     buffer: Audio<Mono32>,
 //! }
 //!
-//! impl App<'_> {
+//! impl App {
 //!     /// Speaker is ready to play more audio.
 //!     fn play(&mut self, mut sink: SpeakersSink<Mono32>) -> Poll<()> {
 //!         sink.stream(self.buffer.drain());
@@ -52,8 +52,8 @@
 //!
 //!     /// Program start.
 //!     async fn main(_executor: Executor) {
-//!         let speakers = &mut Speakers::default();
-//!         let microphone = &mut Microphone::default();
+//!         let speakers = Speakers::default();
+//!         let microphone = Microphone::default();
 //!         let buffer = Audio::with_silence(48_000, 0);
 //!         let mut app = App {
 //!             speakers,
@@ -62,8 +62,8 @@
 //!         };
 //!
 //!         Join::new(&mut app)
-//!             .on(|s| s.speakers, App::play)
-//!             .on(|s| s.microphone, App::record)
+//!             .on(|s| &mut s.speakers, App::play)
+//!             .on(|s| &mut s.microphone, App::record)
 //!             .await
 //!     }
 //! }

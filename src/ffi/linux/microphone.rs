@@ -145,7 +145,7 @@ impl Microphone {
     ) -> MicrophoneStream<F> {
         // Always called after ready, so should be safe
         let inner = unsafe { self.inner.as_mut().unwrap() };
-        
+
         // Change number of channels, if different than last call.
         self.set_channels::<F>(inner)
             .expect("Microphone::record() called with invalid configuration");
@@ -289,8 +289,7 @@ impl<F: Frame<Chan = Ch32>> Iterator for MicrophoneStream<F> {
         if self.1 >= mic.endi {
             return None;
         }
-        let frame =
-            F::from_channels(&mic.buffer[self.1 * self.4 as usize..]);
+        let frame = F::from_channels(&mic.buffer[self.1 * self.4 as usize..]);
         self.1 += 1;
         Some(frame)
     }

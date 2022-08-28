@@ -102,7 +102,7 @@ impl Speakers {
     pub(crate) fn play<F: Frame<Chan = Ch32>>(&mut self) -> SpeakersSink<F> {
         // Always called after ready, so should be safe
         let inner = unsafe { self.inner.as_mut().unwrap() };
-        
+
         // Adjust buffer size depending on type.
         if TypeId::of::<F>() == TypeId::of::<Mono32>() {
             inner.buffer.resize(super::BUFFER_SIZE.into(), 0.0);

@@ -30,14 +30,14 @@ use crate::ffi;
 /// use wavy::{Speakers, SpeakersSink};
 ///
 /// /// Shared state between tasks on the thread.
-/// struct App<'a> {
+/// struct App {
 ///     /// Handle to stereo speakers
-///     speakers: &'a mut Speakers<2>,
+///     speakers: Speakers<2>,
 ///     /// A streaming synthesizer using Twang.
 ///     synth: Synth<()>,
 /// }
 ///
-/// impl App<'_> {
+/// impl App {
 ///     /// Speaker is ready to play more audio.
 ///     fn play(&mut self, mut sink: SpeakersSink<Stereo32>) -> Poll<()> {
 ///         sink.stream(&mut self.synth);
@@ -50,11 +50,11 @@ use crate::ffi;
 ///             fc.freq(440.0).sine().gain(0.7)
 ///         }
 ///
-///         let speakers = &mut Speakers::default();
+///         let speakers = Speakers::default();
 ///         let synth = Synth::new((), sine);
 ///         let mut app = App { speakers, synth };
 ///
-///         Join::new(&mut app).on(|s| s.speakers, App::play).await;
+///         Join::new(&mut app).on(|s| &mut s.speakers, App::play).await;
 ///     }
 /// }
 /// ```
