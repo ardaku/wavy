@@ -62,4 +62,4 @@ version = "0.2"
 
 # Examples
 [dev-dependencies]
-twang = "0.7"
+twang = "0.8"
