@@ -9,15 +9,13 @@
 
 use std::fmt::Display;
 
-pub(crate) trait SoundDevice: Display + From<AudioDevice> {
+pub(crate) trait SoundDevice: Display {
     const INPUT: bool;
 }
 
-pub(crate) struct AudioDevice();
-
 /// Return a list of available audio devices.
 pub(crate) fn device_list<D: SoundDevice, F: Fn(D) -> T, T>(
-    abstrakt: F,
+    _abstrakt: F,
 ) -> Vec<T> {
-    vec![abstrakt(D::from(AudioDevice()))]
+    vec![]
 }
