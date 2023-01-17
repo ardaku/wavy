@@ -31,7 +31,7 @@ edition = "2021"
 version = "0.5"
 
 [dependencies.pasts]
-version = "0.12"
+version = "0.13"
 
 # For Linux and Android
 [target.'cfg(all(not(target_arch = "wasm32"), any(target_os = "linux", target_os = "android")))'.dependencies]
